@@ -1,0 +1,58 @@
+services:
+  api:
+    container_name: loomapos-api
+    build:
+      context: ./apps/api
+      dockerfile: src/LoomaPos.Api/Dockerfile
+    env_file:
+      - ./infra/environments/.env.runtime
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-loomapos};Username=${POSTGRES_USER:-loomapos};Password=${POSTGRES_PASSWORD:-loomapos}
+      ConnectionStrings__Redis: redis:6379
+      Auth__DisableAuth: "false"
+      Auth__Authority: http://keycloak:8080/realms/loomapos
+      Auth__Audience: loomapos-api
+      Observability__OtlpEndpoint: http://otel-collector:4318
+    ports:
+      - "${API_PORT:-5000}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  web-admin:
+    container_name: loomapos-web-admin
+    build:
+      context: ./apps/web-admin
+      dockerfile: Dockerfile
+    env_file:
+      - ./infra/environments/.env.runtime
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-5000}
+      NEXT_PUBLIC_TENANT_ID: 00000000-0000-0000-0000-000000000001
+      NEXT_PUBLIC_BRANCH_ID: 00000000-0000-0000-0000-000000000001
+    ports:
+      - "${WEB_ADMIN_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped

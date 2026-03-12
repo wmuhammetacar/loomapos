@@ -1,0 +1,86 @@
+name: infra-aws-plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate secret reference contracts
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate-secret-reference-contract.ps1 -Environment ${{ github.event.inputs.environment }}
+
+      - name: Validate AWS foundation inputs
+        env:
+          AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate-aws-foundation-inputs.ps1 -Environment ${{ github.event.inputs.environment }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Validate AWS caller identity and state backend access
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate-aws-access.ps1 -Environment ${{ github.event.inputs.environment }} -RequireStateBackend
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Render Terraform backend config
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\render-terraform-backend.ps1 -Environment ${{ github.event.inputs.environment }}
+
+      - name: Terraform init
+        run: terraform -chdir=infra/iac/terraform/environments/${{ github.event.inputs.environment }} init -backend-config=backend.hcl
+
+      - name: Terraform plan
+        run: terraform -chdir=infra/iac/terraform/environments/${{ github.event.inputs.environment }} plan -out=tfplan
+
+      - name: Export terraform plan json
+        run: terraform -chdir=infra/iac/terraform/environments/${{ github.event.inputs.environment }} show -json tfplan > infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan.json
+
+      - name: Build terraform plan summary
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\terraform-plan-guard.ps1 -PlanJsonPath .\infra\iac\terraform\environments\${{ github.event.inputs.environment }}\tfplan.json -SummaryOutputPath .\infra\iac\terraform\environments\${{ github.event.inputs.environment }}\tfplan-summary.md -AllowDestroy
+
+      - name: Append terraform summary
+        run: cat infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload terraform plan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.event.inputs.environment }}
+          path: |
+            infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan
+            infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan.json
+            infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan-summary.md
+          retention-days: 14

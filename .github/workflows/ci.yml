@@ -1,0 +1,241 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API Build & Test
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore
+        run: |
+          dotnet restore src/LoomaPos.Api/LoomaPos.Api.csproj
+          dotnet restore tests/LoomaPos.UnitTests/LoomaPos.UnitTests.csproj
+          dotnet restore tests/LoomaPos.IntegrationTests/LoomaPos.IntegrationTests.csproj
+
+      - name: Build
+        run: dotnet build src/LoomaPos.Api/LoomaPos.Api.csproj --no-restore -c Release
+
+      - name: Validate migration strategy docs
+        working-directory: ../..
+        run: pwsh ./scripts/ops/validate-migrations.ps1
+
+      - name: Start API for NSwag
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          Auth__DisableAuth: "true"
+          Hangfire__Enabled: "false"
+        run: |
+          dotnet run --project src/LoomaPos.Api/LoomaPos.Api.csproj --urls http://127.0.0.1:5000 > /tmp/loomapos-api.log 2>&1 &
+          echo $! > /tmp/loomapos-api.pid
+          for i in {1..60}; do
+            if curl -sf http://127.0.0.1:5000/health >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Generate NSwag TypeScript Client
+        run: |
+          dotnet tool restore
+          dotnet tool run nswag run nswag.json
+
+      - name: Stop API for NSwag
+        if: always()
+        run: |
+          if [ -f /tmp/loomapos-api.pid ]; then
+            kill "$(cat /tmp/loomapos-api.pid)" || true
+          fi
+
+      - name: Verify generated client committed
+        run: git diff --exit-code -- ../../packages/shared-types/src/generated/api-client.ts
+
+      - name: API format check
+        run: dotnet format LoomaPos.sln --verify-no-changes --no-restore
+
+      - name: Unit Tests
+        run: dotnet test tests/LoomaPos.UnitTests/LoomaPos.UnitTests.csproj --no-restore -c Release
+
+      - name: Integration Tests
+        run: dotnet test tests/LoomaPos.IntegrationTests/LoomaPos.IntegrationTests.csproj --no-restore -c Release
+
+      - name: Build API Docker Image
+        run: docker build -f src/LoomaPos.Api/Dockerfile -t loomapos-api:ci .
+
+  web-admin:
+    name: Web Admin Lint & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Install deps
+        run: pnpm install
+
+      - name: Lint web-admin
+        run: pnpm --filter @loomapos/web-admin lint
+
+      - name: Format web-admin
+        run: pnpm --filter @loomapos/web-admin format
+
+      - name: Build web-admin
+        run: pnpm --filter @loomapos/web-admin build
+
+      - name: Validate release metadata
+        run: pwsh ./scripts/ops/publish-release-metadata.ps1 -ValidateOnly
+
+      - name: Install Playwright browser
+        working-directory: apps/web-admin
+        run: npx playwright install --with-deps chromium
+
+      - name: Run web-admin e2e
+        run: pnpm --filter @loomapos/web-admin test:e2e
+
+  desktop:
+    name: Desktop Build + Installer (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install desktop deps
+        working-directory: apps/desktop-pos
+        run: npm install
+
+      - name: Build desktop
+        working-directory: apps/desktop-pos
+        run: npm run build
+
+      - name: Lint desktop
+        working-directory: apps/desktop-pos
+        run: npm run lint
+
+      - name: Desktop smoke test
+        working-directory: apps/desktop-pos
+        run: npm run smoke
+
+      - name: Build Windows Installer
+        working-directory: apps/desktop-pos
+        run: npx electron-builder --win nsis --publish never
+
+  mobile:
+    name: Mobile Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.1"
+          channel: stable
+
+      - name: Flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Flutter analyze
+        working-directory: apps/mobile
+        run: flutter analyze
+
+      - name: Validate mobile release foundation
+        run: pwsh ./scripts/ops/validate-mobile-release-foundation.ps1 -RequirePlatforms
+
+      - name: Dart format check
+        working-directory: apps/mobile
+        run: dart format --output=none --set-exit-if-changed lib
+
+      - name: Flutter test
+        working-directory: apps/mobile
+        run: flutter test
+
+  production-readiness:
+    name: Production Readiness Foundation Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify runbooks and environment configs
+        run: |
+          test -f docs/phase10-production-readiness-layer.md
+          test -f docs/runbooks/failed-deployment-rollback.md
+          test -f docs/runbooks/backup-restore-validation.md
+          test -f docs/runbooks/mobile-release-signing.md
+          test -f docs/runbooks/aws-oidc-secrets-bootstrap.md
+          test -f scripts/ops/validate-aws-foundation-inputs.ps1
+          test -f scripts/ops/validate-aws-access.ps1
+          test -f scripts/ops/terraform-plan-guard.ps1
+          test -f infra/environments/.env.staging.example
+          test -f infra/environments/.env.production.example
+          test -f infra/releases/compatibility-matrix.json
+
+      - name: Smoke-check deploy metadata
+        run: pwsh ./scripts/ops/smoke-check.ps1 -Environment staging
+
+      - name: Validate deploy foundation
+        run: |
+          pwsh ./scripts/ops/validate-deploy-foundation.ps1 -Environment staging
+          pwsh ./scripts/ops/validate-deploy-foundation.ps1 -Environment production
+
+  infra-validation:
+    name: Infra and Terraform Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform fmt check
+        run: terraform -chdir=infra/iac/terraform fmt -check -recursive
+
+      - name: Terraform init and validate staging
+        run: |
+          terraform -chdir=infra/iac/terraform/environments/staging init -backend=false
+          terraform -chdir=infra/iac/terraform/environments/staging validate
+
+      - name: Terraform init and validate production
+        run: |
+          terraform -chdir=infra/iac/terraform/environments/production init -backend=false
+          terraform -chdir=infra/iac/terraform/environments/production validate

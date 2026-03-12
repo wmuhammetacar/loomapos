@@ -1,0 +1,14 @@
+{
+  "android": {
+    "latestVersion": "1.9.3",
+    "minimumSupportedVersion": "1.8.0",
+    "stagedRollout": true,
+    "forceUpgradeAfter": null
+  },
+  "ios": {
+    "latestVersion": "1.9.3",
+    "minimumSupportedVersion": "1.8.0",
+    "stagedRollout": true,
+    "forceUpgradeAfter": null
+  }
+}

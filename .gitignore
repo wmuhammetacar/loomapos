@@ -1,0 +1,42 @@
+node_modules/
+.pnpm-store/
+.turbo/
+.nuget/
+dist/
+build/
+coverage/
+*.log
+.runlogs/
+.tools/
+
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+*.cache
+
+# Env
+.env
+.env.*
+!.env.example
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.metadata
+**/ios/Pods/
+**/android/.gradle/

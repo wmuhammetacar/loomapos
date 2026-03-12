@@ -1,0 +1,116 @@
+name: infra-aws-apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      apply_confirmation:
+        description: "For production apply type: apply-production"
+        required: false
+        default: ""
+      max_total_changes:
+        description: "Maximum allowed terraform change count before blocking apply (0 = disabled)"
+        required: false
+        default: "150"
+      allow_destroy:
+        description: "Allow delete/replace actions in apply plan"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard production apply branch
+        if: ${{ github.event.inputs.environment == 'production' }}
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Production apply is allowed only from refs/heads/main. Current ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+      - name: Validate secret reference contracts
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate-secret-reference-contract.ps1 -Environment ${{ github.event.inputs.environment }}
+
+      - name: Validate AWS foundation inputs
+        env:
+          AWS_OIDC_ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
+          APPLY_CONFIRMATION: ${{ github.event.inputs.apply_confirmation }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate-aws-foundation-inputs.ps1 -Environment ${{ github.event.inputs.environment }} -RequireApplyGuard
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Validate AWS caller identity and state backend access
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\validate-aws-access.ps1 -Environment ${{ github.event.inputs.environment }} -RequireStateBackend
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Render Terraform backend config
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\render-terraform-backend.ps1 -Environment ${{ github.event.inputs.environment }}
+
+      - name: Terraform init
+        run: terraform -chdir=infra/iac/terraform/environments/${{ github.event.inputs.environment }} init -backend-config=backend.hcl
+
+      - name: Terraform plan for guarded apply
+        run: terraform -chdir=infra/iac/terraform/environments/${{ github.event.inputs.environment }} plan -out=tfplan
+
+      - name: Export terraform plan json
+        run: terraform -chdir=infra/iac/terraform/environments/${{ github.event.inputs.environment }} show -json tfplan > infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan.json
+
+      - name: Guard terraform plan and build summary
+        if: ${{ !inputs.allow_destroy }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\terraform-plan-guard.ps1 -PlanJsonPath .\infra\iac\terraform\environments\${{ github.event.inputs.environment }}\tfplan.json -SummaryOutputPath .\infra\iac\terraform\environments\${{ github.event.inputs.environment }}\tfplan-summary.md -MaxTotalChanges ${{ github.event.inputs.max_total_changes }}
+
+      - name: Guard terraform plan and build summary (destroy allowed)
+        if: ${{ inputs.allow_destroy }}
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\ops\terraform-plan-guard.ps1 -PlanJsonPath .\infra\iac\terraform\environments\${{ github.event.inputs.environment }}\tfplan.json -SummaryOutputPath .\infra\iac\terraform\environments\${{ github.event.inputs.environment }}\tfplan-summary.md -MaxTotalChanges ${{ github.event.inputs.max_total_changes }} -AllowDestroy
+
+      - name: Append terraform summary
+        run: cat infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload terraform apply plan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-apply-${{ github.event.inputs.environment }}
+          path: |
+            infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan
+            infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan.json
+            infra/iac/terraform/environments/${{ github.event.inputs.environment }}/tfplan-summary.md
+          retention-days: 14
+
+      - name: Terraform apply
+        run: terraform -chdir=infra/iac/terraform/environments/${{ github.event.inputs.environment }} apply -auto-approve tfplan

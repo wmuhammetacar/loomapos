@@ -1,0 +1,12 @@
+{
+  "name": "@loomapos/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "flutter build apk",
+    "dev": "flutter run",
+    "test": "flutter test",
+    "lint": "flutter analyze",
+    "format": "dart format --set-exit-if-changed lib"
+  }
+}

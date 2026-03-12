@@ -1,0 +1,5 @@
+bucket         = "loomapos-terraform-state"
+key            = "staging/terraform.tfstate"
+region         = "eu-central-1"
+dynamodb_table = "loomapos-terraform-locks"
+encrypt        = true

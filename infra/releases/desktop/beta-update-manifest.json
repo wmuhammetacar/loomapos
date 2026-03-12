@@ -1,0 +1,11 @@
+{
+  "channel": "beta",
+  "platform": "windows",
+  "version": "2.5.0-beta.1",
+  "minimumSupportedVersion": "2.4.0",
+  "rolloutState": "canary",
+  "publishedAt": "2026-03-09T18:00:00Z",
+  "artifactUrl": "https://downloads.loomapos.com/desktop/beta/LoomaPOS-2.5.0-beta.1.exe",
+  "sha256": "replace-with-ci-generated-checksum",
+  "releaseNotesUrl": "https://www.loomapos.com/portal/downloads"
+}

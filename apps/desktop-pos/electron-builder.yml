@@ -1,0 +1,12 @@
+appId: com.loomapos.desktop
+productName: LoomaPOS Desktop
+directories:
+  output: release
+files:
+  - dist/**/*
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false

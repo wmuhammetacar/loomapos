@@ -1,0 +1,17 @@
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Observability__Environment: production
+      Auth__DisableAuth: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+  web-admin:
+    environment:
+      NEXT_PUBLIC_ENVIRONMENT: production
+    deploy:
+      resources:
+        limits:
+          memory: 1G

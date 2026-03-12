@@ -1,0 +1,17 @@
+name: release-train
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish-release-metadata:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish release metadata manifests
+        run: pwsh ./scripts/ops/publish-release-metadata.ps1 -Environment production

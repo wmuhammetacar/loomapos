@@ -1,0 +1,16 @@
+name: restore-validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "40 3 * * 1"
+
+jobs:
+  restore-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate restore playbook and metadata
+        run: pwsh ./scripts/ops/verify-restore.ps1 -Environment dr -SkipLiveRestore

@@ -1,0 +1,51 @@
+name: deploy-vps
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment target
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate release metadata before deploy
+        run: pwsh ./scripts/ops/publish-release-metadata.ps1 -ValidateOnly
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ secrets.VPS_APP_DIR }}"
+            git fetch --all
+            git checkout main
+            git pull origin main
+            chmod +x infra/scripts/deploy-stack.sh
+            cp infra/environments/.env.${{ github.event.inputs.environment || 'production' }}.example infra/environments/.env.${{ github.event.inputs.environment || 'production' }} || true
+            if [ "${{ github.event.inputs.environment || 'production' }}" = "staging" ]; then
+              ./infra/scripts/deploy-stack.sh staging true
+            else
+              ./infra/scripts/deploy-stack.sh production false
+            fi
+            docker image prune -f
+
+      - name: Run post-deploy smoke check
+        run: pwsh ./scripts/ops/smoke-check.ps1 -Environment ${{ github.event.inputs.environment || 'production' }}

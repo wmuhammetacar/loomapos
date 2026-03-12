@@ -1,0 +1,17 @@
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+      Observability__Environment: staging
+      Auth__DisableAuth: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+  web-admin:
+    environment:
+      NEXT_PUBLIC_ENVIRONMENT: staging
+    deploy:
+      resources:
+        limits:
+          memory: 768M

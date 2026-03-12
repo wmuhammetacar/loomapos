@@ -1,0 +1,99 @@
+name: mobile-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_channel:
+        description: "Release channel (stable/beta)"
+        required: true
+        default: "stable"
+      android_build:
+        description: "Build Android release artifacts"
+        type: boolean
+        required: true
+        default: true
+      ios_metadata_check:
+        description: "Validate iOS release metadata secrets"
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  android-release:
+    if: ${{ inputs.android_build }}
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.1"
+          channel: stable
+
+      - name: Validate mobile release foundation
+        run: pwsh ./scripts/ops/validate-mobile-release-foundation.ps1 -RequirePlatforms
+
+      - name: Validate Android release secrets
+        run: pwsh ./scripts/ops/validate-mobile-release-secrets.ps1 -RequireAndroid
+
+      - name: Materialize Android signing files
+        run: pwsh ./scripts/ops/bootstrap-mobile-signing.ps1
+
+      - name: Flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Flutter test
+        working-directory: apps/mobile
+        run: flutter test
+
+      - name: Build Android appbundle
+        working-directory: apps/mobile
+        run: flutter build appbundle --release
+
+      - name: Build Android apk
+        working-directory: apps/mobile
+        run: flutter build apk --release
+
+      - name: Upload Android release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-android-${{ inputs.release_channel }}
+          path: |
+            apps/mobile/build/app/outputs/bundle/release/*.aab
+            apps/mobile/build/app/outputs/flutter-apk/*release*.apk
+
+  ios-metadata:
+    if: ${{ inputs.ios_metadata_check }}
+    runs-on: macos-latest
+    env:
+      IOS_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.IOS_APP_STORE_CONNECT_ISSUER_ID }}
+      IOS_APP_STORE_CONNECT_KEY_ID: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_ID }}
+      IOS_APP_STORE_CONNECT_PRIVATE_KEY_BASE64: ${{ secrets.IOS_APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.1"
+          channel: stable
+
+      - name: Validate iOS metadata secrets
+        run: pwsh ./scripts/ops/validate-mobile-release-secrets.ps1 -RequireIos
+
+      - name: Flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Build iOS without codesign
+        working-directory: apps/mobile
+        run: flutter build ios --release --no-codesign

@@ -1,0 +1,10 @@
+domain_name = "app.loomapos.example"
+release_channel = "stable"
+enable_dr_validation = false
+
+secret_reference_map = {
+  ConnectionStrings__Postgres = "vault://loomapos/production/postgres"
+  ConnectionStrings__Redis    = "vault://loomapos/production/redis"
+  Auth__Authority             = "vault://loomapos/production/auth-authority"
+  Auth__Audience              = "vault://loomapos/production/auth-audience"
+}

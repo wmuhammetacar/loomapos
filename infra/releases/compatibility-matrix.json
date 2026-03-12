@@ -1,0 +1,17 @@
+{
+  "backend": {
+    "version": "2026.03.09.1",
+    "supportedDesktop": {
+      "minimum": "2.3.0",
+      "recommended": "2.4.1"
+    },
+    "supportedMobile": {
+      "minimum": "1.8.0",
+      "recommended": "1.9.3"
+    },
+    "webAdmin": {
+      "channel": "stable",
+      "build": "2026.03.09.1"
+    }
+  }
+}

@@ -1,0 +1,422 @@
+import { FormEvent, useEffect } from "react";
+import { PosWorkspace } from "./PosWorkspace";
+import { useDesktopShellStore } from "./stores/desktop-shell-store";
+
+const fmtDateTime = (value?: string | null) =>
+  value ? new Date(value).toLocaleString("tr-TR", { hour12: false }) : "-";
+
+const fmtDate = (value?: string | null) =>
+  value ? new Date(value).toLocaleDateString("tr-TR") : "-";
+
+export function App() {
+  const {
+    bootstrap,
+    activationContext,
+    shellError,
+    isBootstrapping,
+    isSubmittingAuth,
+    isLoadingActivation,
+    isActivating,
+    isSettingsOpen,
+    isSavingSettings,
+    authEmail,
+    authPassword,
+    branchName,
+    branchCode,
+    deviceName,
+    settingsDraft,
+    setShellError,
+    setIsBootstrapping,
+    setIsSubmittingAuth,
+    setIsLoadingActivation,
+    setIsActivating,
+    setIsSettingsOpen,
+    setIsSavingSettings,
+    setAuthEmail,
+    setAuthPassword,
+    setBranchName,
+    setBranchCode,
+    setDeviceName,
+    setSettingsDraft,
+    hydrateFromBootstrap,
+    setActivationContext,
+    seedActivationForm
+  } = useDesktopShellStore();
+
+  useEffect(() => {
+    void refreshBootstrap();
+  }, []);
+
+  async function refreshBootstrap() {
+    setIsBootstrapping(true);
+    setShellError(null);
+    try {
+      const next = await window.posApi.getBootstrap();
+      hydrateFromBootstrap(next);
+      if (next.stage === "activation_required" && next.session) {
+        await loadActivationContext(next);
+      }
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Desktop durumu yuklenemedi.");
+    } finally {
+      setIsBootstrapping(false);
+    }
+  }
+
+  async function loadActivationContext(nextBootstrap = bootstrap) {
+    if (!nextBootstrap?.session) {
+      return;
+    }
+
+    setIsLoadingActivation(true);
+    setShellError(null);
+    try {
+      const context = await window.posApi.getActivationContext();
+      seedActivationForm(context);
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Aktivasyon bilgisi yuklenemedi.");
+    } finally {
+      setIsLoadingActivation(false);
+    }
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmittingAuth(true);
+    setShellError(null);
+    try {
+      const next = await window.posApi.login({
+        email: authEmail,
+        password: authPassword
+      });
+      hydrateFromBootstrap(next);
+      setAuthPassword("");
+      if (next.stage === "activation_required") {
+        await loadActivationContext(next);
+      }
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Giris basarisiz.");
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  }
+
+  async function handleActivate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsActivating(true);
+    setShellError(null);
+    try {
+      const next = await window.posApi.activateDesktop({
+        branchName,
+        branchCode: branchCode.trim() || null,
+        deviceName
+      });
+      hydrateFromBootstrap(next);
+      setActivationContext(null);
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Aktivasyon basarisiz.");
+    } finally {
+      setIsActivating(false);
+    }
+  }
+
+  async function handleLogout() {
+    setShellError(null);
+    const next = await window.posApi.logout();
+    hydrateFromBootstrap(next);
+    setActivationContext(null);
+    setAuthPassword("");
+  }
+
+  async function openSettings() {
+    const settings = await window.posApi.getDesktopSettings();
+    setSettingsDraft({
+      deviceName: settings.deviceName,
+      printerName: settings.printerName ?? ""
+    });
+    setIsSettingsOpen(true);
+  }
+
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingSettings(true);
+    setShellError(null);
+    try {
+      await window.posApi.updateDesktopSettings({
+        deviceName: settingsDraft.deviceName,
+        printerName: settingsDraft.printerName
+      });
+      setIsSettingsOpen(false);
+      await refreshBootstrap();
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Ayarlar kaydedilemedi.");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }
+
+  async function resetActivation() {
+    setShellError(null);
+    const next = await window.posApi.clearActivation();
+    hydrateFromBootstrap(next);
+    setActivationContext(null);
+  }
+
+  if (isBootstrapping || !bootstrap) {
+    return (
+      <div className="desktop-shell-screen items-center justify-center">
+        <div className="desktop-shell-card max-w-xl">
+          <span className="eyebrow">LOOMAPOS DESKTOP</span>
+          <h1 className="mt-3 text-balance text-3xl font-bold text-slate-950">Masaustu POS hazirlaniyor</h1>
+          <p className="mt-3 text-base text-slate-600">
+            Lokal veritabani, aktivasyon ve oturum durumu kontrol ediliyor.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (bootstrap.stage === "ready") {
+    return (
+      <>
+        <PosWorkspace onOpenSettings={openSettings} onLogout={handleLogout} />
+
+        {isSettingsOpen ? (
+          <div className="shell-modal-overlay" role="presentation">
+            <div className="shell-modal-card" role="dialog" aria-modal="true">
+              <h2 className="text-2xl font-semibold text-slate-950">Cihaz Ayarlari</h2>
+              <form className="shell-form mt-5" onSubmit={(event) => void saveSettings(event)}>
+                <label>
+                  Cihaz adi
+                  <input
+                    value={settingsDraft.deviceName}
+                    onChange={(event) =>
+                      setSettingsDraft((current) => ({
+                        ...current,
+                        deviceName: event.target.value
+                      }))
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  Yazici secimi
+                  <input
+                    value={settingsDraft.printerName}
+                    onChange={(event) =>
+                      setSettingsDraft((current) => ({
+                        ...current,
+                        printerName: event.target.value
+                      }))
+                    }
+                    placeholder="ESC/POS printer placeholder"
+                  />
+                </label>
+                <div className="shell-metrics md:grid-cols-2">
+                  <div>
+                    <span>Versiyon</span>
+                    <strong>{bootstrap.settings.version}</strong>
+                  </div>
+                  <div>
+                    <span>Sube</span>
+                    <strong>{bootstrap.activation?.branchName ?? "-"}</strong>
+                  </div>
+                  <div>
+                    <span>Lisans</span>
+                    <strong>{bootstrap.license.status}</strong>
+                  </div>
+                  <div>
+                    <span>Senkron</span>
+                    <strong>
+                      Bekleyen {bootstrap.sync.pending} / Hatali {bootstrap.sync.failed}
+                    </strong>
+                  </div>
+                </div>
+                <div className="shell-modal-actions mt-2">
+                  <button className="btn-secondary" type="button" onClick={() => setIsSettingsOpen(false)}>
+                    Kapat
+                  </button>
+                  <button className="btn-primary" type="submit" disabled={isSavingSettings}>
+                    {isSavingSettings ? "Kaydediliyor..." : "Kaydet"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
+  const showActivation = bootstrap.stage === "activation_required" && Boolean(bootstrap.session);
+
+  return (
+    <div className="desktop-shell-screen">
+      <div className="desktop-shell-card wide max-w-6xl">
+        <div className="shell-topline">
+          <span className="eyebrow">LOOMAPOS DESKTOP</span>
+          <button className="btn-secondary btn-small" onClick={() => void refreshBootstrap()}>
+            Yenile
+          </button>
+        </div>
+
+        <h1 className="mt-4 text-balance text-4xl font-bold tracking-tight text-slate-950">
+          {bootstrap.stage === "login_required"
+            ? "Oturum gerekli"
+            : bootstrap.stage === "locked"
+              ? "Cihaz kilitli"
+              : "Masaustu aktivasyonu"}
+        </h1>
+
+        <p className="shell-lead mt-3 max-w-3xl">
+          Web sitesi sadece ticari merkez olarak kalir. Gercek operasyon burada, lokal veritabani ve offline-first
+          akista yurur.
+        </p>
+
+        <div className="shell-status-grid mt-6">
+          <div className="shell-status-card">
+            <span>Baglanti</span>
+            <strong>{bootstrap.online ? "Online" : "Offline"}</strong>
+          </div>
+          <div className="shell-status-card">
+            <span>Lisans</span>
+            <strong>{bootstrap.license.status}</strong>
+          </div>
+          <div className="shell-status-card">
+            <span>Cihaz</span>
+            <strong>{bootstrap.settings.deviceName}</strong>
+          </div>
+          <div className="shell-status-card">
+            <span>Son dogrulama</span>
+            <strong>{fmtDateTime(bootstrap.license.lastCheckedAt)}</strong>
+          </div>
+        </div>
+
+        {bootstrap.message ? <div className="shell-banner warn mt-4">{bootstrap.message}</div> : null}
+        {shellError ? <div className="shell-banner danger mt-4">{shellError}</div> : null}
+
+        <div className="shell-columns mt-6">
+          <section className="shell-panel">
+            <h2 className="text-2xl font-semibold text-slate-950">{showActivation ? "Aktivasyon" : "Giris"}</h2>
+
+            {!bootstrap.session ? (
+              <form className="shell-form mt-5" onSubmit={(event) => void handleLogin(event)}>
+                <label>
+                  E-posta
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(event) => setAuthEmail(event.target.value)}
+                    autoComplete="username"
+                    required
+                  />
+                </label>
+                <label>
+                  Sifre
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
+                </label>
+                <button className="btn-primary" type="submit" disabled={isSubmittingAuth}>
+                  {isSubmittingAuth ? "Giris yapiliyor..." : "Giris Yap"}
+                </button>
+              </form>
+            ) : null}
+
+            {showActivation ? (
+              <form className="shell-form mt-5" onSubmit={(event) => void handleActivate(event)}>
+                <label>
+                  Sube adi
+                  <input
+                    value={branchName}
+                    onChange={(event) => setBranchName(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Sube kodu
+                  <input
+                    value={branchCode}
+                    onChange={(event) => setBranchCode(event.target.value)}
+                    placeholder="OPS-MRKZ"
+                  />
+                </label>
+                <label>
+                  Cihaz adi
+                  <input
+                    value={deviceName}
+                    onChange={(event) => setDeviceName(event.target.value)}
+                    required
+                  />
+                </label>
+                <button className="btn-primary" type="submit" disabled={isActivating || isLoadingActivation}>
+                  {isActivating ? "Aktive ediliyor..." : "Cihazi Aktive Et"}
+                </button>
+              </form>
+            ) : null}
+
+            {bootstrap.stage === "locked" ? (
+              <div className="shell-action-stack mt-5">
+                <button className="btn-secondary" onClick={() => void handleLogout()}>
+                  Tekrar giris yap
+                </button>
+                <button className="btn-danger" onClick={() => void resetActivation()}>
+                  Aktivasyonu temizle
+                </button>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="shell-panel">
+            <h2 className="text-2xl font-semibold text-slate-950">Hazirlik Ozeti</h2>
+            <div className="shell-metrics mt-5 md:grid-cols-2">
+              <div>
+                <span>Sirket</span>
+                <strong>{activationContext?.companyName ?? bootstrap.session?.companyName ?? "-"}</strong>
+              </div>
+              <div>
+                <span>Kullanici</span>
+                <strong>{bootstrap.session?.displayName ?? "-"}</strong>
+              </div>
+              <div>
+                <span>Plan</span>
+                <strong>{activationContext?.planCode?.toUpperCase() ?? bootstrap.activation?.planCode ?? "-"}</strong>
+              </div>
+              <div>
+                <span>Lisans anahtari</span>
+                <strong>{activationContext?.licenseKey ?? bootstrap.activation?.licenseKey ?? "-"}</strong>
+              </div>
+              <div>
+                <span>Lisans bitisi</span>
+                <strong>{fmtDate(activationContext?.expiresAt ?? bootstrap.activation?.expiresAt)}</strong>
+              </div>
+              <div>
+                <span>Offline grace</span>
+                <strong>{activationContext?.graceDays ?? bootstrap.activation?.graceDays ?? "-"} gun</strong>
+              </div>
+            </div>
+
+            <div className="shell-note-list mt-5">
+              <p>
+                Aktivasyon tamamlandiktan sonra cihaz, tenant ve lisans snapshot bilgileri lokal SQLite veritabanina
+                yazilir.
+              </p>
+              <p>
+                Satis akisi cloud onayi beklemez; lokal kayit, receipt ve outbox olayi ayni transaction icinde
+                olusturulur.
+              </p>
+              <p>
+                Baglanti kopsa bile daha once aktive edilmis cihaz, offline grace ve lokal oturum politikasi icinde
+                calismaya devam eder.
+              </p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}

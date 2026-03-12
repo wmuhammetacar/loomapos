@@ -1,0 +1,11 @@
+{
+  "channel": "stable",
+  "platform": "windows",
+  "version": "2.4.1",
+  "minimumSupportedVersion": "2.3.0",
+  "rolloutState": "active",
+  "publishedAt": "2026-03-09T17:45:00Z",
+  "artifactUrl": "https://downloads.loomapos.com/desktop/stable/LoomaPOS-2.4.1.exe",
+  "sha256": "replace-with-ci-generated-checksum",
+  "releaseNotesUrl": "https://www.loomapos.com/portal/downloads"
+}

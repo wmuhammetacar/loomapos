@@ -1,0 +1,15 @@
+{
+  "name": "@loomapos/api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "dotnet build src/LoomaPos.Api/LoomaPos.Api.csproj",
+    "dev": "dotnet watch --project src/LoomaPos.Api/LoomaPos.Api.csproj",
+    "test": "dotnet test tests/LoomaPos.UnitTests/LoomaPos.UnitTests.csproj && dotnet test tests/LoomaPos.IntegrationTests/LoomaPos.IntegrationTests.csproj",
+    "nswag:generate": "dotnet tool restore && dotnet tool run nswag run nswag.json",
+    "migrate:add": "dotnet tool run dotnet-ef migrations add InitialCreate --project src/LoomaPos.Api/LoomaPos.Api.csproj --startup-project src/LoomaPos.Api/LoomaPos.Api.csproj --output-dir Persistence/Migrations",
+    "migrate:update": "dotnet tool run dotnet-ef database update --project src/LoomaPos.Api/LoomaPos.Api.csproj --startup-project src/LoomaPos.Api/LoomaPos.Api.csproj",
+    "lint": "dotnet build src/LoomaPos.Api/LoomaPos.Api.csproj -warnaserror",
+    "format": "dotnet format LoomaPos.sln --verify-no-changes"
+  }
+}

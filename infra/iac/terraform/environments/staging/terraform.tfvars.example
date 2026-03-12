@@ -1,0 +1,10 @@
+domain_name = "staging.loomapos.example"
+release_channel = "stable"
+enable_dr_validation = true
+
+secret_reference_map = {
+  ConnectionStrings__Postgres = "vault://loomapos/staging/postgres"
+  ConnectionStrings__Redis    = "vault://loomapos/staging/redis"
+  Auth__Authority             = "vault://loomapos/staging/auth-authority"
+  Auth__Audience              = "vault://loomapos/staging/auth-audience"
+}

@@ -1,0 +1,37 @@
+{
+  "info": {
+    "name": "LoomaPOS Public API v1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Partner collection for LoomaPOS public read APIs."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:5000" },
+    { "key": "apiKey", "value": "replace-with-generated-key" }
+  ],
+  "item": [
+    {
+      "name": "Meta",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/public/v1/meta"
+      }
+    },
+    {
+      "name": "Products",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+        "url": "{{baseUrl}}/public/v1/products"
+      }
+    },
+    {
+      "name": "Analytics Summary",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "X-Api-Key", "value": "{{apiKey}}" }],
+        "url": "{{baseUrl}}/public/v1/analytics/summary"
+      }
+    }
+  ]
+}

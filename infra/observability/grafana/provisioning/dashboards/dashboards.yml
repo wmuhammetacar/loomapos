@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: "LoomaPOS Dashboards"
+    orgId: 1
+    folder: "LoomaPOS"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
