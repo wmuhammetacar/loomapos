@@ -10,6 +10,8 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { submitResellerApplicationWithFallback } from "@/lib/commerce-service";
+import { captureCrmLead, trackCrmEvent } from "@/lib/crm-service";
+import { trackMarketingEvent } from "@/lib/marketing-service";
 
 const schema = z.object({
   fullName: z.string().min(3, "Ad soyad gerekli."),
@@ -31,7 +33,8 @@ export function ResellerApplyForm() {
     register,
     handleSubmit,
     formState: { errors },
-    setError
+    setError,
+    reset
   } = useForm<FormValues>({
     resolver: zodResolver(schema)
   });
@@ -40,7 +43,36 @@ export function ResellerApplyForm() {
     startTransition(async () => {
       try {
         const lead = await submitResellerApplicationWithFallback(values);
+        await captureCrmLead({
+          name: values.fullName,
+          email: values.email,
+          phone: values.phone,
+          companyName: values.companyName,
+          source: "reseller_application",
+          resellerId: lead.referralCode,
+          commissionEligible: true
+        });
+        await trackCrmEvent({
+          eventType: "reseller_assigned",
+          email: values.email,
+          name: values.fullName,
+          companyName: values.companyName,
+          phone: values.phone,
+          source: "reseller_application",
+          resellerId: lead.referralCode,
+          commissionEligible: true,
+          path: "/resellers/apply",
+          detail: "Reseller application submitted and referral code generated."
+        });
         setResultCode(lead.referralCode);
+        trackMarketingEvent({
+          type: "lead_submit",
+          path: "/resellers/apply",
+          label: "reseller_application",
+          context: "reseller_apply_form",
+          source: values.companyName
+        });
+        reset();
       } catch (error) {
         setError("root", {
           message: error instanceof Error ? error.message : "Basvuru kaydedilemedi."

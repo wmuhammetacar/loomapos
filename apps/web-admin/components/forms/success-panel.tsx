@@ -1,20 +1,43 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardTitle } from "@/components/ui/card";
 import { loadCheckoutSuccessWithFallback } from "@/lib/commerce-service";
+import { trackCrmEvent } from "@/lib/crm-service";
 
 export function SuccessPanel() {
   const searchParams = useSearchParams();
   const [snapshot, setSnapshot] = useState<Awaited<ReturnType<typeof loadCheckoutSuccessWithFallback>> | null>(null);
+  const trackedKeyRef = useRef<string>("");
 
   useEffect(() => {
-    void loadCheckoutSuccessWithFallback(
-      searchParams.get("checkout"),
-      searchParams.get("receipt")
-    ).then(setSnapshot);
+    const checkoutId = searchParams.get("checkout");
+    const receiptId = searchParams.get("receipt");
+
+    void loadCheckoutSuccessWithFallback(checkoutId, receiptId).then((result) => {
+      setSnapshot(result);
+
+      if (!result) {
+        return;
+      }
+
+      const trackingKey = `${result.companyName}:${result.checkoutSessionId ?? receiptId ?? "local"}`;
+      if (trackedKeyRef.current === trackingKey) {
+        return;
+      }
+      trackedKeyRef.current = trackingKey;
+
+      void trackCrmEvent({
+        eventType: "checkout_completed",
+        companyName: result.companyName,
+        tenantId: result.tenantId ?? undefined,
+        source: "checkout_start",
+        detail: `Checkout completed for ${result.planCode} (${result.billingPeriod})`,
+        path: "/success"
+      });
+    });
   }, [searchParams]);
 
   if (!snapshot) {
@@ -71,8 +94,8 @@ export function SuccessPanel() {
           </div>
         ) : null}
         <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold">
-          <Link href="/portal" className="text-brand">
-            Portal&apos;a git
+          <Link href="/portal/onboarding" className="text-brand">
+            Onboarding&apos;e git
           </Link>
           <Link href="/download" className="text-text">
             Download center

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { AdminCrmPanel } from "@/components/admin/admin-crm-panels";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ export type AdminSection =
   | "coupons"
   | "campaigns"
   | "notices"
+  | "crm"
   | "security"
   | "audit"
   | "settings";
@@ -40,6 +42,10 @@ export function AdminPanels({ section }: { section: AdminSection }) {
   useEffect(() => {
     void loadAdminWorkspace().then(setSnapshot);
   }, []);
+
+  if (section === "crm") {
+    return <AdminCrmPanel />;
+  }
 
   if (!snapshot) {
     return (

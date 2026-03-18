@@ -1025,6 +1025,7 @@ export const portalModules = [
 export const resellerPortalModules = [
   { href: "/reseller/portal", label: "Genel Bakis" },
   { href: "/reseller/portal/analytics", label: "Analytics" },
+  { href: "/reseller/portal/onboarding", label: "Onboarding" },
   { href: "/reseller/portal/customers", label: "Customers" },
   { href: "/reseller/portal/referrals", label: "Referrals" },
   { href: "/reseller/portal/commissions", label: "Commissions" },
@@ -1060,6 +1061,7 @@ export const adminModules = [
   { href: "/admin/coupons", label: "Coupons" },
   { href: "/admin/campaigns", label: "Campaigns" },
   { href: "/admin/notices", label: "Notices" },
+  { href: "/admin/crm", label: "Sales CRM" },
   { href: "/admin/security", label: "Security" },
   { href: "/admin/audit", label: "Audit" },
   { href: "/admin/settings", label: "Settings" }
@@ -1085,6 +1087,7 @@ export const routeTree = [
   "/reseller/login",
   "/reseller/portal",
   "/reseller/portal/analytics",
+  "/reseller/portal/onboarding",
   "/reseller/portal/overview",
   "/reseller/portal/customers",
   "/reseller/portal/referrals",
@@ -1147,6 +1150,8 @@ export const routeTree = [
   "/admin/coupons",
   "/admin/campaigns",
   "/admin/notices",
+  "/admin/crm",
+  "/admin/crm/leads/[leadId]",
   "/admin/security",
   "/admin/audit",
   "/admin/settings",

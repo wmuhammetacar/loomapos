@@ -50,6 +50,7 @@ export interface CheckoutLaunchResult {
 
 export interface CheckoutSuccessSnapshot {
   checkoutSessionId?: string;
+  tenantId?: string | null;
   companyName: string;
   planCode: string;
   billingPeriod: string;
@@ -442,6 +443,7 @@ export async function loadCheckoutSuccessWithFallback(
 
       return {
         checkoutSessionId: response.checkout.checkoutSessionId,
+        tenantId: response.checkout.tenantId,
         companyName:
           response.portalAccess?.companyName ??
           getStoredSession()?.companyName ??
@@ -477,6 +479,7 @@ export async function loadCheckoutSuccessWithFallback(
   }
 
   return {
+    tenantId: bundle.customer?.tenantId ?? null,
     companyName: bundle.customer?.companyName ?? bundle.receipt.companyName,
     planCode: bundle.subscription?.planCode ?? bundle.receipt.planCode,
     billingPeriod: bundle.subscription?.billingCycle ?? bundle.receipt.billingCycle,

@@ -1,7 +1,13 @@
+import { DownloadIntentForm } from "@/components/forms/download-intent-form";
+import { MarketingCtaGroup } from "@/components/site/marketing-cta-group";
 import { PageHero } from "@/components/site/page-hero";
 import { SectionHeading } from "@/components/site/section-heading";
 import { Card, CardTitle } from "@/components/ui/card";
-import { downloadArtifacts, globalCtas } from "@/lib/site-content";
+import {
+  getDownloadHighlights,
+  marketingPrimaryCtas,
+  marketingSecondaryCtas
+} from "@/lib/marketing-content";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
@@ -16,20 +22,21 @@ export default function DownloadPage() {
     <>
       <PageHero
         eyebrow="Download center"
-        title="Windows, Android ve iOS uygulama dagitimi"
-        description="Public katmanda release notes, sistem gereksinimleri ve kurulum notlari gorunur. Lisansli kurulum paketleri musteri portali ile birlikte teslim edilir."
-        actions={globalCtas}
+        title="Structured app delivery for Desktop and Mobile"
+        description="The download center presents system requirements, installation guidance, version notes and activation instructions without confusing public downloads with licensed portal delivery."
+        actions={marketingSecondaryCtas}
       />
 
       <section className="space-y-6">
         <SectionHeading
           eyebrow="Artifacts"
           title="App download hub"
-          description="Her platform icin versiyon, release date, activation guide ve minimum sistem gereksinimi birlikte sunulur."
+          description="Each platform has a clear artifact, version, update notes, install flow and activation expectation."
         />
+        <DownloadIntentForm />
         <div className="grid gap-4">
-          {downloadArtifacts.map((artifact) => (
-            <Card key={artifact.platform}>
+          {getDownloadHighlights().map((artifact) => (
+            <Card key={artifact.platform} id={artifact.platform}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="max-w-3xl">
                   <CardTitle>{artifact.title}</CardTitle>
@@ -48,9 +55,20 @@ export default function DownloadPage() {
                 <InfoList title="Installation guide" items={artifact.installationSteps} />
                 <InfoList title="Activation guide" items={artifact.activationSteps} />
               </div>
+              <MarketingCtaGroup
+                items={[
+                  { href: artifact.href, label: artifact.platform === "windows" ? "Download Desktop" : "Download Mobile", variant: "primary" },
+                  { href: "/docs/installation", label: "Installation Guide", variant: "outline" },
+                  { href: "/docs/license-activation", label: "Activation Docs", variant: "ghost" }
+                ]}
+                context={`download_${artifact.platform}`}
+                className="mt-6"
+                size="sm"
+              />
             </Card>
           ))}
         </div>
+        <MarketingCtaGroup items={marketingPrimaryCtas} context="download_bottom" />
       </section>
     </>
   );

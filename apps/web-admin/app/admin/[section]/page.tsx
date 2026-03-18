@@ -29,6 +29,7 @@ const allowedSections = [
   "coupons",
   "campaigns",
   "notices",
+  "crm",
   "security",
   "audit",
   "settings"

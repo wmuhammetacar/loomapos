@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { checkoutWithFallback } from "@/lib/commerce-service";
+import { captureCrmLead, trackCrmEvent } from "@/lib/crm-service";
 import {
   getPlanByCode,
   pricingPlans,
@@ -95,6 +96,26 @@ export function CheckoutForm() {
   const onSubmit = handleSubmit((values) => {
     startTransition(async () => {
       try {
+        await Promise.allSettled([
+          captureCrmLead({
+            name: values.fullName,
+            email: values.email,
+            phone: values.phone,
+            companyName: values.companyName,
+            source: "checkout_start"
+          }),
+          trackCrmEvent({
+            eventType: "signup_started",
+            email: values.email,
+            name: values.fullName,
+            companyName: values.companyName,
+            phone: values.phone,
+            source: "checkout_start",
+            path: "/checkout",
+            detail: `Checkout started with ${values.planCode} / ${values.billingCycle}`
+          })
+        ]);
+
         const bundle = await checkoutWithFallback({
           fullName: values.fullName,
           companyName: values.companyName,
