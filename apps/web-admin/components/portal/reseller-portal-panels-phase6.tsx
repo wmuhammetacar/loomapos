@@ -12,6 +12,7 @@ import {
 
 export type ResellerPortalSectionPhase6 =
   | "overview"
+  | "onboarding"
   | "customers"
   | "referrals"
   | "commissions"
@@ -106,6 +107,34 @@ export function ResellerPortalPanelsPhase6({
             <p className="break-all">{snapshot.referrals.primaryLink}</p>
           </div>
         </Card>
+      </div>
+    );
+  } else if (section === "onboarding") {
+    const steps = buildResellerOnboardingChecklist(snapshot);
+    const completed = steps.filter((step) => step.status === "complete").length;
+    sectionContent = (
+      <div className="space-y-6">
+        <Card>
+          <CardTitle>Reseller onboarding progress</CardTitle>
+          <p className="mt-3 text-sm leading-6 text-text/72">
+            Partner onboarding covers profile readiness, referral setup and marketing enablement.
+          </p>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <Metric label="Completed" value={`${completed}/${steps.length}`} />
+            <Metric label="Referral code" value={snapshot.referrals.primaryCode} />
+            <Metric label="Available assets" value={String(snapshot.assets.length)} />
+          </div>
+        </Card>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {steps.map((step) => (
+            <Card key={step.code}>
+              <p className={resellerOnboardingStatusClassName(step.status)}>{step.status}</p>
+              <CardTitle className="mt-3">{step.label}</CardTitle>
+              <p className="mt-2 text-sm leading-6 text-text/72">{step.description}</p>
+              <LinkButton href={step.href} label={step.ctaLabel} />
+            </Card>
+          ))}
+        </div>
       </div>
     );
   } else if (section === "customers") {
@@ -357,4 +386,79 @@ function formatCurrency(value: number, currency = "TRY") {
     currency,
     maximumFractionDigits: 2
   }).format(value);
+}
+
+interface ResellerOnboardingStep {
+  code: string;
+  label: string;
+  description: string;
+  status: "complete" | "pending";
+  href: string;
+  ctaLabel: string;
+}
+
+function buildResellerOnboardingChecklist(snapshot: ResellerPortalExperience): ResellerOnboardingStep[] {
+  return [
+    {
+      code: "reseller_profile",
+      label: "Complete reseller profile",
+      description:
+        "Confirm company, contact and payout settings before customer outreach.",
+      status:
+        snapshot.settings.companyName && snapshot.settings.phone
+          ? "complete"
+          : "pending",
+      href: "/reseller/portal/settings",
+      ctaLabel: "Open settings"
+    },
+    {
+      code: "referral_ready",
+      label: "Generate referral link",
+      description:
+        "Use your unique referral code and link for acquisition campaigns.",
+      status:
+        snapshot.referrals.primaryCode && snapshot.referrals.primaryLink
+          ? "complete"
+          : "pending",
+      href: "/reseller/portal/referrals",
+      ctaLabel: "Open referrals"
+    },
+    {
+      code: "assets_ready",
+      label: "Access marketing assets",
+      description:
+        "Review pricing sheets, logo kits and onboarding packs before first lead outreach.",
+      status: snapshot.assets.length > 0 ? "complete" : "pending",
+      href: "/reseller/portal/assets",
+      ctaLabel: "Open assets"
+    },
+    {
+      code: "support_ready",
+      label: "Confirm partner support path",
+      description:
+        "Ensure support channels are ready for activation and migration questions.",
+      status: snapshot.supportLinks.length > 0 ? "complete" : "pending",
+      href: "/reseller/portal/support",
+      ctaLabel: "Open support"
+    }
+  ];
+}
+
+function resellerOnboardingStatusClassName(status: "complete" | "pending") {
+  if (status === "complete") {
+    return "inline-flex rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-success";
+  }
+
+  return "inline-flex rounded-full border border-line bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-text/70";
+}
+
+function LinkButton({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      className="mt-4 inline-block rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80"
+    >
+      {label}
+    </a>
+  );
 }

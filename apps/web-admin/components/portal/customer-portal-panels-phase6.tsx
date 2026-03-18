@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { OnboardingActivationDashboard } from "@/components/portal/onboarding-activation-dashboard";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,6 @@ import {
   type CompanyProfileInput,
   type CustomerPortalExperience,
   type PortalNotice,
-  type PortalOnboardingStep,
   type PortalRole
 } from "@/lib/portal-service";
 import { pricingPlans, type BillingCycle, type PlanCode } from "@/lib/site-content";
@@ -112,7 +112,6 @@ export function CustomerPortalPanelsPhase6({
   }, []);
 
   const notices = useMemo(() => buildNotices(snapshot), [snapshot]);
-  const onboarding = useMemo(() => buildOnboarding(snapshot), [snapshot]);
   const run = async (fn: () => Promise<unknown>, successText: string) => {
     setBusy(true);
     setError(null);
@@ -517,18 +516,16 @@ export function CustomerPortalPanelsPhase6({
         </Card>
       </div>
     );
+  } else if (section === "onboarding") {
+    sectionContent = <OnboardingActivationDashboard snapshot={snapshot} />;
   } else {
     sectionContent = (
-      <div className="space-y-4">
-        {onboarding.map((item) => (
-          <Card key={item.code}>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand">{item.status}</p>
-            <CardTitle className="mt-3">{item.label}</CardTitle>
-            <p className="mt-2 text-sm leading-6 text-text/72">{item.description}</p>
-            <a href={item.href ?? "/portal"} className="mt-4 inline-block text-sm font-semibold text-brand">Open</a>
-          </Card>
-        ))}
-      </div>
+      <Card>
+        <CardTitle>Section not found</CardTitle>
+        <p className="mt-3 text-sm leading-6 text-text/72">
+          This portal section is not available for the current role.
+        </p>
+      </Card>
     );
   }
 
@@ -665,61 +662,6 @@ function buildNotices(snapshot: CustomerPortalExperience | null): PortalNotice[]
   }
 
   return notices;
-}
-
-function buildOnboarding(snapshot: CustomerPortalExperience | null): PortalOnboardingStep[] {
-  if (!snapshot) {
-    return [];
-  }
-
-  if (snapshot.onboarding.length > 0) {
-    return snapshot.onboarding;
-  }
-
-  return [
-    {
-      code: "account_created",
-      label: "Account created",
-      description: "Customer portal access is available.",
-      status: "complete",
-      href: "/portal"
-    },
-    {
-      code: "company_profile",
-      label: "Complete company profile",
-      description: "Confirm legal name, billing email and tax placeholders.",
-      status: snapshot.customer?.companyName ? "complete" : "pending",
-      href: "/portal/company"
-    },
-    {
-      code: "license_issued",
-      label: "License issued",
-      description: "Desktop and Mobile activation use this commercial license.",
-      status: snapshot.license ? "complete" : "attention",
-      href: "/portal/licenses"
-    },
-    {
-      code: "apps_downloaded",
-      label: "Download operational apps",
-      description: "Download the latest Desktop and Mobile installers for activation.",
-      status: snapshot.downloads.length > 0 ? "complete" : "pending",
-      href: "/portal/downloads"
-    },
-    {
-      code: "team_access",
-      label: "Invite portal users",
-      description: "Grant billing or company admin access to teammates.",
-      status: snapshot.users.length > 1 ? "complete" : "pending",
-      href: "/portal/users"
-    },
-    {
-      code: "support_ready",
-      label: "Know support paths",
-      description: "Open onboarding, billing or activation requests from the portal.",
-      status: snapshot.supportRequests.length > 0 ? "complete" : "pending",
-      href: "/portal/support"
-    }
-  ];
 }
 
 function noticeCardClassName(level: PortalNotice["level"]) {

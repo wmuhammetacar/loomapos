@@ -9,16 +9,37 @@ const kOfflineGraceDays = 7;
 const kSyncBatchSize = 20;
 
 class MobileColors {
-  static const primary = Color(0xFF0057D9);
-  static const success = Color(0xFF0F9D58);
-  static const warning = Color(0xFFE37400);
-  static const danger = Color(0xFFD93025);
-  static const background = Color(0xFFF3F6FB);
+  static const primary = Color(0xFF0F6CBD);
+  static const secondary = Color(0xFF0F766E);
+  static const accent = Color(0xFFF59E0B);
+
+  static const success = Color(0xFF15803D);
+  static const warning = Color(0xFFD97706);
+  static const danger = Color(0xFFDC2626);
+  static const info = Color(0xFF2563EB);
+
+  static const background = Color(0xFFF6F8FC);
   static const surface = Color(0xFFFFFFFF);
-  static const border = Color(0xFFD6DFEA);
-  static const text = Color(0xFF102033);
-  static const muted = Color(0xFF5C6B7E);
-  static const info = Color(0xFF3B82F6);
+  static const border = Color(0xFFD7E0EA);
+  static const text = Color(0xFF122033);
+  static const muted = Color(0xFF5B6C80);
+}
+
+class MobileDarkColors {
+  static const primary = Color(0xFF63B3FF);
+  static const secondary = Color(0xFF4FD1C5);
+  static const accent = Color(0xFFF6C453);
+
+  static const success = Color(0xFF4ADE80);
+  static const warning = Color(0xFFFBBF24);
+  static const danger = Color(0xFFF87171);
+  static const info = Color(0xFF60A5FA);
+
+  static const background = Color(0xFF0B1220);
+  static const surface = Color(0xFF111A2A);
+  static const border = Color(0xFF2C3A4D);
+  static const text = Color(0xFFE7EEF9);
+  static const muted = Color(0xFF9FB1C9);
 }
 
 class MobileActions {

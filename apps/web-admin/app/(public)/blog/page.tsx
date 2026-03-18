@@ -1,8 +1,14 @@
 import Link from "next/link";
+import { MarketingCtaGroup } from "@/components/site/marketing-cta-group";
 import { PageHero } from "@/components/site/page-hero";
 import { SectionHeading } from "@/components/site/section-heading";
 import { Card, CardTitle } from "@/components/ui/card";
-import { blogPosts, globalCtas } from "@/lib/site-content";
+import { marketingSecondaryCtas } from "@/lib/marketing-content";
+import {
+  getMarketingBlogCategoriesServer,
+  getMarketingBlogPostsServer,
+  getMarketingBlogTagsServer
+} from "@/lib/marketing-content-server";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
@@ -12,24 +18,42 @@ export const metadata = buildMetadata({
   path: "/blog"
 });
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const [categories, tags, posts] = await Promise.all([
+    getMarketingBlogCategoriesServer(),
+    getMarketingBlogTagsServer(),
+    getMarketingBlogPostsServer()
+  ]);
+
   return (
     <>
       <PageHero
         eyebrow="Blog"
-        title="SEO ve conversion icin icerik motoru"
-        description="Sektor bazli landing makaleleri, perakende buyume icerikleri ve reseller odakli yayinlar ile ticari talep yaratma katmani."
-        actions={globalCtas}
+        title="SEO content engine for organic demand and buyer education"
+        description="Publish guides, retail tactics, rollout advice and product updates that internally link to features, pricing, docs and reseller pages."
+        actions={marketingSecondaryCtas}
       />
 
       <section className="space-y-6">
         <SectionHeading
           eyebrow="Posts"
-          title="Son yayinlar"
-          description="Her makale features, pricing, docs ve reseller akislariyla ic linklenir."
+          title="Recent articles"
+          description="Each post is categorized, tagged and connected to related features and docs."
         />
+        <div className="flex flex-wrap gap-3">
+          {categories.map((category) => (
+            <span key={category} className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-text/72">
+              {category}
+            </span>
+          ))}
+          {tags.map((tag) => (
+            <span key={tag} className="rounded-full border border-line bg-muted/40 px-4 py-2 text-sm text-text/68">
+              #{tag}
+            </span>
+          ))}
+        </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          {blogPosts.map((post) => (
+          {posts.map((post) => (
             <Card key={post.slug}>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand">
                 {post.category}
@@ -40,12 +64,20 @@ export default function BlogPage() {
                 <span>{post.publishedAt}</span>
                 <span>{post.readTime}</span>
               </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {post.tags.map((tag) => (
+                  <span key={tag} className="rounded-full border border-line bg-muted/30 px-3 py-1 text-xs text-text/65">
+                    {tag}
+                  </span>
+                ))}
+              </div>
               <Link href={`/blog/${post.slug}`} className="mt-5 inline-flex text-sm font-semibold text-brand">
-                Yaziyi oku
+                Read article
               </Link>
             </Card>
           ))}
         </div>
+        <MarketingCtaGroup items={marketingSecondaryCtas} context="blog_bottom" />
       </section>
     </>
   );

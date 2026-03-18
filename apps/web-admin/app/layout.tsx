@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { siteConfig } from "@/lib/site-content";
+import { marketingSiteConfig } from "@/lib/marketing-content";
 import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.baseUrl),
+  metadataBase: new URL(marketingSiteConfig.baseUrl),
   title: {
-    default: `${siteConfig.name} | POS SaaS Abonelik ve Lisans Platformu`,
-    template: `%s | ${siteConfig.name}`
+    default: `${marketingSiteConfig.name} | POS SaaS Growth Website`,
+    template: `%s | ${marketingSiteConfig.name}`
   },
-  description: siteConfig.description
+  description: marketingSiteConfig.description
 };
 
 export default function RootLayout({

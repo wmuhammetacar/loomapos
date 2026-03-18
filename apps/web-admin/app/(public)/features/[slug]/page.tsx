@@ -1,22 +1,27 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { MarketingCtaGroup } from "@/components/site/marketing-cta-group";
 import { PageHero } from "@/components/site/page-hero";
+import { ScreenshotGallery } from "@/components/site/screenshot-gallery";
 import { SectionHeading } from "@/components/site/section-heading";
 import { Card, CardTitle } from "@/components/ui/card";
-import { featureModules, getFeatureBySlug, heroActions } from "@/lib/site-content";
+import {
+  marketingPrimaryCtas,
+  marketingSecondaryCtas
+} from "@/lib/marketing-content";
+import {
+  getCanonicalFeatureSlugServer,
+  getMarketingFeatureBySlugServer
+} from "@/lib/marketing-content-server";
 import { buildMetadata } from "@/lib/seo";
 
 interface FeatureDetailPageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateStaticParams() {
-  return featureModules.map((item) => ({ slug: item.slug }));
-}
-
 export async function generateMetadata({ params }: FeatureDetailPageProps) {
   const { slug } = await params;
-  const feature = getFeatureBySlug(slug);
+  const feature = await getMarketingFeatureBySlugServer(slug);
 
   if (!feature) {
     return buildMetadata({
@@ -29,31 +34,36 @@ export async function generateMetadata({ params }: FeatureDetailPageProps) {
   return buildMetadata({
     title: feature.title,
     description: feature.summary,
-    path: `/features/${slug}`
+    path: `/features/${feature.slug}`
   });
 }
 
 export default async function FeatureDetailPage({ params }: FeatureDetailPageProps) {
   const { slug } = await params;
-  const feature = getFeatureBySlug(slug);
+  const feature = await getMarketingFeatureBySlugServer(slug);
 
   if (!feature) {
     notFound();
   }
 
+  const canonicalSlug = await getCanonicalFeatureSlugServer(slug);
+  if (canonicalSlug !== slug) {
+    redirect(`/features/${canonicalSlug}`);
+  }
+
   return (
     <>
       <PageHero
-        eyebrow={feature.shortTitle}
+        eyebrow={feature.keyword}
         title={feature.title}
         description={feature.summary}
-        actions={heroActions}
+        actions={marketingPrimaryCtas}
         aside={
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/60">
-              Sales page only
+              Feature detail page
             </p>
-            <p className="text-sm leading-6 text-white/75">{feature.solution}</p>
+            <p className="text-sm leading-6 text-white/75">{feature.whatItDoes}</p>
           </div>
         }
       />
@@ -61,16 +71,16 @@ export default async function FeatureDetailPage({ params }: FeatureDetailPagePro
       <section className="grid gap-6 lg:grid-cols-2">
         <Card>
           <SectionHeading
-            eyebrow="Pain point"
-            title="Is acisi"
-            description={feature.painPoint}
+            eyebrow="What it does"
+            title="Capability summary"
+            description={feature.whatItDoes}
           />
         </Card>
         <Card>
           <SectionHeading
-            eyebrow="Solution"
-            title="Cozum yaklasimi"
-            description={feature.solution}
+            eyebrow="Business impact"
+            title="Why buyers care"
+            description={feature.businessBenefits.join(" ")}
           />
         </Card>
       </section>
@@ -78,68 +88,51 @@ export default async function FeatureDetailPage({ params }: FeatureDetailPagePro
       <section className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardTitle>Desktop use case</CardTitle>
-          <p className="mt-3 text-sm leading-6 text-text/72">{feature.desktopUseCase}</p>
+          <p className="mt-3 text-sm leading-6 text-text/72">{feature.desktopFlow}</p>
         </Card>
         <Card>
           <CardTitle>Mobile use case</CardTitle>
-          <p className="mt-3 text-sm leading-6 text-text/72">{feature.mobileUseCase}</p>
+          <p className="mt-3 text-sm leading-6 text-text/72">{feature.mobileFlow}</p>
         </Card>
       </section>
 
       <section className="space-y-6">
         <SectionHeading
-          eyebrow="Screen placeholders"
-          title="Screenshots or UI placeholders"
-          description="Tarayicida canli operasyon degil, istemci yuzeylerini temsil eden placeholder bloklar."
+          eyebrow="Screenshots"
+          title="Desktop and Mobile walkthrough placeholders"
+          description="These product visuals support trust and SEO while keeping live workflows inside the real apps."
         />
-        <div className="grid gap-4 md:grid-cols-2">
-          {feature.screenshotLabels.map((label, index) => (
-            <Card key={label}>
-              <div className="flex h-56 items-center justify-center rounded-[24px] border border-dashed border-line bg-muted/20 text-sm text-text/55">
-                Preview {index + 1}
-              </div>
-              <p className="mt-4 text-sm font-semibold text-text">{label}</p>
+        <ScreenshotGallery items={feature.screenshots} />
+      </section>
+
+      <section className="space-y-6">
+        <SectionHeading
+          eyebrow="Use cases"
+          title="Example usage"
+          description="Business-ready scenarios help visitors understand fit before they commit to demo, trial or purchase."
+        />
+        <div className="grid gap-4 md:grid-cols-3">
+          {feature.usageExamples.map((item) => (
+            <Card key={item} className="text-sm leading-6 text-text/72">
+              {item}
             </Card>
           ))}
         </div>
       </section>
 
-      {feature.integrations?.length ? (
-        <section className="space-y-6">
-          <SectionHeading
-            eyebrow="Integrations"
-            title="Integration notes"
-            description="Bu entegrasyonlarin operasyonel kullanimi uygulama tarafinda calisir."
-          />
-          <div className="flex flex-wrap gap-3">
-            {feature.integrations.map((item) => (
-              <span
-                key={item}
-                className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-text/72"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <section className="rounded-[36px] border border-line bg-white px-6 py-8">
         <SectionHeading
           eyebrow="Action"
-          title="Bu modulu webde satin, uygulamada kullanin"
-          description="Pricing, download ve reseller CTA yapisi her feature sayfasinda ayni ticari mantikla tekrar eder."
+          title="Move from feature education to action"
+          description="Each feature page drives the visitor into the right next step: pricing, trial, demo, download or reseller evaluation."
         />
+        <MarketingCtaGroup items={[...marketingPrimaryCtas, ...marketingSecondaryCtas]} context={`feature_${feature.slug}_bottom`} className="mt-6" />
         <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold">
-          <Link href="/pricing" className="text-brand">
-            Pricing
-          </Link>
-          <Link href="/download" className="text-text">
-            Download
-          </Link>
-          <Link href="/reseller" className="text-text">
-            Reseller
-          </Link>
+          {feature.relatedSolutions.map((solution) => (
+            <Link key={solution} href={`/solutions/${solution}` as never} className="text-brand">
+              {solution}
+            </Link>
+          ))}
         </div>
       </section>
     </>

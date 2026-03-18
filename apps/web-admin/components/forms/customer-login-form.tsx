@@ -21,7 +21,11 @@ type FormValues = z.infer<typeof schema>;
 export function CustomerLoginForm() {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const returnTo = searchParams.get("return_to") || "/portal";
+  const returnToParam = searchParams.get("return_to");
+  const returnTo =
+    returnToParam && returnToParam.startsWith("/") && !returnToParam.startsWith("//")
+      ? returnToParam
+      : "/portal/onboarding";
 
   const {
     register,

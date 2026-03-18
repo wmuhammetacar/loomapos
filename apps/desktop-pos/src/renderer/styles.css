@@ -1,15 +1,15 @@
 ﻿:root {
-  --bg: #f8fafc;
+  --bg: #f6f8fc;
   --surface: #ffffff;
-  --surface-soft: #f1f5f9;
-  --border: #e5e7eb;
-  --text: #0f172a;
-  --muted: #64748b;
+  --surface-soft: #eef3f8;
+  --border: #d7e0ea;
+  --text: #122033;
+  --muted: #5b6c80;
 
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --success: #16a34a;
-  --warning: #f59e0b;
+  --primary: #0f6cbd;
+  --primary-hover: #0b5a9e;
+  --success: #15803d;
+  --warning: #d97706;
   --danger: #dc2626;
 
   --shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
@@ -31,8 +31,8 @@ body {
   font-size: 16px;
   color: var(--text);
   background:
-    radial-gradient(circle at 8% 8%, rgba(37, 99, 235, 0.1), transparent 45%),
-    radial-gradient(circle at 90% 90%, rgba(22, 163, 74, 0.08), transparent 40%),
+    radial-gradient(circle at 8% 8%, rgba(15, 108, 189, 0.1), transparent 45%),
+    radial-gradient(circle at 90% 90%, rgba(15, 118, 110, 0.08), transparent 40%),
     var(--bg);
 }
 
@@ -189,7 +189,7 @@ input:focus,
 select:focus,
 textarea:focus,
 button:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.32);
+  outline: 2px solid rgba(15, 108, 189, 0.32);
   outline-offset: 1px;
 }
 
@@ -254,7 +254,7 @@ td {
 }
 
 th {
-  background: #f8fafc;
+  background: #f6f8fc;
   color: #334155;
   font-weight: 700;
 }
@@ -265,7 +265,7 @@ th.right {
 }
 
 .is-selected {
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(15, 108, 189, 0.08);
 }
 
 .cart-row-added {
@@ -344,7 +344,7 @@ th.right {
 
 .quick-product:hover {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 2px rgba(15, 108, 189, 0.12);
 }
 
 .quick-product strong {
@@ -662,7 +662,7 @@ th.right {
 
 .segmented button.is-active {
   border-color: var(--primary);
-  background: rgba(37, 99, 235, 0.1);
+  background: rgba(15, 108, 189, 0.1);
   color: var(--primary);
 }
 
@@ -750,9 +750,9 @@ th.right {
   place-items: center;
   padding: 24px;
   background:
-    radial-gradient(circle at 10% 15%, rgba(37, 99, 235, 0.16), transparent 35%),
-    radial-gradient(circle at 85% 80%, rgba(22, 163, 74, 0.14), transparent 32%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    radial-gradient(circle at 10% 15%, rgba(15, 108, 189, 0.16), transparent 35%),
+    radial-gradient(circle at 85% 80%, rgba(15, 118, 110, 0.14), transparent 32%),
+    linear-gradient(180deg, #f6f8fc 0%, #e9eef7 100%);
 }
 
 .desktop-shell-card {
@@ -969,3 +969,29 @@ th.right {
 @import "tailwindcss";
 @source "./*.{ts,tsx,html}";
 @source "./stores/*.{ts,tsx}";
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220;
+    --surface: #111a2a;
+    --surface-soft: #1a2638;
+    --border: #2c3a4d;
+    --text: #e7eef9;
+    --muted: #9fb1c9;
+
+    --primary: #63b3ff;
+    --primary-hover: #4e9be6;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+
+    --shadow: 0 16px 32px rgba(3, 9, 18, 0.42);
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 8% 8%, rgba(99, 179, 255, 0.16), transparent 45%),
+      radial-gradient(circle at 90% 90%, rgba(79, 209, 197, 0.1), transparent 40%),
+      var(--bg);
+  }
+}

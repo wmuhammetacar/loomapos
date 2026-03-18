@@ -4,6 +4,7 @@ import { ResellerAnalyticsPanel } from "@/components/analytics/analytics-panels"
 
 const allowedSections = [
   "analytics",
+  "onboarding",
   "customers",
   "referrals",
   "commissions",

@@ -21,7 +21,11 @@ type FormValues = z.infer<typeof schema>;
 export function ResellerLoginForm() {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const returnTo = searchParams.get("return_to") || "/reseller/portal";
+  const returnToParam = searchParams.get("return_to");
+  const returnTo =
+    returnToParam && returnToParam.startsWith("/") && !returnToParam.startsWith("//")
+      ? returnToParam
+      : "/reseller/portal/onboarding";
   const {
     register,
     handleSubmit,

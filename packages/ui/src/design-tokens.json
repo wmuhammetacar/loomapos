@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "name": "LoomaPOS Design Tokens",
+    "version": "12.0.0",
+    "grid": "4px",
+    "darkMode": true
+  },
+  "colors": {
+    "light": {
+      "primary": "#0F6CBD",
+      "secondary": "#0F766E",
+      "accent": "#F59E0B",
+      "background": "#F6F8FC",
+      "surface": "#FFFFFF",
+      "border": "#D7E0EA",
+      "muted": "#EEF3F8",
+      "text": "#122033",
+      "textMuted": "#5B6C80",
+      "success": "#15803D",
+      "warning": "#D97706",
+      "error": "#DC2626",
+      "info": "#2563EB"
+    },
+    "dark": {
+      "primary": "#63B3FF",
+      "secondary": "#4FD1C5",
+      "accent": "#F6C453",
+      "background": "#0B1220",
+      "surface": "#111A2A",
+      "border": "#2C3A4D",
+      "muted": "#1A2638",
+      "text": "#E7EEF9",
+      "textMuted": "#9FB1C9",
+      "success": "#4ADE80",
+      "warning": "#FBBF24",
+      "error": "#F87171",
+      "info": "#60A5FA"
+    }
+  },
+  "spacing": {
+    "xs": "8px",
+    "sm": "12px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px",
+    "xxl": "48px"
+  },
+  "radius": {
+    "sm": "8px",
+    "md": "12px",
+    "lg": "16px",
+    "xl": "24px",
+    "pill": "9999px"
+  },
+  "shadow": {
+    "sm": "0 4px 12px rgba(15,32,51,0.08)",
+    "md": "0 12px 30px rgba(15,32,51,0.12)",
+    "lg": "0 28px 72px rgba(15,32,51,0.16)"
+  },
+  "breakpoints": {
+    "mobile": 480,
+    "tablet": 768,
+    "desktop": 1024,
+    "wide": 1440
+  }
+}

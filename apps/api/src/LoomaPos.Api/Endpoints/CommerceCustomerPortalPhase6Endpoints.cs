@@ -157,12 +157,14 @@ public static class CommerceCustomerPortalPhase6Endpoints
 
         return Results.Ok(new object[]
         {
-            new { code = "account_created", label = "Account created", description = "Customer portal access is active.", status = "complete", href = "/portal" },
-            new { code = "company_profile", label = "Complete company profile", description = "Confirm billing email and legal placeholders.", status = !string.IsNullOrWhiteSpace(tenant?.BillingEmail) ? "complete" : "pending", href = "/portal/company" },
-            new { code = "license_issued", label = "License issued", description = "Desktop and Mobile activation use this license.", status = license is null ? "attention" : "complete", href = "/portal/licenses" },
-            new { code = "apps_downloaded", label = "Download operational apps", description = "Use portal downloads for Desktop and Mobile installers.", status = downloads > 0 ? "complete" : "pending", href = "/portal/downloads" },
-            new { code = "devices_activated", label = "Activate operational devices", description = "At least one Desktop or Mobile device should be activated.", status = devices > 0 ? "complete" : "pending", href = "/portal/devices" },
-            new { code = "team_access", label = "Invite portal users", description = "Grant billing or company admin access to teammates.", status = users > 1 ? "complete" : "pending", href = "/portal/users" }
+            new { code = "company_profile", label = "Complete company profile", description = "Confirm billing, legal placeholders and tenant details.", status = !string.IsNullOrWhiteSpace(tenant?.BillingEmail) ? "complete" : "pending", href = "/portal/company" },
+            new { code = "desktop_download", label = "Download Desktop POS", description = "Use portal download assets for desktop installation.", status = downloads > 0 ? "complete" : "pending", href = "/portal/downloads" },
+            new { code = "license_activation", label = "Activate license", description = "Verify active license and limits before setup.", status = license is null ? "attention" : license.Status == "active" ? "complete" : "attention", href = "/portal/licenses" },
+            new { code = "device_registration", label = "Register first device", description = "Activate at least one Desktop or Mobile device.", status = devices > 0 ? "complete" : "pending", href = "/portal/devices" },
+            new { code = "first_branch", label = "Create first branch", description = "Complete first branch setup in operational apps.", status = "pending", href = "/docs/desktop-guide" },
+            new { code = "first_product", label = "Add first product", description = "Create or import first product catalog items.", status = "pending", href = "/docs/installation" },
+            new { code = "first_staff", label = "Create first staff member", description = "Define initial staff access and role scope.", status = users > 1 ? "complete" : "pending", href = "/docs/mobile-guide" },
+            new { code = "first_sale", label = "Complete first test sale", description = "Run first sale simulation inside Desktop POS.", status = "pending", href = "/docs/getting-started" }
         });
     }
 
