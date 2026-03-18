@@ -20,6 +20,14 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/admin/crm/leads/[leadId]",
+      "regex": "^/admin/crm/leads/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPleadId": "nxtPleadId"
+      },
+      "namedRegex": "^/admin/crm/leads/(?<nxtPleadId>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/admin/resellers/[resellerId]",
       "regex": "^/admin/resellers/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -52,6 +60,46 @@
       "namedRegex": "^/admin/(?<nxtPsection>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/alternatives/[slug]",
+      "regex": "^/alternatives/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/alternatives/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/crm/leads/[leadId]",
+      "regex": "^/api/crm/leads/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPleadId": "nxtPleadId"
+      },
+      "namedRegex": "^/api/crm/leads/(?<nxtPleadId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/crm/leads/[leadId]/activities",
+      "regex": "^/api/crm/leads/([^/]+?)/activities(?:/)?$",
+      "routeKeys": {
+        "nxtPleadId": "nxtPleadId"
+      },
+      "namedRegex": "^/api/crm/leads/(?<nxtPleadId>[^/]+?)/activities(?:/)?$"
+    },
+    {
+      "page": "/api/crm/leads/[leadId]/demo",
+      "regex": "^/api/crm/leads/([^/]+?)/demo(?:/)?$",
+      "routeKeys": {
+        "nxtPleadId": "nxtPleadId"
+      },
+      "namedRegex": "^/api/crm/leads/(?<nxtPleadId>[^/]+?)/demo(?:/)?$"
+    },
+    {
+      "page": "/api/crm/leads/[leadId]/notes",
+      "regex": "^/api/crm/leads/([^/]+?)/notes(?:/)?$",
+      "routeKeys": {
+        "nxtPleadId": "nxtPleadId"
+      },
+      "namedRegex": "^/api/crm/leads/(?<nxtPleadId>[^/]+?)/notes(?:/)?$"
+    },
+    {
       "page": "/blog/[slug]",
       "regex": "^/blog/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -60,12 +108,28 @@
       "namedRegex": "^/blog/(?<nxtPslug>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/docs/[slug]",
+      "regex": "^/docs/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/docs/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/features/[slug]",
       "regex": "^/features/([^/]+?)(?:/)?$",
       "routeKeys": {
         "nxtPslug": "nxtPslug"
       },
       "namedRegex": "^/features/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/integrations/[slug]",
+      "regex": "^/integrations/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/integrations/(?<nxtPslug>[^/]+?)(?:/)?$"
     },
     {
       "page": "/legal/[slug]",
@@ -90,6 +154,22 @@
         "nxtPsection": "nxtPsection"
       },
       "namedRegex": "^/reseller/portal/(?<nxtPsection>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/solutions/[slug]",
+      "regex": "^/solutions/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/solutions/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/[slug]",
+      "regex": "^/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/(?<nxtPslug>[^/]+?)(?:/)?$"
     }
   ],
   "staticRoutes": [
@@ -130,6 +210,18 @@
       "namedRegex": "^/admin/support/cases(?:/)?$"
     },
     {
+      "page": "/alternatives",
+      "regex": "^/alternatives(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/alternatives(?:/)?$"
+    },
+    {
+      "page": "/ar",
+      "regex": "^/ar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/ar(?:/)?$"
+    },
+    {
       "page": "/auth/callback",
       "regex": "^/auth/callback(?:/)?$",
       "routeKeys": {},
@@ -154,6 +246,12 @@
       "namedRegex": "^/contact(?:/)?$"
     },
     {
+      "page": "/demo",
+      "regex": "^/demo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/demo(?:/)?$"
+    },
+    {
       "page": "/docs",
       "regex": "^/docs(?:/)?$",
       "routeKeys": {},
@@ -164,6 +262,12 @@
       "regex": "^/download(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/download(?:/)?$"
+    },
+    {
+      "page": "/en",
+      "regex": "^/en(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/en(?:/)?$"
     },
     {
       "page": "/faq",
@@ -182,6 +286,12 @@
       "regex": "^/forgot\\-password(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/forgot\\-password(?:/)?$"
+    },
+    {
+      "page": "/integrations",
+      "regex": "^/integrations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/integrations(?:/)?$"
     },
     {
       "page": "/login",
@@ -232,6 +342,18 @@
       "namedRegex": "^/reseller/portal(?:/)?$"
     },
     {
+      "page": "/resellers",
+      "regex": "^/resellers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/resellers(?:/)?$"
+    },
+    {
+      "page": "/resellers/apply",
+      "regex": "^/resellers/apply(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/resellers/apply(?:/)?$"
+    },
+    {
       "page": "/reset-password",
       "regex": "^/reset\\-password(?:/)?$",
       "routeKeys": {},
@@ -244,16 +366,40 @@
       "namedRegex": "^/robots\\.txt(?:/)?$"
     },
     {
+      "page": "/security",
+      "regex": "^/security(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/security(?:/)?$"
+    },
+    {
       "page": "/sitemap.xml",
       "regex": "^/sitemap\\.xml(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/sitemap\\.xml(?:/)?$"
     },
     {
+      "page": "/solutions",
+      "regex": "^/solutions(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/solutions(?:/)?$"
+    },
+    {
+      "page": "/status",
+      "regex": "^/status(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/status(?:/)?$"
+    },
+    {
       "page": "/success",
       "regex": "^/success(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/success(?:/)?$"
+    },
+    {
+      "page": "/tr",
+      "regex": "^/tr(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/tr(?:/)?$"
     },
     {
       "page": "/verify-email",

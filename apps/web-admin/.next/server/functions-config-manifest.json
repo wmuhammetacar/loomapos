@@ -1,4 +1,16 @@
 {
   "version": 1,
-  "functions": {}
+  "functions": {
+    "/api/crm/dashboard": {},
+    "/api/crm/leads/[leadId]/activities": {},
+    "/api/crm/events": {},
+    "/api/crm/leads/[leadId]/notes": {},
+    "/api/crm/leads/[leadId]/demo": {},
+    "/api/crm/leads/[leadId]": {},
+    "/api/marketing/content": {},
+    "/api/crm/leads": {},
+    "/api/marketing/events": {},
+    "/api/marketing/leads": {},
+    "/api/onboarding/events": {}
+  }
 }

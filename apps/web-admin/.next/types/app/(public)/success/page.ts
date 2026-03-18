@@ -1,4 +1,4 @@
-// File: C:\Users\acarm\Desktop\projeler\eticaret projesi\apps\web-admin\app\(public)\success\page.tsx
+// File: /home/macar/workspace1/looma/eticaret-projesi/apps/web-admin/app/(public)/success/page.tsx
 import * as entry from '../../../../../app/(public)/success/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

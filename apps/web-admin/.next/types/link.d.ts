@@ -37,15 +37,27 @@ declare namespace __next_route_internal_types__ {
     | `/admin`
     | `/admin/login`
     | `/admin/support/cases`
+    | `/alternatives`
+    | `/api/crm/dashboard`
+    | `/api/crm/events`
+    | `/api/crm/leads`
+    | `/api/marketing/content`
+    | `/api/marketing/events`
+    | `/api/marketing/leads`
+    | `/api/onboarding/events`
+    | `/ar`
     | `/auth/callback`
     | `/blog`
     | `/checkout`
     | `/contact`
+    | `/demo`
     | `/docs`
     | `/download`
+    | `/en`
     | `/faq`
     | `/features`
     | `/forgot-password`
+    | `/integrations`
     | `/login`
     | `/portal`
     | `/pricing`
@@ -54,19 +66,35 @@ declare namespace __next_route_internal_types__ {
     | `/reseller/apply`
     | `/reseller/login`
     | `/reseller/portal`
+    | `/resellers`
+    | `/resellers/apply`
     | `/reset-password`
+    | `/security`
+    | `/solutions`
+    | `/status`
     | `/success`
+    | `/tr`
     | `/verify-email`
   type DynamicRoutes<T extends string = string> = 
+    | `/${SafeSlug<T>}`
     | `/admin/${SafeSlug<T>}`
+    | `/admin/crm/leads/${SafeSlug<T>}`
     | `/admin/resellers/${SafeSlug<T>}`
     | `/admin/support/cases/${SafeSlug<T>}`
     | `/admin/tenants/${SafeSlug<T>}`
+    | `/alternatives/${SafeSlug<T>}`
+    | `/api/crm/leads/${SafeSlug<T>}`
+    | `/api/crm/leads/${SafeSlug<T>}/activities`
+    | `/api/crm/leads/${SafeSlug<T>}/demo`
+    | `/api/crm/leads/${SafeSlug<T>}/notes`
     | `/blog/${SafeSlug<T>}`
+    | `/docs/${SafeSlug<T>}`
     | `/features/${SafeSlug<T>}`
+    | `/integrations/${SafeSlug<T>}`
     | `/legal/${SafeSlug<T>}`
     | `/portal/${SafeSlug<T>}`
     | `/reseller/portal/${SafeSlug<T>}`
+    | `/solutions/${SafeSlug<T>}`
 
   type RouteImpl<T> = 
     | StaticRoutes

@@ -1,4 +1,4 @@
-// File: C:\Users\acarm\Desktop\projeler\eticaret projesi\apps\web-admin\app\(public)\verify-email\page.tsx
+// File: /home/macar/workspace1/looma/eticaret-projesi/apps/web-admin/app/(public)/verify-email/page.tsx
 import * as entry from '../../../../../app/(public)/verify-email/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
