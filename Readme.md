@@ -1,81 +1,58 @@
 # LoomaPOS Monorepo
 
-LoomaPOS SaaS ekosistemi:
-- Web: tanitim + fiyatlandirma + checkout + lisans + indirme + bayi
-- Desktop POS: operasyonel satis/stok (offline-first)
-- Mobil: stok sayim/saha islemleri (offline-first)
-- API: multi-tenant modular monolith + lisans + reseller + sync + rapor
+LoomaPOS coklu yuzey mimarisi:
+- `apps/api`: kanonik backend (ASP.NET Core / .NET 9)
+- `apps/web-admin`: public web + customer/reseller portal (Next.js)
+- `apps/control-center`: internal operations panel (Next.js)
+- `apps/desktop-pos`: operasyonel kasa uygulamasi (Electron)
+- `apps/mobile`: saha operasyon mobil uygulamasi (Flutter)
 
-## Web/POS Siniri (zorunlu kural)
-- Web **POS islemi yapmaz**.
-- Satis/stok/cari/kasa operasyonlari sadece Desktop ve Mobil uygulamadadir.
+## Kanonik backend kurali
+- Uretim dogrusu `.NET API`dir (`apps/api/src/LoomaPos.Api`).
+- `apps/api/src-node` ve `apps/api/modules` altindaki Node tarafi legacy/yardimci calismalardir; kaynak gercekligi olarak alinmamalidir.
 
-## Proje Yapisi
-- `apps/api`: .NET 9 API
-- `apps/web-admin`: Next.js (admin + marketing/commerce pages)
-- `apps/desktop-pos`: Electron + React + SQLite outbox
-- `apps/mobile`: Flutter + Drift SQLite + sync
-- `packages/shared-types`: ortak TS tipleri
-- `packages/ui`: ortak UI paketleri
-- `docker-compose.yml`: root local stack
-- `infra/docker-compose.yml`: deploy/infra referansi (root ile senkron)
+## Zorunlu urun siniri
+- Web ekranlari operasyonel POS degildir.
+- Satis/kasa/stok yazma operasyonlari Desktop POS uzerinden yurur.
+- Mobile uygulama saha operasyonu ve izleme amaclidir (kasiyer checkout degil).
+
+## Gereksinimler
+- .NET SDK 9.x
+- Node.js 20+ ve `pnpm@9.15.0`
+- Flutter SDK 3.4+
+- Docker (local bagimliliklar icin)
+
+## Lokal hizli baslangic
+1. Repo kokunde bagimliliklari kurun: `pnpm install`
+2. Altyapiyi kaldirin: `docker compose up -d`
+3. API'yi baslatin:
+   `dotnet run --project apps/api/src/LoomaPos.Api/LoomaPos.Api.csproj`
+4. Web Admin:
+   `pnpm --filter @loomapos/web-admin dev -- --hostname 127.0.0.1 --port 3100`
+5. Control Center:
+   `pnpm --filter @loomapos/control-center dev -- --hostname 127.0.0.1 --port 3300`
+6. Desktop POS:
+   `cd apps/desktop-pos && npm run start`
+7. Mobile (web preview):
+   `cd apps/mobile && flutter run -d web-server --web-hostname 127.0.0.1 --web-port 4200`
+
+## Tek komut notu
+- `npm run dev:all` ve `npm run dev:all:stop` PowerShell scriptleridir.
+- Windows disi ortamlarda yukaridaki manuel akisi kullanin.
+
+## Lokal endpointler
+- API Swagger: `http://127.0.0.1:5000/swagger`
+- API health: `http://127.0.0.1:5000/health`, `http://127.0.0.1:5000/health/live`, `http://127.0.0.1:5000/health/ready`
+- Web Admin: `http://127.0.0.1:3100`
+- Control Center: `http://127.0.0.1:3300`
+- Mobile web preview: `http://127.0.0.1:4200`
+
+## Sik gorulen hata notu
+- `http://127.0.0.1:5000/commerce/auth/mobile-login` endpointi `POST` bekler.
+- Tarayicidan direkt `GET` acildiginda `405 Method Not Allowed` donmesi normaldir.
 
 ## Dokumanlar
 - `docs/architecture.md`
 - `docs/api.md`
 - `docs/licensing.md`
 - `docs/reseller.md`
-
-## Tek Komutla Calistirma
-1. `.env.example` -> `.env`
-2. `npm run dev:all`
-
-Durdurma:
-- `npm run dev:all:stop`
-
-`dev:all`:
-- altyapi servisleri hazir oldugunda API + Web + Desktop + Mobile (web) akisini canlandirir.
-
-## Lokal Endpointler
-- API Swagger: `http://127.0.0.1:5000/swagger`
-- Web: `http://127.0.0.1:3100`
-- Mobile web preview: `http://127.0.0.1:4200`
-- Keycloak: `http://127.0.0.1:8081`
-- Grafana: `http://127.0.0.1:3001`
-
-## Marketing + Commerce Sayfalari
-- `/site`
-- `/features`
-- `/pricing`
-- `/checkout`
-- `/portal`
-- `/reseller`
-- `/reseller/dashboard`
-- `/download`
-- `/docs`
-- `/faq`
-- `/blog`
-
-## Commerce + Licensing API (MVP)
-- `GET /commerce/plans`
-- `POST /commerce/checkout`
-- `GET /commerce/portal/{tenantId}`
-- `POST /commerce/payments/webhooks`
-- `POST /commerce/reseller/apply`
-- `GET /commerce/reseller/{code}/dashboard`
-- `POST /license/activate`
-- `GET /license/status`
-
-## Integration Mock Endpoints
-- `POST /integrations/einvoice/mock/send`
-- `POST /integrations/fiscal/mock/send`
-- `GET /integrations/logs`
-
-## Desktop Smoke Test
-- `cd apps/desktop-pos && npm run smoke`
-- Not: Yerel Node ABI ile `better-sqlite3` binary ABI farkinda smoke fallback modu devreye girer ve kritik dosya/iskelesini dogrular.
-
-## Notlar
-- Desktop sync idempotent event akisini kullanir (`/sync/events` + `processed_events`).
-- Lisans aktivasyonda cihaz limiti API tarafinda enforce edilir.
-- Grace period modlari: `ACTIVE`, `READ_ONLY`, `LOCKED`.

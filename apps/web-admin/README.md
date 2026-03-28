@@ -1,54 +1,31 @@
-# Web Platform
+# Web Platform (`@loomapos/web-admin`)
 
-Next.js tabanli Phase 1 + Phase 2 ticari web platformu.
+Next.js tabanli public web + portal uygulamasi.
+
+## Scope
+- Marketing / pricing / download
+- Customer portal
+- Reseller portal
+- Checkout baslatma ve lisans gorunurlugu
+
+## Urun siniri
+- Bu uygulama operasyonel POS degildir.
+- Satis/stok/kasa yazma operasyonlari desktop POS uzerinden yurur.
 
 ## Komutlar
-
-- `pnpm --filter @loomapos/web-admin dev`
+- `pnpm --filter @loomapos/web-admin dev -- --hostname 127.0.0.1 --port 3100`
 - `pnpm --filter @loomapos/web-admin build`
+- `pnpm --filter @loomapos/web-admin start`
 - `pnpm --filter @loomapos/web-admin test:e2e`
 
-## Notlar
+## Backend baglantisi
+- Kanonik backend: `.NET API`
+- Auth/commerce cagrilari `/commerce/*` ve `/internal/admin/*` uzerinden gider.
 
-- Bu uygulama web uzerinden operasyonel POS isleri yapmaz.
-- Kapsam:
-  - urun tanitimi
-  - pricing
-  - monthly/yearly subscription checkout
-  - reseller acquisition
-  - license delivery
-  - customer portal
-  - app download hub
-  - docs / faq / blog / legal
-- Gercek operasyon:
-  - Desktop app
-  - Mobile app
-- Formlar:
-  - React Hook Form + Zod
-- Auth:
-  - `NEXT_PUBLIC_AUTH_MODE=mock`
-  - `NEXT_PUBLIC_AUTH_MODE=oidc`
-- Commerce entegrasyonu:
-  - Backend commerce endpointleri varsa once API kullanilir
-  - API yoksa Phase 1 local fallback state devreye girer
-  - Customer portal auth:
-    - `/commerce/auth/register`
-    - `/commerce/auth/login`
-    - `/commerce/auth/forgot-password`
-    - `/commerce/auth/reset-password`
-  - Reseller auth foundation:
-    - `/commerce/auth/reseller-login`
-  - Checkout and provisioning:
-    - `/commerce/checkout/session`
-    - `/commerce/checkout/status/{id}`
-  - Portal data:
-    - `/commerce/portal/*`
-- Mimari ozeti:
-  - [Phase 1 architecture](/c:/Users/acarm/Desktop/projeler/eticaret%20projesi/docs/phase1-web-platform-architecture.md)
-  - [Phase 1 completion report](/c:/Users/acarm/Desktop/projeler/eticaret%20projesi/docs/phase1-completion-report.md)
-  - [Phase 2 commerce backend report](/c:/Users/acarm/Desktop/projeler/eticaret%20projesi/docs/phase2-commerce-backend-report.md)
+## Kimlik dogrulama notu
+- Mobile/desktop login endpointleri backendde `POST` ister.
+- `GET /commerce/auth/mobile-login` veya `GET /commerce/auth/desktop-login` beklenen bir akis degildir.
 
-## Test Checklists
-
-- Tasarim Bolum 4 smoke checklist: [BOLUM4_SMOKE_CHECKLIST.md](/c:/Users/acarm/Desktop/eticaret%20projesi/apps/web-admin/BOLUM4_SMOKE_CHECKLIST.md)
-                                      
+## Referans dokumanlar
+- `docs/phase1-web-platform-architecture.md`
+- `docs/phase2-commerce-backend-report.md`

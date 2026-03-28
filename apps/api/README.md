@@ -1,39 +1,34 @@
 # LoomaPOS API
 
-Modular monolith yaklasimiyla .NET 9 API iskeleti.
+Kanonik backend: ASP.NET Core (.NET 9)
 
-## Moduller
+## Onemli not
+- Bu repo icinde Node tabanli legacy dizinler bulunsa da (`src-node`, `modules`), sistemin gercek backend dogrusu `apps/api/src/LoomaPos.Api` altindadir.
 
-- Identity & Tenant
-- Catalog
-- Inventory
-- Sales
-- Customers
-- Cashbook
-- Reporting
-- Sync
-
-## Cekirdek ozellikler (MVP basis)
-
-- Tenant scoped tablo modeli (`tenant_id` filtreli)
-- Immutable stock hareketleri (`stock_moves`)
-- Idempotent sync endpoint (`POST /sync/events`, `processed_events` ile)
-- Audit log (`audit_logs`)
-- Tenant ayarlari guncelleme (`PUT /tenants/me/settings`)
-- Tenant logo upload (`POST /tenants/me/logo`)
-- Dosya erisimi (`GET /files/{key}`)
-- Kategori yonetimi (`GET/POST /categories`)
-- Kullanici rol atama (`POST /users/{id}/roles`)
-- RabbitMQ entegrasyon publish'i (sync eventleri `loomapos.events` exchange)
+## Cekirdek kapsama alani
+- Multi-tenant auth ve role modeli
+- Commerce auth / checkout / portal
+- License + device activation
+- Sales / inventory / reports endpointleri
+- Desktop sync (`/sync/events`)
+- Internal admin endpointleri (`/internal/admin/*`)
 
 ## Lokal calistirma
-
-1. `docker compose up -d` (repo root)
+Repo kokunden:
+1. `docker compose up -d`
 2. `dotnet restore LoomaPos.sln`
-3. `dotnet run --project src/LoomaPos.Api/LoomaPos.Api.csproj`
+3. `dotnet run --project apps/api/src/LoomaPos.Api/LoomaPos.Api.csproj`
 
-Varsayilan swagger: `http://localhost:5000/swagger`
+## Health endpointleri
+- `GET /health`
+- `GET /health/live`
+- `GET /health/ready`
+- `GET /health/deep`
 
-## Not
+## Sik hata notu
+- `/commerce/auth/mobile-login` sadece `POST` kabul eder.
+- Tarayici adres cubugundan acildiginda `GET` gider ve `405` donmesi beklenir.
 
-- Sandbox ortami nedeniyle `LoomaPos.Api` projesi `Domain` ve `Infrastructure` kaynaklarini csproj `Compile Include` ile derliyor. Mimari klasor ayrimi korunuyor, paketleme tek host uzerinden ilerliyor.
+## Guvenlik notlari
+- Tenant/device baglami server tarafinda resolve edilir.
+- Yeni endpointlerde istemci header degerleri tek basina yetki kaynagi olarak kullanilmamalidir.
