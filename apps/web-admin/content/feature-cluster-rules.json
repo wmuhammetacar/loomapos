@@ -1,0 +1,359 @@
+{
+  "version": 1,
+  "clusters": {
+    "sales": {
+      "primary_intent": "transaction-flow",
+      "allowed_topics": [
+        "quick sale",
+        "checkout flow",
+        "barcode sale",
+        "returns",
+        "cashier speed"
+      ],
+      "forbidden_topics": [
+        "erp connector",
+        "webhook",
+        "api handshake",
+        "tenant governance policy",
+        "global audit logs"
+      ],
+      "examples": [
+        "satis yonetimi",
+        "hizli satis",
+        "kasa akis"
+      ],
+      "neighbor_conflicts": [
+        "payments",
+        "integrations"
+      ],
+      "slug": "sales",
+      "title_tr": "Satis Sistemleri",
+      "value_proposition_tr": "Kasada hiz, tutarlilik ve cihaz uyumunu ayni akisla sunar.",
+      "audience_tr": "Perakende ve hizli satis yapan isletmeler",
+      "related_solutions": [
+        "retail",
+        "market",
+        "restaurant"
+      ],
+      "folded_into": null
+    },
+    "inventory": {
+      "primary_intent": "stock-accuracy",
+      "allowed_topics": [
+        "stock tracking",
+        "critical stock",
+        "variants",
+        "warehouse visibility"
+      ],
+      "forbidden_topics": [
+        "online collection",
+        "payment provider routing",
+        "fiscal connector protocols"
+      ],
+      "examples": [
+        "stok yonetimi",
+        "urun varyantlari"
+      ],
+      "neighbor_conflicts": [
+        "payments",
+        "integrations",
+        "reporting"
+      ],
+      "slug": "inventory",
+      "title_tr": "Stok ve Urun Kontrolu",
+      "value_proposition_tr": "Stok gorunurlugu ve varyant takibini operasyonel hatasizliga yaklastirir.",
+      "audience_tr": "Stok yogun katalog yoneten isletmeler",
+      "related_solutions": [
+        "retail",
+        "market",
+        "boutique"
+      ],
+      "folded_into": null
+    },
+    "reporting": {
+      "primary_intent": "decision-visibility",
+      "allowed_topics": [
+        "sales reports",
+        "profit and loss",
+        "branch performance",
+        "trend analysis"
+      ],
+      "forbidden_topics": [
+        "cashier transaction step",
+        "catalog editing workflow",
+        "connector schema mapping"
+      ],
+      "examples": [
+        "raporlar",
+        "kar zarar"
+      ],
+      "neighbor_conflicts": [
+        "sales",
+        "inventory"
+      ],
+      "slug": "reporting",
+      "title_tr": "Raporlama ve Analiz",
+      "value_proposition_tr": "Satis ve marj kararlarini hizlandiran rapor gorunurlugu saglar.",
+      "audience_tr": "Yonetim ve karar ekipleri",
+      "related_solutions": [
+        "retail",
+        "restaurant",
+        "cafe"
+      ],
+      "folded_into": null
+    },
+    "staff": {
+      "primary_intent": "team-access-control",
+      "allowed_topics": [
+        "role permissions",
+        "shift readiness",
+        "staff account governance"
+      ],
+      "forbidden_topics": [
+        "tenant-wide compliance policy",
+        "branch transfer logistics",
+        "provider webhook mapping"
+      ],
+      "examples": [
+        "personel yonetimi",
+        "yetki sistemi"
+      ],
+      "neighbor_conflicts": [
+        "admin",
+        "multi_branch"
+      ],
+      "slug": "staff",
+      "title_tr": "Personel ve Yetki",
+      "value_proposition_tr": "Rol bazli erisimle ekip hatalarini ve operasyon riskini azaltir.",
+      "audience_tr": "Kasiyer, yonetici ve operasyon ekipleri olan isletmeler",
+      "related_solutions": [
+        "retail",
+        "market"
+      ],
+      "folded_into": null
+    },
+    "multi_branch": {
+      "primary_intent": "branch-operations-coordination",
+      "allowed_topics": [
+        "branch rollout",
+        "central branch control",
+        "branch transfers"
+      ],
+      "forbidden_topics": [
+        "tenant-wide security policy",
+        "global audit log ownership",
+        "erp connector schema"
+      ],
+      "examples": [
+        "sube yonetimi",
+        "merkezi kontrol"
+      ],
+      "neighbor_conflicts": [
+        "admin",
+        "integrations"
+      ],
+      "slug": "multi-branch",
+      "title_tr": "Cok Sube Yonetimi",
+      "value_proposition_tr": "Sube rollout, lisans ve cihaz dagitimini merkezi planda tutar.",
+      "audience_tr": "Birden fazla lokasyonda faaliyet gosteren markalar",
+      "related_solutions": [
+        "retail",
+        "market",
+        "restaurant"
+      ],
+      "folded_into": null
+    },
+    "payments": {
+      "primary_intent": "payment-and-collection-flow",
+      "allowed_topics": [
+        "payment methods",
+        "online collection",
+        "installments",
+        "collection follow-up"
+      ],
+      "forbidden_topics": [
+        "connector schema",
+        "webhook payload mappings",
+        "third-party api handshake",
+        "erp synchronization contracts"
+      ],
+      "examples": [
+        "online odeme",
+        "tahsilat",
+        "odeme yontemleri"
+      ],
+      "neighbor_conflicts": [
+        "integrations",
+        "sales"
+      ],
+      "slug": "payments",
+      "title_tr": "Odeme ve Tahsilat",
+      "value_proposition_tr": "Odeme durumlarini izleyip tahsilat takibini daha hizli aksiyona cevirir.",
+      "audience_tr": "Uzak tahsilat veya karma odeme modeli kullanan isletmeler",
+      "related_solutions": [
+        "retail",
+        "cafe",
+        "boutique"
+      ],
+      "folded_into": null
+    },
+    "e_invoice": {
+      "primary_intent": "document-compliance",
+      "allowed_topics": [
+        "e-fatura",
+        "e-arsiv",
+        "compliance status"
+      ],
+      "forbidden_topics": [
+        "checkout cashier speed",
+        "branch transfer",
+        "provider webhook routing"
+      ],
+      "examples": [
+        "e-fatura entegrasyonu"
+      ],
+      "neighbor_conflicts": [
+        "integrations",
+        "payments"
+      ],
+      "slug": "e-invoice",
+      "title_tr": "E-Fatura ve Uyumluluk",
+      "value_proposition_tr": "E-belge uygunluk beklentilerini satin alma oncesinde netlestirir.",
+      "audience_tr": "Uyumluluk zorunlulugu olan isletmeler",
+      "related_solutions": [
+        "retail",
+        "restaurant",
+        "market"
+      ],
+      "folded_into": null
+    },
+    "integrations": {
+      "primary_intent": "system-connection-compatibility",
+      "allowed_topics": [
+        "cash register integration",
+        "bank pos integration",
+        "erp crm integration",
+        "connector compatibility"
+      ],
+      "forbidden_topics": [
+        "online collection operations",
+        "cashier step-by-step checkout",
+        "subscription billing policy"
+      ],
+      "examples": [
+        "yazarkasa entegrasyonlari",
+        "erp entegrasyonu"
+      ],
+      "neighbor_conflicts": [
+        "payments",
+        "sales",
+        "e_invoice"
+      ],
+      "slug": "integrations",
+      "title_tr": "Cihaz ve Sistem Entegrasyonlari",
+      "value_proposition_tr": "Donanim ve baglanti uyumlulugunu rollout oncesinde gorunur yapar.",
+      "audience_tr": "Cihaz bagimliligi yuksek operasyonlar",
+      "related_solutions": [
+        "market",
+        "retail",
+        "restaurant"
+      ],
+      "folded_into": null
+    },
+    "pricing_control": {
+      "primary_intent": "catalog-pricing-governance",
+      "allowed_topics": [
+        "price lists",
+        "campaign rules",
+        "scheduled pricing changes"
+      ],
+      "forbidden_topics": [
+        "subscription plan pricing",
+        "checkout payment routing",
+        "connector webhook contracts"
+      ],
+      "examples": [
+        "fiyat yonetimi",
+        "kampanya yonetimi"
+      ],
+      "neighbor_conflicts": [
+        "payments",
+        "admin"
+      ],
+      "slug": "pricing-control",
+      "title_tr": "Fiyat ve Kampanya Kontrolu",
+      "value_proposition_tr": "Fiyat listesi degisimlerini sube bazinda tutarli hale getirir.",
+      "audience_tr": "Sik fiyat degisimi yapan isletmeler",
+      "related_solutions": [
+        "retail",
+        "market",
+        "boutique"
+      ],
+      "folded_into": null
+    },
+    "admin": {
+      "primary_intent": "tenant-governance-and-audit",
+      "allowed_topics": [
+        "global settings",
+        "audit logs",
+        "security controls"
+      ],
+      "forbidden_topics": [
+        "branch-level operational workflow",
+        "cashier sales flow",
+        "payment collection execution"
+      ],
+      "examples": [
+        "yonetim paneli",
+        "audit log"
+      ],
+      "neighbor_conflicts": [
+        "multi_branch",
+        "staff",
+        "sales"
+      ],
+      "slug": "admin",
+      "title_tr": "Yonetim ve Denetim",
+      "value_proposition_tr": "Global ayar, guvenlik ve denetim gorunurlugu saglar.",
+      "audience_tr": "Merkezi yonetim ekipleri",
+      "related_solutions": [
+        "retail",
+        "enterprise"
+      ],
+      "folded_into": null
+    },
+    "collections": {
+      "primary_intent": "collection-execution-visibility",
+      "allowed_topics": [
+        "online collection",
+        "payment follow-up",
+        "deferred collection",
+        "collection status"
+      ],
+      "forbidden_topics": [
+        "connector schema",
+        "api handshake",
+        "erp contract mapping",
+        "global tenant governance"
+      ],
+      "examples": [
+        "online tahsilat",
+        "uzaktan tahsilat"
+      ],
+      "neighbor_conflicts": [
+        "payments",
+        "integrations",
+        "sales"
+      ],
+      "slug": "collections",
+      "title_tr": "Tahsilat Takibi",
+      "value_proposition_tr": "Odeme gecikmelerini tahsilat akisinda izlemeye odaklanir.",
+      "audience_tr": "Tahsilat odakli ekipler",
+      "related_solutions": [
+        "retail",
+        "cafe"
+      ],
+      "folded_into": "payments"
+    }
+  }
+}

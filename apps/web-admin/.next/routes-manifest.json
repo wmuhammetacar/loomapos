@@ -10,6 +10,90 @@
       "internal": true,
       "statusCode": 308,
       "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    },
+    {
+      "source": "/features/reports",
+      "destination": "/features/reporting/reports",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/reports(?:/)?$"
+    },
+    {
+      "source": "/features/staff-management",
+      "destination": "/features/staff/staff-management",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/staff-management(?:/)?$"
+    },
+    {
+      "source": "/features/branch-management",
+      "destination": "/features/multi-branch/branch-management",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/branch-management(?:/)?$"
+    },
+    {
+      "source": "/features/branches",
+      "destination": "/features/multi-branch/branch-management",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/branches(?:/)?$"
+    },
+    {
+      "source": "/features/online-payments",
+      "destination": "/features/payments/online-payments",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/online-payments(?:/)?$"
+    },
+    {
+      "source": "/features/collections",
+      "destination": "/features/payments/online-payments",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/collections(?:/)?$"
+    },
+    {
+      "source": "/features/product-variants",
+      "destination": "/features/inventory/product-variants",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/product-variants(?:/)?$"
+    },
+    {
+      "source": "/features/variants",
+      "destination": "/features/inventory/product-variants",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/variants(?:/)?$"
+    },
+    {
+      "source": "/features/einvoice",
+      "destination": "/features/e-invoice/e-invoice",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/einvoice(?:/)?$"
+    },
+    {
+      "source": "/features/cash-register-integrations",
+      "destination": "/features/integrations/cash-register-integrations",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/cash-register-integrations(?:/)?$"
+    },
+    {
+      "source": "/features/fiscal",
+      "destination": "/features/integrations/cash-register-integrations",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/fiscal(?:/)?$"
+    },
+    {
+      "source": "/features/pricing-management",
+      "destination": "/features/pricing-control/pricing-management",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/pricing-management(?:/)?$"
+    },
+    {
+      "source": "/features/admin-control",
+      "destination": "/features/admin/admin-control",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/admin-control(?:/)?$"
+    },
+    {
+      "source": "/features/dashboard",
+      "destination": "/features/admin/admin-control",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/features/dashboard(?:/)?$"
     }
   ],
   "headers": [],
@@ -100,12 +184,52 @@
       "namedRegex": "^/api/crm/leads/(?<nxtPleadId>[^/]+?)/notes(?:/)?$"
     },
     {
+      "page": "/api/reseller-growth/applications/[applicationId]/review",
+      "regex": "^/api/reseller\\-growth/applications/([^/]+?)/review(?:/)?$",
+      "routeKeys": {
+        "nxtPapplicationId": "nxtPapplicationId"
+      },
+      "namedRegex": "^/api/reseller\\-growth/applications/(?<nxtPapplicationId>[^/]+?)/review(?:/)?$"
+    },
+    {
+      "page": "/api/reseller-growth/commissions/[commissionId]",
+      "regex": "^/api/reseller\\-growth/commissions/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPcommissionId": "nxtPcommissionId"
+      },
+      "namedRegex": "^/api/reseller\\-growth/commissions/(?<nxtPcommissionId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/reseller-growth/payouts/[payoutId]",
+      "regex": "^/api/reseller\\-growth/payouts/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPpayoutId": "nxtPpayoutId"
+      },
+      "namedRegex": "^/api/reseller\\-growth/payouts/(?<nxtPpayoutId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/reseller-growth/resellers/[resellerId]",
+      "regex": "^/api/reseller\\-growth/resellers/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPresellerId": "nxtPresellerId"
+      },
+      "namedRegex": "^/api/reseller\\-growth/resellers/(?<nxtPresellerId>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/blog/[slug]",
       "regex": "^/blog/([^/]+?)(?:/)?$",
       "routeKeys": {
         "nxtPslug": "nxtPslug"
       },
       "namedRegex": "^/blog/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/compare/[slug]",
+      "regex": "^/compare/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/compare/(?<nxtPslug>[^/]+?)(?:/)?$"
     },
     {
       "page": "/docs/[slug]",
@@ -122,6 +246,15 @@
         "nxtPslug": "nxtPslug"
       },
       "namedRegex": "^/features/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/features/[slug]/[feature]",
+      "regex": "^/features/([^/]+?)/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug",
+        "nxtPfeature": "nxtPfeature"
+      },
+      "namedRegex": "^/features/(?<nxtPslug>[^/]+?)/(?<nxtPfeature>[^/]+?)(?:/)?$"
     },
     {
       "page": "/integrations/[slug]",
@@ -238,6 +371,12 @@
       "regex": "^/checkout(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/checkout(?:/)?$"
+    },
+    {
+      "page": "/compare",
+      "regex": "^/compare(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/compare(?:/)?$"
     },
     {
       "page": "/contact",

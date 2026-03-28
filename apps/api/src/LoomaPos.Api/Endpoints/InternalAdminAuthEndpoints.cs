@@ -8,9 +8,11 @@ public static class InternalAdminAuthEndpoints
     {
         var group = app.MapGroup("/internal/admin/auth").WithTags("Internal Admin Auth");
 
-        group.MapPost("/login", LoginAsync);
+        group.MapPost("/login", LoginAsync)
+            .RequireRateLimiting("internal-auth");
         group.MapGet("/me", MeAsync);
-        group.MapPost("/logout", LogoutAsync);
+        group.MapPost("/logout", LogoutAsync)
+            .RequireRateLimiting("internal-auth");
 
         return app;
     }

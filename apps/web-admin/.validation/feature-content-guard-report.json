@@ -1,0 +1,19 @@
+{
+  "totalPages": 11,
+  "passedPages": 11,
+  "failedPages": 0,
+  "failures": [],
+  "ruleStats": {
+    "structure": 0,
+    "keyword_owner": 0,
+    "title_h1_similarity": 0,
+    "semantic_overlap": 0,
+    "cluster_boundary": 0,
+    "differentiation_block": 0,
+    "link_budget": 0,
+    "uniqueness": 0,
+    "source_drift": 0
+  },
+  "reliability": 100,
+  "valid": true
+}

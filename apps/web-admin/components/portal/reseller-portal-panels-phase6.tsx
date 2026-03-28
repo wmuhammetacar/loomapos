@@ -9,16 +9,20 @@ import {
   loadResellerPortalExperience,
   type ResellerPortalExperience
 } from "@/lib/portal-service";
+import { loadResellerGrowthWorkspaceByLookup } from "@/lib/reseller-growth-service";
+import type { ResellerDetailWorkspace } from "@/lib/reseller-growth-types";
 
 export type ResellerPortalSectionPhase6 =
   | "overview"
   | "onboarding"
   | "customers"
+  | "leads"
   | "referrals"
   | "commissions"
   | "payouts"
   | "licenses"
   | "assets"
+  | "training"
   | "support"
   | "settings";
 
@@ -28,6 +32,7 @@ export function ResellerPortalPanelsPhase6({
   section: ResellerPortalSectionPhase6;
 }) {
   const [snapshot, setSnapshot] = useState<ResellerPortalExperience | null>(null);
+  const [growthWorkspace, setGrowthWorkspace] = useState<ResellerDetailWorkspace | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +49,28 @@ export function ResellerPortalPanelsPhase6({
     try {
       const next = await loadResellerPortalExperience();
       setSnapshot(next);
+
+      if (next?.overview.referralCode || next?.settings.email) {
+        try {
+          const workspace = await loadResellerGrowthWorkspaceByLookup({
+            referralCode: next?.overview.referralCode,
+            email: next?.settings.email
+          });
+          setGrowthWorkspace(workspace);
+        } catch {
+          setGrowthWorkspace(null);
+        }
+      } else {
+        setGrowthWorkspace(null);
+      }
+
       setError(null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Reseller portal data could not be loaded.");
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Reseller portal data could not be loaded."
+      );
     } finally {
       setBusy(false);
     }
@@ -83,6 +107,45 @@ export function ResellerPortalPanelsPhase6({
     );
   }
 
+  const topLeads = growthWorkspace?.assignedLeads ?? [];
+  const topCommissions =
+    growthWorkspace?.commissions.map((item) => ({
+      id: item.commissionId,
+      customer: item.customerId,
+      plan: item.triggerType,
+      amount: item.amount,
+      status: item.status
+    })) ??
+    snapshot.commissions.map((item) => ({
+      id: item.id,
+      customer: item.companyName ?? item.tenantId,
+      plan: item.planCode ?? "-",
+      amount: item.amount,
+      status: item.status
+    }));
+
+  const topPayouts =
+    growthWorkspace?.payouts.map((item) => ({
+      id: item.payoutId,
+      total: item.amount,
+      status: item.status,
+      periodStart: item.createdAt,
+      periodEnd: item.payoutDate ?? item.updatedAt
+    })) ??
+    snapshot.payouts.map((item) => ({
+      id: item.id,
+      total: item.total,
+      status: item.status,
+      periodStart: item.periodStart,
+      periodEnd: item.periodEnd
+    }));
+
+  const referralStats = {
+    visits: growthWorkspace?.referrals.visits ?? snapshot.referrals.clicked,
+    signups: growthWorkspace?.referrals.signups ?? snapshot.referrals.registered,
+    purchases: growthWorkspace?.referrals.purchases ?? snapshot.referrals.purchased
+  };
+
   let sectionContent: ReactNode;
 
   if (section === "overview") {
@@ -96,6 +159,11 @@ export function ResellerPortalPanelsPhase6({
                 <p className="text-sm leading-6 text-text/80">{item}</p>
               </div>
             ))}
+            <div className="rounded-[24px] border border-brand/20 bg-brand/10 px-4 py-4 text-sm text-text/80">
+              Tier: <span className="font-semibold text-text">{growthWorkspace?.reseller.tier ?? "-"}</span>
+              {" | "}
+              Conversion rate: <span className="font-semibold text-text">{growthWorkspace?.metrics.conversionRate ?? 0}%</span>
+            </div>
           </div>
         </Card>
         <Card>
@@ -105,12 +173,15 @@ export function ResellerPortalPanelsPhase6({
               Primary code: <span className="font-semibold text-text">{snapshot.referrals.primaryCode}</span>
             </p>
             <p className="break-all">{snapshot.referrals.primaryLink}</p>
+            <p>
+              Visits <span className="font-semibold text-text">{referralStats.visits}</span> | Signups <span className="font-semibold text-text">{referralStats.signups}</span> | Purchases <span className="font-semibold text-text">{referralStats.purchases}</span>
+            </p>
           </div>
         </Card>
       </div>
     );
   } else if (section === "onboarding") {
-    const steps = buildResellerOnboardingChecklist(snapshot);
+    const steps = buildResellerOnboardingChecklist(snapshot, growthWorkspace);
     const completed = steps.filter((step) => step.status === "complete").length;
     sectionContent = (
       <div className="space-y-6">
@@ -122,7 +193,7 @@ export function ResellerPortalPanelsPhase6({
           <div className="mt-5 grid gap-4 md:grid-cols-3">
             <Metric label="Completed" value={`${completed}/${steps.length}`} />
             <Metric label="Referral code" value={snapshot.referrals.primaryCode} />
-            <Metric label="Available assets" value={String(snapshot.assets.length)} />
+            <Metric label="Tier" value={growthWorkspace?.reseller.tier ?? "-"} />
           </div>
         </Card>
         <div className="grid gap-4 xl:grid-cols-2">
@@ -159,15 +230,49 @@ export function ResellerPortalPanelsPhase6({
         </div>
       </Card>
     );
+  } else if (section === "leads") {
+    sectionContent = (
+      <div className="space-y-6">
+        <Card>
+          <CardTitle>Assigned leads</CardTitle>
+          <p className="mt-3 text-sm leading-6 text-text/72">
+            Lead ownership stays with reseller unless reassigned by admin override.
+          </p>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <Metric label="Total leads" value={String(growthWorkspace?.metrics.leadsGenerated ?? 0)} />
+            <Metric label="Conversions" value={String(growthWorkspace?.metrics.conversionCount ?? 0)} />
+            <Metric label="Conversion rate" value={`${growthWorkspace?.metrics.conversionRate ?? 0}%`} />
+          </div>
+        </Card>
+        <Card>
+          <CardTitle>Lead list</CardTitle>
+          {topLeads.length > 0 ? (
+            <div className="mt-5 space-y-3">
+              {topLeads.map((lead) => (
+                <div key={lead.leadId} className="rounded-[24px] border border-line bg-muted/30 px-4 py-4">
+                  <p className="font-semibold text-text">{lead.companyName}</p>
+                  <p className="mt-1 text-sm text-text/72">{lead.name} - {lead.email}</p>
+                  <p className="mt-2 text-sm text-text/72">
+                    Status {lead.status} | Score {lead.score}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-text/72">No assigned leads yet.</p>
+          )}
+        </Card>
+      </div>
+    );
   } else if (section === "referrals") {
     sectionContent = (
       <div className="space-y-6">
         <Card>
           <CardTitle>Referral performance</CardTitle>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <Metric label="Clicked" value={String(snapshot.referrals.clicked)} />
-            <Metric label="Registered" value={String(snapshot.referrals.registered)} />
-            <Metric label="Purchased" value={String(snapshot.referrals.purchased)} />
+            <Metric label="Visited" value={String(referralStats.visits)} />
+            <Metric label="Signed up" value={String(referralStats.signups)} />
+            <Metric label="Purchased" value={String(referralStats.purchases)} />
             <Metric label="Active" value={String(snapshot.referrals.active)} />
             <Metric label="Canceled" value={String(snapshot.referrals.canceled)} />
           </div>
@@ -195,16 +300,16 @@ export function ResellerPortalPanelsPhase6({
             <thead>
               <tr className="border-b border-line text-left text-text/55">
                 <th className="py-3">Customer</th>
-                <th className="py-3">Plan</th>
+                <th className="py-3">Type</th>
                 <th className="py-3">Amount</th>
                 <th className="py-3">Status</th>
               </tr>
             </thead>
             <tbody>
-              {snapshot.commissions.map((item) => (
+              {topCommissions.map((item) => (
                 <tr key={item.id} className="border-b border-line/80">
-                  <td className="py-3">{item.companyName ?? item.tenantId}</td>
-                  <td className="py-3">{item.planCode ?? "-"}</td>
+                  <td className="py-3">{item.customer}</td>
+                  <td className="py-3">{item.plan}</td>
                   <td className="py-3">{formatCurrency(item.amount)}</td>
                   <td className="py-3 uppercase">{item.status}</td>
                 </tr>
@@ -219,7 +324,7 @@ export function ResellerPortalPanelsPhase6({
       <Card>
         <CardTitle>Payout history</CardTitle>
         <div className="mt-5 space-y-3">
-          {snapshot.payouts.map((item) => (
+          {topPayouts.map((item) => (
             <div key={item.id} className="rounded-[24px] border border-line bg-muted/30 px-4 py-4">
               <p className="font-semibold text-text">{formatCurrency(item.total)}</p>
               <p className="mt-1 text-sm text-text/72">{item.status}</p>
@@ -251,20 +356,43 @@ export function ResellerPortalPanelsPhase6({
       </Card>
     );
   } else if (section === "assets") {
+    const assets = growthWorkspace?.assets ?? snapshot.assets;
     sectionContent = (
       <Card>
         <CardTitle>Partner assets</CardTitle>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          {snapshot.assets.map((asset) => (
+          {assets.map((asset) => (
             <div key={asset.id} className="rounded-[24px] border border-line bg-muted/30 px-4 py-4">
               <p className="font-semibold text-text">{asset.title}</p>
-              <p className="mt-1 text-sm text-text/72">{asset.description}</p>
+              <p className="mt-1 text-sm text-text/72">{asset.type}</p>
               <a href={asset.href} className="mt-3 inline-block text-sm font-semibold text-brand">
                 Open asset
               </a>
             </div>
           ))}
         </div>
+      </Card>
+    );
+  } else if (section === "training") {
+    const training = growthWorkspace?.training ?? [];
+    sectionContent = (
+      <Card>
+        <CardTitle>Partner training</CardTitle>
+        {training.length > 0 ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {training.map((module) => (
+              <div key={module.id} className="rounded-[24px] border border-line bg-muted/30 px-4 py-4">
+                <p className="font-semibold text-text">{module.title}</p>
+                <p className="mt-1 text-sm text-text/72">Level: {module.level}</p>
+                <a href={module.href} className="mt-3 inline-block text-sm font-semibold text-brand">
+                  Open training
+                </a>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-text/72">Training modules will be enabled after reseller approval.</p>
+        )}
       </Card>
     );
   } else if (section === "support") {
@@ -293,7 +421,12 @@ export function ResellerPortalPanelsPhase6({
           <Button
             className="mt-6"
             disabled={busy || !supportForm.subject || !supportForm.message}
-            onClick={() => void run(() => createResellerSupportRequest(supportForm), "Partner support request created.")}
+            onClick={() =>
+              void run(
+                () => createResellerSupportRequest(supportForm),
+                "Partner support request created."
+              )
+            }
           >
             Submit request
           </Button>
@@ -324,7 +457,7 @@ export function ResellerPortalPanelsPhase6({
           <Metric label="Status" value={snapshot.settings.status} />
           <Metric label="Commission" value={`${(snapshot.settings.commissionRate * 100).toFixed(0)}%`} />
           <Metric label="Payout method" value={snapshot.settings.payoutMethod} />
-          <Metric label="Company" value={snapshot.settings.companyName ?? "-"} />
+          <Metric label="Tier" value={growthWorkspace?.reseller.tier ?? "-"} />
         </div>
       </Card>
     );
@@ -333,15 +466,24 @@ export function ResellerPortalPanelsPhase6({
   return (
     <div className="space-y-6">
       <Card>
-        <CardTitle>Phase 6 Reseller Portal</CardTitle>
+        <CardTitle>Phase 15 Reseller Growth Portal</CardTitle>
         <p className="mt-3 text-sm text-text/72">
           Section: <span className="font-semibold text-text">{section}</span>
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Metric label="Referral code" value={snapshot.overview.referralCode} />
-          <Metric label="Customers" value={String(snapshot.overview.totals.referredCustomers)} />
-          <Metric label="Pending commission" value={formatCurrency(snapshot.overview.totals.pendingCommission)} />
-          <Metric label="Paid out" value={formatCurrency(snapshot.overview.totals.paidOutCommission)} />
+          <Metric
+            label="Leads"
+            value={String(growthWorkspace?.metrics.leadsGenerated ?? snapshot.overview.totals.referredCustomers)}
+          />
+          <Metric
+            label="Pending commission"
+            value={formatCurrency(growthWorkspace?.metrics.pendingCommission ?? snapshot.overview.totals.pendingCommission)}
+          />
+          <Metric
+            label="Paid out"
+            value={formatCurrency(growthWorkspace?.metrics.paidCommission ?? snapshot.overview.totals.paidOutCommission)}
+          />
         </div>
       </Card>
       {message ? (
@@ -397,7 +539,10 @@ interface ResellerOnboardingStep {
   ctaLabel: string;
 }
 
-function buildResellerOnboardingChecklist(snapshot: ResellerPortalExperience): ResellerOnboardingStep[] {
+function buildResellerOnboardingChecklist(
+  snapshot: ResellerPortalExperience,
+  growthWorkspace: ResellerDetailWorkspace | null
+): ResellerOnboardingStep[] {
   return [
     {
       code: "reseller_profile",
@@ -433,13 +578,13 @@ function buildResellerOnboardingChecklist(snapshot: ResellerPortalExperience): R
       ctaLabel: "Open assets"
     },
     {
-      code: "support_ready",
-      label: "Confirm partner support path",
+      code: "training_ready",
+      label: "Complete partner training",
       description:
-        "Ensure support channels are ready for activation and migration questions.",
-      status: snapshot.supportLinks.length > 0 ? "complete" : "pending",
-      href: "/reseller/portal/support",
-      ctaLabel: "Open support"
+        "Use sales, onboarding and support playbooks before scaling outreach.",
+      status: (growthWorkspace?.training.length ?? 0) > 0 ? "complete" : "pending",
+      href: "/reseller/portal/training",
+      ctaLabel: "Open training"
     }
   ];
 }

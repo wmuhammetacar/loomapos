@@ -11,9 +11,9 @@ import {
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "Download center",
+  title: "Indirme Merkezi",
   description:
-    "Windows Desktop App, Android ve iOS dagitim bilgileri, release notes, kurulum ve aktivasyon adimlari.",
+    "Desktop POS ve Mobile Operations paketleri, surum notlari, kurulum adimlari ve lisans aktivasyon yonlendirmeleri.",
   path: "/download"
 });
 
@@ -21,18 +21,24 @@ export default function DownloadPage() {
   return (
     <>
       <PageHero
-        eyebrow="Download center"
-        title="Structured app delivery for Desktop and Mobile"
-        description="The download center presents system requirements, installation guidance, version notes and activation instructions without confusing public downloads with licensed portal delivery."
+        eyebrow="Indirme Merkezi"
+        title="Desktop POS ve Mobile Operations uygulamalarini guvenle indir"
+        description="Web, indirme ve lisans yonetim merkezidir. Uygulamayi indirmek ucretsizdir; canli kullanim icin aktif lisans gerekir. Satis ve odeme sadece Desktop POS tarafinda, Mobile ise operasyon takip ve kontrol icindir."
         actions={marketingSecondaryCtas}
       />
 
       <section className="space-y-6">
         <SectionHeading
-          eyebrow="Artifacts"
-          title="App download hub"
-          description="Each platform has a clear artifact, version, update notes, install flow and activation expectation."
+          eyebrow="Paketler"
+          title="Her platform icin net kurulum ve aktivasyon"
+          description="Her pakette surum, gereksinim, kurulum ve aktivasyon adimlari birlikte sunulur."
         />
+        <p className="rounded-2xl border border-line bg-muted/35 px-4 py-3 text-sm font-semibold text-text/80">
+          Uygulama dosyasini indirmek ucretsizdir. Canli operasyon icin aktif plan ve lisans zorunludur.
+        </p>
+        <p className="rounded-2xl border border-line bg-white px-4 py-3 text-sm text-text/75">
+          Web uzerinden kasa satis/odeme islemi yapilmaz. Satis ve odeme Desktop POS tarafinda, Mobile ise saha operasyonu ve izleme icin kullanilir.
+        </p>
         <DownloadIntentForm />
         <div className="grid gap-4">
           {getDownloadHighlights().map((artifact) => (
@@ -50,16 +56,20 @@ export default function DownloadPage() {
                 </div>
               </div>
               <div className="mt-6 grid gap-4 lg:grid-cols-4">
-                <InfoList title="Release notes" items={artifact.releaseNotes} />
-                <InfoList title="Requirements" items={artifact.requirements} />
-                <InfoList title="Installation guide" items={artifact.installationSteps} />
-                <InfoList title="Activation guide" items={artifact.activationSteps} />
+                <InfoList title="Surum Notlari" items={artifact.releaseNotes} />
+                <InfoList title="Gereksinimler" items={artifact.requirements} />
+                <InfoList title="Kurulum Adimlari" items={artifact.installationSteps} />
+                <InfoList title="Aktivasyon Adimlari" items={artifact.activationSteps} />
               </div>
               <MarketingCtaGroup
                 items={[
-                  { href: artifact.href, label: artifact.platform === "windows" ? "Download Desktop" : "Download Mobile", variant: "primary" },
-                  { href: "/docs/installation", label: "Installation Guide", variant: "outline" },
-                  { href: "/docs/license-activation", label: "Activation Docs", variant: "ghost" }
+                  {
+                    href: artifact.href,
+                    label: artifact.platform === "windows" ? "Desktop Uygulamayi Indir" : "Mobile Uygulamayi Indir",
+                    variant: "primary"
+                  },
+                  { href: "/docs/installation", label: "Kurulum Rehberi", variant: "outline" },
+                  { href: "/docs/license-activation", label: "Lisans Aktivasyon Dokumani", variant: "ghost" }
                 ]}
                 context={`download_${artifact.platform}`}
                 className="mt-6"

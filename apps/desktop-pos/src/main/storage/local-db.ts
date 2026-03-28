@@ -5,6 +5,10 @@ import Database from "better-sqlite3";
 let database: Database.Database | null = null;
 
 export const initializeLocalDatabase = (dbPath: string) => {
+  if (database) {
+    database.close();
+    database = null;
+  }
   const dir = path.dirname(dbPath);
   fs.mkdirSync(dir, { recursive: true });
   database = new Database(dbPath);
@@ -527,6 +531,15 @@ export const initializeLocalDatabase = (dbPath: string) => {
   ensureColumn("local_audit_logs", "entity_id", "TEXT");
   ensureColumn("local_audit_logs", "metadata_json", "TEXT");
   ensureColumn("local_audit_logs", "sync_status", "TEXT NOT NULL DEFAULT 'PENDING'");
+};
+
+export const closeLocalDatabase = () => {
+  if (!database) {
+    return;
+  }
+
+  database.close();
+  database = null;
 };
 
 export const getDatabase = (): Database.Database => {

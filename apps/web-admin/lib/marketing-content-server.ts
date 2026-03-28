@@ -24,6 +24,14 @@ import {
   type SeoLandingPage,
   type SolutionPage
 } from "@/lib/marketing-content";
+import {
+  featureClusters,
+  featurePageRegistry,
+  getCanonicalFeaturePathByAnySlug,
+  getFeatureByClusterAndSlug,
+  getFeatureRegistryEntryByAnySlug,
+  type FeatureRegistryEntry
+} from "@/lib/feature-governance";
 
 const DATA_DIR = path.join(process.cwd(), ".marketing-data");
 const CONTENT_FILE = path.join(DATA_DIR, "marketing-content-snapshot.json");
@@ -81,6 +89,107 @@ function normalizeSnapshot(input: unknown): MarketingContentSnapshot {
   };
 }
 
+function parseSlugFromPath(value: string) {
+  const segments = String(value)
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  return segments.length > 0 ? segments[segments.length - 1] : "";
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.filter((value) => Boolean(value && value.trim()))));
+}
+
+function findSupplementalFeature(
+  entry: FeatureRegistryEntry,
+  sourcePages: MarketingFeaturePage[]
+) {
+  const candidates = uniqueStrings([
+    entry.feature_slug,
+    ...(entry.legacy_slugs ?? [])
+  ]);
+
+  for (const candidate of candidates) {
+    const direct = sourcePages.find(
+      (feature) =>
+        feature.slug === candidate ||
+        feature.legacySlugs?.includes(candidate)
+    );
+
+    if (direct) {
+      return direct;
+    }
+  }
+
+  return sourcePages.find((feature) => feature.route === entry.route) ?? null;
+}
+
+function registryToFeaturePage(
+  entry: FeatureRegistryEntry,
+  sourcePages: MarketingFeaturePage[]
+): MarketingFeaturePage {
+  const supplemental = findSupplementalFeature(entry, sourcePages);
+  const relatedSolutionsFromRegistry = uniqueStrings(
+    (entry.section_links?.related_solutions ?? []).map((href) => parseSlugFromPath(href))
+  );
+
+  const relatedSolutions =
+    relatedSolutionsFromRegistry.length > 0
+      ? relatedSolutionsFromRegistry
+      : (supplemental?.relatedSolutions ?? []);
+
+  const legacySlugs = uniqueStrings([
+    ...(entry.legacy_slugs ?? []),
+    ...(supplemental?.legacySlugs ?? []),
+    supplemental?.slug ?? ""
+  ]).filter((slug) => slug !== entry.feature_slug);
+
+  const screenshots =
+    entry.screenshots?.length > 0
+      ? entry.screenshots
+      : (supplemental?.screenshots ?? entry.visual_proof.slice(0, 2).map((item) => ({
+          title: item,
+          description: `${item} goruntusu`,
+          platform: "desktop" as const
+        })));
+
+  return {
+    slug: entry.feature_slug,
+    route: entry.route,
+    clusterSlug: entry.cluster_slug,
+    locale: entry.locale ?? "tr",
+    legacySlugs,
+    keyword: entry.primary_keyword,
+    title: entry.h1,
+    summary: entry.summary ?? supplemental?.summary ?? entry.solution,
+    whatItDoes: supplemental?.whatItDoes ?? entry.solution,
+    desktopFlow:
+      supplemental?.desktopFlow ??
+      "Operasyonel adimlar Desktop POS uygulamasi icinde yurutulur.",
+    mobileFlow:
+      supplemental?.mobileFlow ??
+      "Saha ve hafif operasyon adimlari Mobile POS uygulamasi icinde yurutulur.",
+    businessBenefits:
+      entry.benefits?.length > 0
+        ? entry.benefits
+        : (supplemental?.businessBenefits ?? []),
+    usageExamples:
+      supplemental?.usageExamples?.length
+        ? supplemental.usageExamples
+        : entry.how_it_works,
+    screenshots,
+    relatedSolutions
+  };
+}
+
+function materializeFeaturePages(sourcePages: MarketingFeaturePage[]) {
+  return featurePageRegistry.features.map((entry) =>
+    registryToFeaturePage(entry, sourcePages)
+  );
+}
+
 export async function loadMarketingContentSnapshot() {
   noStore();
 
@@ -111,19 +220,55 @@ export async function getSolutionPageBySlugServer(slug: string) {
 }
 
 export async function getMarketingFeaturesServer() {
-  return (await loadMarketingContentSnapshot()).featurePages;
+  const snapshot = await loadMarketingContentSnapshot();
+  return materializeFeaturePages(snapshot.featurePages);
+}
+
+export async function getMarketingFeaturesByClusterServer(clusterSlug: string) {
+  const features = await getMarketingFeaturesServer();
+  return features.filter((feature) => feature.clusterSlug === clusterSlug);
+}
+
+export async function getFeatureClustersServer() {
+  return featureClusters;
+}
+
+export async function getFeatureClusterBySlugServer(clusterSlug: string) {
+  return featureClusters.find((cluster) => cluster.slug === clusterSlug) ?? null;
+}
+
+export async function getMarketingFeatureByClusterAndSlugServer(
+  clusterSlug: string,
+  featureSlug: string
+) {
+  const registryEntry = getFeatureByClusterAndSlug(clusterSlug, featureSlug);
+  if (!registryEntry) {
+    return null;
+  }
+
+  const features = await getMarketingFeaturesServer();
+  return features.find((feature) => feature.slug === registryEntry.feature_slug) ?? null;
 }
 
 export async function getMarketingFeatureBySlugServer(slug: string) {
   const features = await getMarketingFeaturesServer();
   return features.find(
-    (feature) => feature.slug === slug || feature.legacySlugs?.includes(slug)
+    (feature) =>
+      feature.slug === slug ||
+      feature.legacySlugs?.includes(slug) ||
+      feature.route === slug ||
+      feature.route === `/features/${slug}`
   );
 }
 
 export async function getCanonicalFeatureSlugServer(slug: string) {
   const feature = await getMarketingFeatureBySlugServer(slug);
-  return feature?.slug ?? slug;
+  if (feature) {
+    return feature.slug;
+  }
+
+  const registryEntry = getFeatureRegistryEntryByAnySlug(slug);
+  return registryEntry?.feature_slug ?? slug;
 }
 
 export async function getAlternativePagesServer() {
@@ -174,9 +319,33 @@ export async function getMarketingBlogTagsServer() {
 
 export async function getRelatedFeaturesServer(slugs: string[]) {
   const features = await getMarketingFeaturesServer();
-  return slugs
-    .map((slug) => features.find((feature) => feature.slug === slug))
+
+  const resolved = slugs
+    .map((slug) => {
+      const registryEntry = getFeatureRegistryEntryByAnySlug(slug);
+      if (registryEntry) {
+        return (
+          features.find((feature) => feature.slug === registryEntry.feature_slug) ?? null
+        );
+      }
+
+      return (
+        features.find(
+          (feature) => feature.slug === slug || feature.legacySlugs?.includes(slug)
+        ) ?? null
+      );
+    })
     .filter((feature): feature is MarketingFeaturePage => Boolean(feature));
+
+  const seen = new Set<string>();
+  return resolved.filter((feature) => {
+    if (seen.has(feature.slug)) {
+      return false;
+    }
+
+    seen.add(feature.slug);
+    return true;
+  });
 }
 
 export async function getRelatedDocsServer(slugs: string[]) {
@@ -218,17 +387,27 @@ export async function getDocsCategoriesForIndexServer() {
 
 export async function buildMarketingSitemapRoutesServer() {
   const snapshot = await loadMarketingContentSnapshot();
-  return [
+  const featurePages = materializeFeaturePages(snapshot.featurePages);
+
+  const routes = new Set<string>([
     ...publicIndexableRoutes,
     ...snapshot.landingPages.map((page) => `/${page.slug}`),
     ...snapshot.solutionPages.map((page) => `/solutions/${page.slug}`),
     ...snapshot.alternativePages.map((page) => `/alternatives/${page.slug}`),
-    ...snapshot.featurePages.map((feature) => `/features/${feature.slug}`),
+    "/compare",
+    ...featureClusters.map((cluster) => `/features/${cluster.slug}`),
+    ...featurePages.map(
+      (feature) => feature.route ?? getCanonicalFeaturePathByAnySlug(feature.slug)
+    ),
+    ...featurePages.map((feature) => `/compare/${feature.slug}`),
     ...snapshot.integrationPages.map((page) => `/integrations/${page.slug}`),
     ...snapshot.docsPages.map((page) => `/docs/${page.slug}`),
     ...snapshot.blogPosts.map((post) => `/blog/${post.slug}`),
+    ...featurePageRegistry.features.flatMap((entry) => entry.comparison_links ?? []),
     "/resellers/apply"
-  ];
+  ]);
+
+  return Array.from(routes).filter((route) => route.startsWith("/"));
 }
 
 export async function getMarketingGrowthSnapshotSummary() {
@@ -240,7 +419,7 @@ export async function getMarketingGrowthSnapshotSummary() {
     locales: snapshot.locales,
     landingPages: snapshot.landingPages.length,
     solutionPages: snapshot.solutionPages.length,
-    featurePages: snapshot.featurePages.length,
+    featurePages: featurePageRegistry.features.length,
     alternativePages: snapshot.alternativePages.length,
     integrationPages: snapshot.integrationPages.length,
     docsPages: snapshot.docsPages.length,

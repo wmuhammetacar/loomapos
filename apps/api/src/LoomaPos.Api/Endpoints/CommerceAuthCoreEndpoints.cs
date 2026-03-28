@@ -51,7 +51,7 @@ public static class CommerceAuthCoreEndpoints
         group.MapPost("/refresh", RefreshAsync)
             .WithName("CommerceRefresh")
             .WithSummary("Refreshes customer or reseller portal session.")
-            .RequireRateLimiting("auth");
+            .RequireRateLimiting("auth-refresh");
 
         group.MapGet("/me", MeAsync)
             .WithName("CommerceMe")

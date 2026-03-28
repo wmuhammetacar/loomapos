@@ -7,6 +7,7 @@ using LoomaPos.Api.Middleware;
 using LoomaPos.Api.Security;
 using LoomaPos.Infrastructure;
 using LoomaPos.Infrastructure.Persistence;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -46,17 +47,115 @@ builder.Services.AddScoped<IEmailDispatchService, PickupDirectoryEmailDispatchSe
 builder.Services.AddHostedService<EmailDispatchBackgroundService>();
 builder.Services.AddRateLimiter(options =>
 {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (rateLimitContext, _) =>
+    {
+        var httpContext = rateLimitContext.HttpContext;
+        var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("RateLimiter");
+
+        var endpoint = httpContext.GetEndpoint();
+        var policyName = endpoint?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ?? "unknown";
+        var tenantId = ResolveRateLimitGuid(httpContext, "tenant_id", "tenantId", "tenant", "X-Tenant-Id");
+        var deviceId = ResolveRateLimitGuid(httpContext, "device_id", "deviceId", "X-Device-Id");
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var clientIdentity = ResolveRateLimitClientIdentity(httpContext);
+
+        logger.LogWarning(
+            "rate_limit_rejected policy {PolicyName} method {Method} path {Path} requestId {RequestId} clientIdentity {ClientIdentity} clientIp {ClientIp} tenantId {TenantId} deviceId {DeviceId}",
+            policyName,
+            httpContext.Request.Method,
+            httpContext.Request.Path.Value ?? "/",
+            httpContext.TraceIdentifier,
+            clientIdentity,
+            clientIp,
+            tenantId,
+            deviceId);
+
+        return ValueTask.CompletedTask;
+    };
+
     options.AddFixedWindowLimiter("auth", limiterOptions =>
     {
-        limiterOptions.PermitLimit = 10;
+        limiterOptions.PermitLimit = 12;
         limiterOptions.Window = TimeSpan.FromMinutes(1);
         limiterOptions.QueueLimit = 0;
     });
-    options.AddFixedWindowLimiter("license", limiterOptions =>
+
+    options.AddFixedWindowLimiter("auth-refresh", limiterOptions =>
     {
-        limiterOptions.PermitLimit = 30;
+        limiterOptions.PermitLimit = 40;
         limiterOptions.Window = TimeSpan.FromMinutes(1);
         limiterOptions.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("license", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 60;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("license-activation", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 24;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("license-heartbeat", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 240;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("sync-push", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 360;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("internal-auth", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 12;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("internal-mutation", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 60;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueLimit = 0;
+    });
+});
+
+var corsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?? builder.Configuration["Cors:AllowedOrigins"]?
+        .Split(new[] { ",", ";" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? new[]
+    {
+        "http://127.0.0.1:3100",
+        "http://localhost:3100",
+        "http://127.0.0.1:3300",
+        "http://localhost:3300",
+        "http://127.0.0.1:4200",
+        "http://localhost:4200",
+        "http://127.0.0.1:5000",
+        "http://localhost:5000"
+    };
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("loomapos-frontends", policy =>
+    {
+        policy
+            .WithOrigins(corsOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -112,9 +211,24 @@ builder.Logging.AddOpenTelemetry(options =>
 });
 
 var app = builder.Build();
-RuntimeSecretGuard.Validate(app.Services, builder.Configuration, app.Environment);
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
+try
+{
+    RuntimeSecretGuard.Validate(app.Services, builder.Configuration, app.Environment);
+}
+catch (Exception ex)
+{
+    startupLogger.LogCritical(
+        ex,
+        "startup_configuration_validation_failed phase {StartupPhase} environment {EnvironmentName}",
+        "runtime_secret_guard",
+        app.Environment.EnvironmentName);
+    throw;
+}
 
 app.UseExceptionHandler();
+app.UseCors("loomapos-frontends");
 
 if (app.Environment.IsDevelopment())
 {
@@ -130,15 +244,21 @@ if (!disableAuth)
 app.UseAuthorization();
 app.UseRateLimiter();
 app.UseMiddleware<TenantContextMiddleware>();
+app.UseMiddleware<RequestLifecycleLoggingMiddleware>();
 
 using (var scope = app.Services.CreateScope())
 {
-    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+    var migrationLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup.Migration");
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var commerceSeedService = scope.ServiceProvider.GetRequiredService<ICommerceSeedService>();
 
     try
     {
+        migrationLogger.LogInformation(
+            "startup_database_initialization_started phase {StartupPhase} provider {DatabaseProvider}",
+            "database_migration",
+            dbContext.Database.ProviderName ?? "unknown");
+
         var migrations = dbContext.Database.GetMigrations();
         if (migrations.Any())
         {
@@ -150,10 +270,19 @@ using (var scope = app.Services.CreateScope())
         }
 
         await commerceSeedService.EnsureSeedDataAsync(CancellationToken.None);
+
+        migrationLogger.LogInformation(
+            "startup_database_initialization_completed phase {StartupPhase} provider {DatabaseProvider}",
+            "database_migration",
+            dbContext.Database.ProviderName ?? "unknown");
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Database migration failed or skipped.");
+        migrationLogger.LogCritical(
+            ex,
+            "startup_database_initialization_failed phase {StartupPhase} provider {DatabaseProvider}",
+            "database_migration",
+            dbContext.Database.ProviderName ?? "unknown");
     }
 }
 
@@ -200,5 +329,40 @@ adminApi.MapIdentityEndpoints();
 adminApi.MapCashbookEndpoints();
 
 app.Run();
+
+static string ResolveRateLimitClientIdentity(HttpContext context)
+{
+    var actor = context.User.FindFirstValue("preferred_username")
+        ?? context.User.FindFirstValue(ClaimTypes.Email)
+        ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? context.User.FindFirstValue("sub");
+
+    if (!string.IsNullOrWhiteSpace(actor))
+    {
+        return actor;
+    }
+
+    return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
+
+static string? ResolveRateLimitGuid(HttpContext context, params string[] keys)
+{
+    foreach (var key in keys)
+    {
+        var claimValue = context.User.FindFirstValue(key);
+        if (Guid.TryParse(claimValue, out var claimGuid))
+        {
+            return claimGuid.ToString();
+        }
+
+        var headerValue = context.Request.Headers[key].FirstOrDefault();
+        if (Guid.TryParse(headerValue, out var headerGuid))
+        {
+            return headerGuid.ToString();
+        }
+    }
+
+    return null;
+}
 
 public partial class Program;

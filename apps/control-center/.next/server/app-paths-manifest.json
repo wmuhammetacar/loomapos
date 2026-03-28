@@ -1,0 +1,12 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/audit/page": "app/audit/page.js",
+  "/page": "app/page.js",
+  "/devices/page": "app/devices/page.js",
+  "/support/page": "app/support/page.js",
+  "/sync/page": "app/sync/page.js",
+  "/subscriptions/page": "app/subscriptions/page.js",
+  "/tenants/[id]/page": "app/tenants/[id]/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/tenants/page": "app/tenants/page.js"
+}

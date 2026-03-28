@@ -6,7 +6,8 @@ import "package:loomapos_mobile/models/mobile_models.dart";
 class LocalStore {
   LocalStore._();
 
-  static Future<LocalStore> open({bool inMemory = false}) async => LocalStore._();
+  static Future<LocalStore> open({bool inMemory = false}) async =>
+      LocalStore._();
 
   final Map<String, Object?> _settings = {};
   LocalSession? _session;
@@ -21,6 +22,7 @@ class LocalStore {
   final Map<String, LocalOutboxEvent> _outbox = {};
   DashboardSummary _dashboard = DashboardSummary.empty;
   SyncDiagnostics _sync = SyncDiagnostics.initial;
+  final Map<String, Map<String, dynamic>> _readCaches = {};
 
   Future<void> init() async {}
   Future<void> close() async {}
@@ -30,49 +32,45 @@ class LocalStore {
       return;
     }
     final now = DateTime.now().toUtc();
-    await replaceBranches(
-      [
-        LocalBranch(
-          id: "00000000-0000-0000-0000-000000000001",
-          name: "Merkez Sube",
-          isAssigned: true,
-          isSelected: true,
-          settingsJson: "{}",
-          updatedAt: now,
-        ),
-      ],
-      selectedBranchId: "00000000-0000-0000-0000-000000000001",
-    );
-    await replaceProducts(
-      [
-        LocalProduct(
-          id: "30000000-0000-0000-0000-000000000001",
-          name: "Su 0.5L",
-          barcode: "869000000001",
-          sku: "SU-05",
-          categoryName: "Icecek",
-          salePrice: 10,
-          purchasePrice: 6,
-          taxRate: 10,
-          stockTracked: true,
-          minStock: 6,
-          isActive: true,
-          stockQty: 12,
-          syncStatus: "synced",
-          conflictState: "none",
-          conflictReason: null,
-          pendingVerification: false,
-          updatedAt: now,
-        ),
-      ],
-    );
+    await replaceBranches([
+      LocalBranch(
+        id: "00000000-0000-0000-0000-000000000001",
+        name: "Merkez Sube",
+        isAssigned: true,
+        isSelected: true,
+        settingsJson: "{}",
+        updatedAt: now,
+      ),
+    ], selectedBranchId: "00000000-0000-0000-0000-000000000001");
+    await replaceProducts([
+      LocalProduct(
+        id: "30000000-0000-0000-0000-000000000001",
+        name: "Su 0.5L",
+        barcode: "869000000001",
+        sku: "SU-05",
+        categoryName: "Icecek",
+        salePrice: 10,
+        purchasePrice: 6,
+        taxRate: 10,
+        stockTracked: true,
+        minStock: 6,
+        isActive: true,
+        stockQty: 12,
+        syncStatus: "synced",
+        conflictState: "none",
+        conflictReason: null,
+        pendingVerification: false,
+        updatedAt: now,
+      ),
+    ]);
   }
 
   Future<LocalSession?> getActiveSession() async => _session;
   Future<void> saveSession(LocalSession session) async => _session = session;
   Future<void> clearSession() async => _session = null;
   Future<LocalActivation?> getActivation() async => _activation;
-  Future<void> saveActivation(LocalActivation activation) async => _activation = activation;
+  Future<void> saveActivation(LocalActivation activation) async =>
+      _activation = activation;
   Future<void> clearActivation() async => _activation = null;
 
   Future<void> updateActivation({
@@ -114,12 +112,16 @@ class LocalStore {
     required String status,
   }) async {}
 
-  Future<void> replacePermissions(PermissionSnapshot snapshot) async => _permissions = snapshot;
+  Future<void> replacePermissions(PermissionSnapshot snapshot) async =>
+      _permissions = snapshot;
   Future<PermissionSnapshot> getPermissions() async => _permissions;
 
   Future<List<LocalBranch>> listBranches() async => _branches.values.toList();
 
-  Future<void> replaceBranches(List<LocalBranch> branches, {String? selectedBranchId}) async {
+  Future<void> replaceBranches(
+    List<LocalBranch> branches, {
+    String? selectedBranchId,
+  }) async {
     _branches
       ..clear()
       ..addEntries(
@@ -165,7 +167,8 @@ class LocalStore {
       );
   }
 
-  Future<String?> getSelectedBranchId() async => _settings["selected_branch_id"]?.toString();
+  Future<String?> getSelectedBranchId() async =>
+      _settings["selected_branch_id"]?.toString();
 
   Future<void> replaceProducts(List<LocalProduct> products) async {
     _products
@@ -173,7 +176,10 @@ class LocalStore {
       ..addEntries(products.map((product) => MapEntry(product.id, product)));
   }
 
-  Future<List<LocalProduct>> searchProducts({String? query, String? barcode}) async {
+  Future<List<LocalProduct>> searchProducts({
+    String? query,
+    String? barcode,
+  }) async {
     final term = query?.trim().toLowerCase();
     return _products.values.where((product) {
       if (barcode != null && barcode.trim().isNotEmpty) {
@@ -188,7 +194,8 @@ class LocalStore {
     }).toList();
   }
 
-  Future<LocalProduct?> getProductById(String productId) async => _products[productId];
+  Future<LocalProduct?> getProductById(String productId) async =>
+      _products[productId];
 
   Future<LocalProduct?> getProductByBarcode(String barcode) async {
     for (final product in _products.values) {
@@ -311,9 +318,15 @@ class LocalStore {
     return record;
   }
 
-  Future<List<StockCountSessionRecord>> listStockCountSessions() async => _sessions.values.toList();
-  Future<StockCountSessionRecord?> getStockCountSession(String sessionId) async => _sessions[sessionId];
-  Future<List<StockCountLineRecord>> listStockCountLines(String sessionId) async => _lines.values.where((line) => line.sessionId == sessionId).toList();
+  Future<List<StockCountSessionRecord>> listStockCountSessions() async =>
+      _sessions.values.toList();
+  Future<StockCountSessionRecord?> getStockCountSession(
+    String sessionId,
+  ) async => _sessions[sessionId];
+  Future<List<StockCountLineRecord>> listStockCountLines(
+    String sessionId,
+  ) async =>
+      _lines.values.where((line) => line.sessionId == sessionId).toList();
 
   Future<void> upsertStockCountLine({
     String? lineId,
@@ -352,7 +365,9 @@ class LocalStore {
       productNameSnapshot: productNameSnapshot,
       expectedQtySnapshot: expectedQtySnapshot,
       countedQty: mergedQty,
-      deltaQty: expectedQtySnapshot == null ? null : mergedQty - expectedQtySnapshot,
+      deltaQty: expectedQtySnapshot == null
+          ? null
+          : mergedQty - expectedQtySnapshot,
       note: note,
       createdAt: DateTime.now().toUtc(),
       updatedAt: DateTime.now().toUtc(),
@@ -377,7 +392,8 @@ class LocalStore {
     }
   }
 
-  Future<void> removeStockCountLine(String lineId) async => _lines.remove(lineId);
+  Future<void> removeStockCountLine(String lineId) async =>
+      _lines.remove(lineId);
 
   Future<void> submitStockCountSession(String sessionId) async {
     final current = _sessions[sessionId];
@@ -475,10 +491,15 @@ class LocalStore {
     );
   }
 
-  Future<void> replaceRecentActivity(List<ActivityFeedItem> items) async => _replaceById(_activity, items, (item) => item.id);
-  Future<List<ActivityFeedItem>> listRecentActivity({int limit = 50}) async => _activity.values.take(limit).toList();
-  Future<void> replaceNotifications(List<LocalNotificationRecord> notifications) async => _replaceById(_notifications, notifications, (item) => item.id);
-  Future<List<LocalNotificationRecord>> listNotifications() async => _notifications.values.toList();
+  Future<void> replaceRecentActivity(List<ActivityFeedItem> items) async =>
+      _replaceById(_activity, items, (item) => item.id);
+  Future<List<ActivityFeedItem>> listRecentActivity({int limit = 50}) async =>
+      _activity.values.take(limit).toList();
+  Future<void> replaceNotifications(
+    List<LocalNotificationRecord> notifications,
+  ) async => _replaceById(_notifications, notifications, (item) => item.id);
+  Future<List<LocalNotificationRecord>> listNotifications() async =>
+      _notifications.values.toList();
 
   Future<void> markNotificationRead(String notificationId) async {
     final current = _notifications[notificationId];
@@ -496,8 +517,23 @@ class LocalStore {
     );
   }
 
-  Future<void> saveDashboardSummary(DashboardSummary summary) async => _dashboard = summary;
+  Future<void> saveDashboardSummary(DashboardSummary summary) async =>
+      _dashboard = summary;
   Future<DashboardSummary> getDashboardSummary() async => _dashboard;
+
+  Future<void> saveReadCache(
+    String cacheKey,
+    Map<String, dynamic> payload,
+  ) async {
+    _readCaches[cacheKey] = <String, dynamic>{
+      ...payload,
+      "_cachedAt": DateTime.now().toUtc().toIso8601String(),
+    };
+  }
+
+  Future<Map<String, dynamic>?> getReadCache(String cacheKey) async {
+    return _readCaches[cacheKey];
+  }
 
   Future<void> appendOutboxEvent({
     required String eventType,
@@ -523,8 +559,12 @@ class LocalStore {
     );
   }
 
-  Future<List<LocalOutboxEvent>> getDispatchableOutboxEvents({int limit = 20}) async =>
-      _outbox.values.where((event) => event.status != "sent").take(limit).toList();
+  Future<List<LocalOutboxEvent>> getDispatchableOutboxEvents({
+    int limit = 20,
+  }) async => _outbox.values
+      .where((event) => event.status != "sent")
+      .take(limit)
+      .toList();
 
   Future<void> markOutboxSent(String eventId) async {
     final current = _outbox[eventId];
@@ -573,7 +613,10 @@ class LocalStore {
     );
   }
 
-  Future<void> markOutboxConflict(String eventId, {required String errorMessage}) async {
+  Future<void> markOutboxConflict(
+    String eventId, {
+    required String errorMessage,
+  }) async {
     await markOutboxFailed(
       eventId,
       errorCode: "conflict",
@@ -583,7 +626,9 @@ class LocalStore {
   }
 
   Future<void> retryDeadLetterEvents() async {
-    final deadEvents = _outbox.values.where((event) => event.status == "dead_letter").toList();
+    final deadEvents = _outbox.values
+        .where((event) => event.status == "dead_letter")
+        .toList();
     for (final event in deadEvents) {
       _outbox[event.id] = LocalOutboxEvent(
         id: event.id,
@@ -603,7 +648,8 @@ class LocalStore {
   }
 
   Future<SyncDiagnostics> getSyncDiagnostics() async => _sync;
-  Future<void> saveSyncDiagnostics(SyncDiagnostics diagnostics) async => _sync = diagnostics;
+  Future<void> saveSyncDiagnostics(SyncDiagnostics diagnostics) async =>
+      _sync = diagnostics;
 
   Future<void> refreshSyncDiagnosticsFromOutbox({
     bool? running,
@@ -615,9 +661,15 @@ class LocalStore {
     String? blockedReason,
     bool clearError = false,
   }) async {
-    final pending = _outbox.values.where((event) => event.status == "pending").length;
-    final failed = _outbox.values.where((event) => event.status == "failed").length;
-    final deadLetter = _outbox.values.where((event) => event.status == "dead_letter").length;
+    final pending = _outbox.values
+        .where((event) => event.status == "pending")
+        .length;
+    final failed = _outbox.values
+        .where((event) => event.status == "failed")
+        .length;
+    final deadLetter = _outbox.values
+        .where((event) => event.status == "dead_letter")
+        .length;
     _sync = _sync.copyWith(
       running: running,
       online: online,
@@ -642,7 +694,11 @@ class LocalStore {
   }) async {}
 }
 
-void _replaceById<T>(Map<String, T> target, List<T> values, String Function(T) idOf) {
+void _replaceById<T>(
+  Map<String, T> target,
+  List<T> values,
+  String Function(T) idOf,
+) {
   target
     ..clear()
     ..addEntries(values.map((value) => MapEntry(idOf(value), value)));
@@ -653,6 +709,8 @@ String _uuid() {
   final bytes = List<int>.generate(16, (_) => random.nextInt(256));
   bytes[6] = (bytes[6] & 0x0F) | 0x40;
   bytes[8] = (bytes[8] & 0x3F) | 0x80;
-  final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, "0")).join();
+  final hex = bytes
+      .map((value) => value.toRadixString(16).padLeft(2, "0"))
+      .join();
   return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}";
 }

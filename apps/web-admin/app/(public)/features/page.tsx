@@ -3,55 +3,77 @@ import { MarketingCtaGroup } from "@/components/site/marketing-cta-group";
 import { PageHero } from "@/components/site/page-hero";
 import { SectionHeading } from "@/components/site/section-heading";
 import { Card, CardTitle } from "@/components/ui/card";
-import { marketingPrimaryCtas } from "@/lib/marketing-content";
-import { getMarketingFeaturesServer } from "@/lib/marketing-content-server";
+import {
+  marketingPrimaryCtas,
+  marketingSecondaryCtas
+} from "@/lib/marketing-content";
+import {
+  getFeatureClustersServer,
+  getMarketingFeaturesByClusterServer
+} from "@/lib/marketing-content-server";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "Features overview",
+  title: "Ozellik merkez sayfasi",
   description:
-    "Explore SEO-ready LoomaPOS feature pages designed to explain the product clearly and convert visitors into demos, trials and subscriptions.",
+    "LoomaPOS feature sistemi: cluster hub + detay sayfa yapisi ile SEO ve donusum icin organize edilmis ozellik mimarisi.",
   path: "/features"
 });
 
 export default async function FeaturesPage() {
-  const marketingFeatures = await getMarketingFeaturesServer();
+  const clusters = await getFeatureClustersServer();
+  const clusterStats = await Promise.all(
+    clusters.map(async (cluster) => ({
+      cluster,
+      features: await getMarketingFeaturesByClusterServer(cluster.slug)
+    }))
+  );
 
   return (
     <>
       <PageHero
-        eyebrow="Features"
-        title="Feature detail pages built for SEO clarity and high-intent conversion"
-        description="Every feature page explains what the capability does, how it works in Desktop and Mobile, and why the business should move into pricing, demo or download next."
-        actions={marketingPrimaryCtas}
+        eyebrow="Feature hub"
+        title="Tum ozellikleri cluster yapisiyla kesfet"
+        description="Master hub; cluster bazli gezinmeyi netlestirir, detay sayfalari canonical route modeline baglar ve trial/pricing donusumunu destekler."
+        actions={[marketingPrimaryCtas[0], marketingPrimaryCtas[1]]}
       />
 
       <section className="space-y-6">
         <SectionHeading
-          eyebrow="Module map"
-          title="Feature architecture"
-          description="The site now covers sales, inventory, reports, staff, branches, payments, variants, e-invoice, cash register integrations and pricing management."
+          eyebrow="Cluster taxonomy"
+          title="Indexlenebilir cluster merkezleri"
+          description="Her cluster kendi hub sayfasina sahiptir ve child feature detaylarini tek yapida sunar."
         />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {marketingFeatures.map((feature) => (
-            <Card key={feature.slug}>
-              <CardTitle>{feature.title}</CardTitle>
-              <p className="mt-3 text-sm leading-6 text-text/72">{feature.summary}</p>
-              <ul className="mt-4 space-y-2 text-sm text-text/68">
-                {feature.businessBenefits.map((point) => (
-                  <li key={point}>{point}</li>
-                ))}
-              </ul>
+          {clusterStats.map(({ cluster, features }) => (
+            <Card key={cluster.slug}>
+              <CardTitle>{cluster.title_tr}</CardTitle>
+              <p className="mt-3 text-sm leading-6 text-text/72">{cluster.value_proposition_tr}</p>
+              <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text/60">
+                {features.length} feature detail
+              </p>
+              <p className="mt-3 text-sm leading-6 text-text/70">{cluster.audience_tr}</p>
               <Link
-                href={`/features/${feature.slug}`}
+                href={`/features/${cluster.slug}` as never}
                 className="mt-5 inline-flex text-sm font-semibold text-brand"
               >
-                Feature page
+                Cluster hub ac
               </Link>
             </Card>
           ))}
         </div>
-        <MarketingCtaGroup items={marketingPrimaryCtas} context="features_index_bottom" />
+      </section>
+
+      <section className="space-y-6">
+        <SectionHeading
+          eyebrow="Quick actions"
+          title="Deneme veya fiyatlandirma adimina gec"
+          description="Feature IA gezintiden sonra ana funnel korunur: Start Trial -> Pricing -> Checkout -> Onboarding."
+        />
+        <MarketingCtaGroup
+          items={[marketingPrimaryCtas[0], marketingPrimaryCtas[1], marketingSecondaryCtas[0]]}
+          context="features_master_hub_bottom"
+        />
       </section>
     </>
   );

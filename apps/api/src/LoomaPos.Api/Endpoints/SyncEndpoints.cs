@@ -15,11 +15,13 @@ public static class SyncEndpoints
 
         group.MapPost("/events", ProcessSyncEventAsync)
             .WithName("ProcessSyncEvent")
-            .WithSummary("Processes one desktop POS sync event with idempotent acknowledgement.");
+            .WithSummary("Processes one desktop POS sync event with idempotent acknowledgement.")
+            .RequireRateLimiting("sync-push");
 
         group.MapPost("/events/batch", ProcessSyncBatchAsync)
             .WithName("ProcessSyncBatch")
-            .WithSummary("Processes desktop POS sync events in batch and returns per-event acknowledgement.");
+            .WithSummary("Processes desktop POS sync events in batch and returns per-event acknowledgement.")
+            .RequireRateLimiting("sync-push");
 
         group.MapGet("/pull", PullSyncStateAsync)
             .WithName("PullSyncState")

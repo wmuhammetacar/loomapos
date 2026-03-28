@@ -1,32 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
-import { getStoredSession, type AuthSession } from "@/lib/auth";
-import {
-  marketingPrimaryCtas,
-  publicHeaderNav,
-  marketingSiteConfig
-} from "@/lib/marketing-content";
+import { marketingSiteConfig } from "@/lib/marketing-content";
 import { trackMarketingEvent } from "@/lib/marketing-service";
+
+const headerNav = [
+  { href: "/features", label: "Ozellikler" },
+  { href: "/pricing", label: "Fiyatlar" },
+  { href: "/download", label: "Indir" },
+  { href: "/login", label: "Giris" }
+] as const;
 
 export function PublicHeader() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [session, setSession] = useState<AuthSession | null>(null);
-
-  useEffect(() => {
-    setSession(getStoredSession());
-  }, [pathname]);
-
-  const portalLink =
-    session?.portalType === "reseller"
-      ? { href: "/reseller/portal", label: "Partner Portal" }
-      : session?.portalType === "customer"
-        ? { href: "/portal", label: "Customer Portal" }
-        : null;
 
   function trackHeaderClick(label: string, href: string, context: string) {
     trackMarketingEvent({
@@ -39,19 +29,14 @@ export function PublicHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-[rgba(251,247,242,0.85)] backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-line bg-[rgba(251,247,242,0.9)] backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="font-heading text-2xl font-bold tracking-tight text-text">
-            {marketingSiteConfig.name}
-          </Link>
-          <span className="hidden rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-brand lg:inline-flex">
-            SEO + conversion engine
-          </span>
-        </div>
+        <Link href="/" className="font-heading text-2xl font-bold tracking-tight text-text">
+          {marketingSiteConfig.name}
+        </Link>
 
-        <nav className="hidden items-center gap-6 text-sm font-medium text-text/70 lg:flex">
-          {publicHeaderNav.map((item) => (
+        <nav className="hidden items-center gap-6 text-sm font-medium text-text/75 lg:flex">
+          {headerNav.map((item) => (
             <Link
               key={item.href}
               href={item.href as never}
@@ -63,43 +48,15 @@ export function PublicHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden md:flex">
           <Link
-            href="/demo"
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
-            onClick={() => trackHeaderClick("Request Demo", "/demo", "header_demo")}
-          >
-            Request Demo
-          </Link>
-          {portalLink ? (
-            <Link
-              href={portalLink.href as never}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              onClick={() => trackHeaderClick(portalLink.label, portalLink.href, "header_portal")}
-            >
-              {portalLink.label}
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              onClick={() => trackHeaderClick("Login", "/login", "header_login")}
-            >
-              Login
-            </Link>
-          )}
-          <Link
-            href={marketingPrimaryCtas[0].href as never}
+            href="/register"
             className={buttonVariants({ variant: "primary", size: "sm" })}
             onClick={() =>
-              trackHeaderClick(
-                marketingPrimaryCtas[0].label,
-                marketingPrimaryCtas[0].href,
-                "header_primary"
-              )
+              trackHeaderClick("Ucretsiz Deneme Baslat", "/register", "header_primary")
             }
           >
-            {marketingPrimaryCtas[0].label}
+            Ucretsiz Deneme
           </Link>
         </div>
 
@@ -115,7 +72,7 @@ export function PublicHeader() {
       {isMenuOpen ? (
         <div className="border-t border-line bg-white/95 px-6 py-5 lg:hidden">
           <nav className="grid gap-3 text-sm font-medium text-text/75">
-            {publicHeaderNav.map((item) => (
+            {headerNav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href as never}
@@ -129,44 +86,17 @@ export function PublicHeader() {
               </Link>
             ))}
           </nav>
-          <div className="mt-4 grid gap-3">
+
+          <div className="mt-4">
             <Link
-              href="/demo"
-              className={buttonVariants({ variant: "ghost", size: "md" })}
-              onClick={() => {
-                setIsMenuOpen(false);
-                trackHeaderClick("Request Demo", "/demo", "mobile_header_demo");
-              }}
-            >
-              Request Demo
-            </Link>
-            <Link
-              href={(portalLink?.href ?? "/login") as never}
-              className={buttonVariants({ variant: "outline", size: "md" })}
-              onClick={() => {
-                setIsMenuOpen(false);
-                trackHeaderClick(
-                  portalLink?.label ?? "Login",
-                  portalLink?.href ?? "/login",
-                  "mobile_header_portal"
-                );
-              }}
-            >
-              {portalLink?.label ?? "Login"}
-            </Link>
-            <Link
-              href={marketingPrimaryCtas[0].href as never}
+              href="/register"
               className={buttonVariants({ variant: "primary", size: "md" })}
               onClick={() => {
                 setIsMenuOpen(false);
-                trackHeaderClick(
-                  marketingPrimaryCtas[0].label,
-                  marketingPrimaryCtas[0].href,
-                  "mobile_header_primary"
-                );
+                trackHeaderClick("Ucretsiz Deneme Baslat", "/register", "mobile_header_primary");
               }}
             >
-              {marketingPrimaryCtas[0].label}
+              Ucretsiz Deneme Baslat
             </Link>
           </div>
         </div>

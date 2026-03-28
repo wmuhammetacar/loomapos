@@ -15,15 +15,15 @@ export function DownloadIntentForm() {
 
   return (
     <div className="rounded-[28px] border border-line bg-muted/25 p-5">
-      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand">Lead capture</p>
+      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand">Indirme ve Aktivasyon Talebi</p>
       <p className="mt-2 text-sm leading-6 text-text/72">
-        Share contact details to receive installer guidance and activation reminders.
+        Iletisim bilgilerinizi birakin; kurulum ve lisans aktivasyon adimlarini ekibinize iletelim.
       </p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" />
-        <Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Company name" />
+        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ad Soyad" />
+        <Input value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Sirket adi" />
         <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" type="email" />
-        <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone (optional)" />
+        <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Telefon (opsiyonel)" />
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button
@@ -49,14 +49,14 @@ export function DownloadIntentForm() {
                   path: "/download",
                   detail: "Download guidance form submitted"
                 });
-                setMessage("Download lead captured. Sales team can follow activation readiness.");
+                setMessage("Talebiniz alindi. Kurulum ve lisans aktivasyon adimlari ekibinize iletilecek.");
               } catch (error) {
-                setMessage(error instanceof Error ? error.message : "Download lead could not be captured.");
+                setMessage(error instanceof Error ? error.message : "Talep kaydedilemedi.");
               }
             });
           }}
         >
-          {isPending ? "Saving..." : "Send Download Guidance"}
+          {isPending ? "Kaydediliyor..." : "Indirme Bilgisi Gonder"}
         </Button>
         {message ? <p className="text-sm text-text/72">{message}</p> : null}
       </div>

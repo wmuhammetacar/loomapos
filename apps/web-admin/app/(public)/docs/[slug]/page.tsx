@@ -14,6 +14,7 @@ import {
   getRelatedFeaturesServer
 } from "@/lib/marketing-content-server";
 import { buildArticleSchema, buildMetadata } from "@/lib/seo";
+import { getCanonicalFeaturePathByAnySlug } from "@/lib/feature-governance";
 
 interface DocDetailPageProps {
   params: Promise<{ slug: string }>;
@@ -100,7 +101,7 @@ export default async function DocDetailPage({ params }: DocDetailPageProps) {
         <h2 className="font-heading text-2xl font-semibold text-text">Related features</h2>
         <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold text-brand">
           {relatedFeatures.map((item) => (
-            <Link key={item.slug} href={`/features/${item.slug}` as never}>
+            <Link key={item.slug} href={getCanonicalFeaturePathByAnySlug(item.slug) as never}>
               {item.title}
             </Link>
           ))}

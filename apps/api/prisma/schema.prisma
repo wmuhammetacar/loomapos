@@ -1,0 +1,321 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  owner
+  admin
+  staff
+  reseller
+}
+
+enum UserStatus {
+  active
+  invited
+  suspended
+}
+
+enum TenantStatus {
+  trial
+  active
+  expired
+  suspended
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  past_due
+  canceled
+  scheduled_downgrade
+}
+
+enum BillingCycle {
+  monthly
+  yearly
+}
+
+enum LicenseStatus {
+  active
+  read_only
+  expired
+  suspended
+}
+
+enum DeviceStatus {
+  active
+  deactivated
+  blocked
+}
+
+enum CheckoutStatus {
+  pending
+  processing
+  paid
+  failed
+  canceled
+}
+
+enum WebhookEventStatus {
+  received
+  processing
+  processed
+  failed
+}
+
+enum PaymentStatus {
+  pending
+  succeeded
+  failed
+  refunded
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  paid
+  void
+}
+
+model Tenant {
+  id            String         @id @default(cuid())
+  name          String
+  planCode      String         @default("starter")
+  status        TenantStatus   @default(trial)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  trialEndsAt   DateTime?
+  suspendedAt   DateTime?
+
+  users         User[]
+  branches      Branch[]
+  devices       Device[]
+  subscription  Subscription?
+  licenses      License[]
+  invoices      Invoice[]
+  payments      Payment[]
+  checkouts     CheckoutSession[]
+  audits        DeviceActivationAudit[]
+}
+
+model User {
+  id            String       @id @default(cuid())
+  tenantId      String
+  email         String
+  passwordHash  String
+  fullName      String
+  role          UserRole
+  status        UserStatus   @default(active)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model Branch {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  code        String
+  status      String    @default("active")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  devices     Device[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  tenantId           String             @unique
+  planCode           String
+  billingCycle       BillingCycle
+  status             SubscriptionStatus
+  startAt            DateTime
+  endAt              DateTime
+  downgradePlanCode  String?
+  cancelAt           DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices           Invoice[]
+  licenses           License[]
+}
+
+model License {
+  id                    String         @id @default(cuid())
+  tenantId              String
+  activeSlot            String?        @unique
+  subscriptionId        String?
+  key                   String         @unique
+  status                LicenseStatus  @default(active)
+  issuedAt              DateTime       @default(now())
+  expiresAt             DateTime
+  offlineGraceHours     Int            @default(72)
+  maxDevices            Int
+  maxBranches           Int
+  maxStaff              Int
+  featureFlags          Json
+  revalidationRequiredAt DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  tenant                Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription          Subscription?  @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+}
+
+model Device {
+  id            String       @id @default(cuid())
+  tenantId      String
+  branchId      String
+  deviceId      String
+  fingerprint   String
+  name          String?
+  lastSeenAt    DateTime?
+  activatedAt   DateTime     @default(now())
+  offlineUntil  DateTime?
+  status        DeviceStatus @default(active)
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch        Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, deviceId])
+  @@unique([tenantId, fingerprint])
+  @@index([tenantId, status])
+}
+
+model CheckoutSession {
+  id                String         @id @default(cuid())
+  tenantId          String?
+  email             String
+  planCode          String
+  billingCycle      BillingCycle
+  amount            Int
+  currency          String         @default("TRY")
+  providerSessionId String?
+  status            CheckoutStatus @default(pending)
+  processingStartedAt DateTime?
+  paymentId         String?
+  createdAt         DateTime       @default(now())
+  completedAt       DateTime?
+
+  tenant            Tenant?        @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  payment           Payment?       @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([email, status])
+}
+
+model WebhookEvent {
+  id          String             @id @default(cuid())
+  provider    String
+  eventId     String
+  paymentRef  String?
+  payloadHash String
+  status      WebhookEventStatus @default(received)
+  attempts    Int                @default(0)
+  receivedAt  DateTime           @default(now())
+  processedAt DateTime?
+  failedAt    DateTime?
+  lastError   String?
+
+  @@unique([provider, eventId])
+  @@index([status, receivedAt])
+  @@index([paymentRef])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  tenantId      String
+  invoiceId     String?       @unique
+  provider      String
+  externalRef   String
+  amount        Int
+  currency      String        @default("TRY")
+  status        PaymentStatus @default(pending)
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  confirmedAt   DateTime?
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  checkoutLinks CheckoutSession[]
+
+  @@unique([provider, externalRef])
+  @@index([tenantId, status])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  tenantId       String
+  subscriptionId String?
+  number         String        @unique
+  status         InvoiceStatus @default(draft)
+  totalAmount    Int
+  currency       String        @default("TRY")
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime
+  paidAt         DateTime?
+
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payment        Payment?
+  lines          InvoiceLine[]
+
+  @@index([tenantId, status])
+}
+
+model InvoiceLine {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  unitPrice   Int
+  total       Int
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model DeviceActivationAudit {
+  id          String   @id @default(cuid())
+  tenantId    String
+  deviceId    String?
+  fingerprint String
+  outcome     String
+  reason      String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, fingerprint, createdAt])
+}

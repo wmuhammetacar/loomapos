@@ -204,7 +204,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.TaxNumber).HasColumnName("tax_number").HasMaxLength(50);
             entity.Property(x => x.SettingsJson).HasColumnName("settings_json");
             entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<AppUser>(entity =>
@@ -221,7 +221,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.IsActive).HasColumnName("is_active");
             entity.HasIndex(x => new { x.TenantId, x.Email }).IsUnique();
             entity.HasIndex(x => new { x.TenantId, x.BranchId });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -232,7 +232,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.TenantId).HasColumnName("tenant_id");
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
             entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<UserRole>(entity =>
@@ -256,7 +256,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.PayloadJson).HasColumnName("payload_json");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.CreatedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Plan>(entity =>
@@ -301,7 +301,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Invoice>(entity =>
@@ -330,7 +330,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(x => new { x.TenantId, x.CreatedAt });
             entity.HasIndex(x => x.InvoiceNo).IsUnique();
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<SubscriptionPayment>(entity =>
@@ -350,7 +350,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.CreatedAt });
             entity.HasIndex(x => x.PaymentRef);
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<PaymentWebhook>(entity =>
@@ -388,7 +388,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.Status, x.ExpiresAt });
             entity.HasIndex(x => x.LicenseKey).IsUnique();
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<LicenseEvent>(entity =>
@@ -402,7 +402,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.PayloadJson).HasColumnName("payload_json").IsRequired();
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.CreatedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<DeviceActivation>(entity =>
@@ -425,7 +425,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(x => new { x.TenantId, x.DeviceId }).IsUnique();
             entity.HasIndex(x => new { x.TenantId, x.RevokedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<ResellerAccount>(entity =>
@@ -463,7 +463,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.ReferredAt).HasColumnName("referred_at");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.ResellerId, x.TenantId }).IsUnique();
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Commission>(entity =>
@@ -482,7 +482,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.PaidAt).HasColumnName("paid_at");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.ResellerId, x.Status, x.CreatedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Payout>(entity =>
@@ -553,7 +553,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.LastSeenAt).HasColumnName("last_seen_at");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.BranchId, x.Name });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Category>(entity =>
@@ -565,7 +565,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.ParentId).HasColumnName("parent_id");
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
             entity.HasIndex(x => new { x.TenantId, x.Name });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Product>(entity =>
@@ -591,7 +591,7 @@ public sealed class AppDbContext : DbContext
                 .IsUnique()
                 .HasFilter("\"barcode\" IS NOT NULL AND btrim(\"barcode\") <> ''");
             entity.HasIndex(x => new { x.TenantId, x.CategoryId });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<ProductVariant>(entity =>
@@ -611,7 +611,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.ProductId });
             entity.HasIndex(x => new { x.TenantId, x.Barcode });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<ProductBarcode>(entity =>
@@ -637,7 +637,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.RefId).HasMaxLength(100).HasColumnName("ref_id");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.BranchId, x.ProductId, x.CreatedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<StockBalance>(entity =>
@@ -648,7 +648,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.BranchId).HasColumnName("branch_id");
             entity.Property(x => x.ProductId).HasColumnName("product_id");
             entity.Property(x => x.Qty).HasColumnName("qty").HasPrecision(18, 4);
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<Sale>(entity =>
@@ -668,7 +668,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.BranchId, x.CreatedAt });
             entity.HasIndex(x => new { x.TenantId, x.ReceiptNo });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
             entity.HasMany(x => x.Lines).WithOne().HasForeignKey(x => x.SaleId);
             entity.HasMany(x => x.Payments).WithOne().HasForeignKey(x => x.SaleId);
         });
@@ -710,7 +710,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.Email).HasColumnName("email").HasMaxLength(320);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.Type, x.Name });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<ContactLedger>(entity =>
@@ -726,7 +726,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.RefId).HasColumnName("ref_id").HasMaxLength(100);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.ContactId, x.CreatedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<CashTransaction>(entity =>
@@ -741,7 +741,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(150).IsRequired();
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.BranchId, x.CreatedAt });
-            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == CurrentTenantId.Value);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
         modelBuilder.Entity<ProcessedEvent>(entity =>

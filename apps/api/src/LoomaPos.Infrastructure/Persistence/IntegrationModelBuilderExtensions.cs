@@ -275,6 +275,6 @@ internal static class IntegrationModelBuilderExtensions
     private static void ApplyTenantFilter<TEntity>(EntityTypeBuilder<TEntity> entity, Guid? currentTenantId)
         where TEntity : class, ITenantEntity
     {
-        entity.HasQueryFilter(x => !currentTenantId.HasValue || x.TenantId == currentTenantId.Value);
+        entity.HasQueryFilter(x => !currentTenantId.HasValue || x.TenantId == (currentTenantId ?? Guid.Empty));
     }
 }

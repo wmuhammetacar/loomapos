@@ -461,6 +461,26 @@ th.right {
   font-weight: 600;
 }
 
+.sync-health {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sync-health-healthy {
+  color: var(--success);
+}
+
+.sync-health-delayed {
+  color: var(--warning);
+}
+
+.sync-health-failed {
+  color: var(--danger);
+}
+
 .muted-text {
   margin: 0;
   color: var(--muted);

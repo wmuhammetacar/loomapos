@@ -17,10 +17,7 @@ final apiClientProvider = Provider<MobileApiClient>((ref) => MobileApiClient());
 
 final repositoryProvider = FutureProvider<MobileRepository>((ref) async {
   final store = await ref.watch(localStoreProvider.future);
-  return MobileRepository(
-    store: store,
-    api: ref.read(apiClientProvider),
-  );
+  return MobileRepository(store: store, api: ref.read(apiClientProvider));
 });
 
 class AppController extends StateNotifier<AppShellState> {
@@ -31,7 +28,11 @@ class AppController extends StateNotifier<AppShellState> {
   final Ref _ref;
 
   Future<void> _bootstrap() async {
-    state = state.copyWith(mode: AppRuntimeMode.booting, busy: true, clearMessage: true);
+    state = state.copyWith(
+      mode: AppRuntimeMode.booting,
+      busy: true,
+      clearMessage: true,
+    );
     try {
       final repository = await _ref.read(repositoryProvider.future);
       state = (await repository.bootstrap()).copyWith(busy: false);
@@ -51,7 +52,11 @@ class AppController extends StateNotifier<AppShellState> {
     state = state.copyWith(busy: true, clearMessage: true);
     try {
       final repository = await _ref.read(repositoryProvider.future);
-      state = (await repository.signInAndActivate(email: email, password: password)).copyWith(busy: false);
+      state = (await repository.signInAndActivate(
+        email: email,
+        password: password,
+      ))
+          .copyWith(busy: false);
       refreshDataProvidersFromRef(_ref);
       _ref.read(syncControllerProvider.notifier).refreshFromStore();
     } catch (error) {
@@ -77,7 +82,8 @@ class AppController extends StateNotifier<AppShellState> {
   Future<void> refreshFromStore() => _bootstrap();
 }
 
-final appControllerProvider = StateNotifierProvider<AppController, AppShellState>(
+final appControllerProvider =
+    StateNotifierProvider<AppController, AppShellState>(
   (ref) => AppController(ref),
 );
 
@@ -120,6 +126,15 @@ class SyncController extends StateNotifier<SyncDiagnostics> {
       refreshDataProvidersFromRef(_ref);
       _ref.read(appControllerProvider.notifier).refreshFromStore();
       _scheduleNext(_resolveNextInterval(state));
+    } on AuthExpiredException catch (error) {
+      state = state.copyWith(
+        running: false,
+        online: false,
+        blockedReason: "auth_expired",
+        lastError: error.message,
+      );
+      await _ref.read(appControllerProvider.notifier).refreshFromStore();
+      _scheduleNext(_offlineInterval);
     } catch (error) {
       state = state.copyWith(running: false, lastError: error.toString());
       _scheduleNext(_degradedInterval);
@@ -145,7 +160,9 @@ class SyncController extends StateNotifier<SyncDiagnostics> {
     if (!diagnostics.online || diagnostics.blockedReason != null) {
       return _offlineInterval;
     }
-    if (diagnostics.failedCount > 0 || diagnostics.deadLetterCount > 0 || diagnostics.lastError != null) {
+    if (diagnostics.failedCount > 0 ||
+        diagnostics.deadLetterCount > 0 ||
+        diagnostics.lastError != null) {
       return _degradedInterval;
     }
     return _healthyInterval;
@@ -158,44 +175,99 @@ class SyncController extends StateNotifier<SyncDiagnostics> {
   }
 }
 
-final syncControllerProvider = StateNotifierProvider<SyncController, SyncDiagnostics>(
+final syncControllerProvider =
+    StateNotifierProvider<SyncController, SyncDiagnostics>(
   (ref) => SyncController(ref),
 );
 
+final dashboardReadProvider = FutureProvider<CachedRead<DashboardSummary>>(
+  (ref) async =>
+      (await ref.watch(repositoryProvider.future)).getDashboardSummaryRead(),
+);
+
+final reportsSummaryProvider = FutureProvider<CachedRead<DashboardSummary>>(
+  (ref) async =>
+      (await ref.watch(repositoryProvider.future)).getReportsSummary(),
+);
+
+final branchOverviewProvider = FutureProvider<CachedRead<List<LocalBranch>>>(
+  (ref) async =>
+      (await ref.watch(repositoryProvider.future)).getBranchOverview(),
+);
+
+final salesListReadProvider =
+    FutureProvider<CachedRead<List<ActivityFeedItem>>>(
+  (ref) async =>
+      (await ref.watch(repositoryProvider.future)).getSalesListRead(),
+);
+
 final dashboardProvider = FutureProvider<DashboardSummary>(
-  (ref) async => (await ref.watch(repositoryProvider.future)).getDashboardSummary(),
+  (ref) async => (await ref.watch(dashboardReadProvider.future)).data,
 );
 
 final activityFeedProvider = FutureProvider<List<ActivityFeedItem>>(
-  (ref) async => (await ref.watch(repositoryProvider.future)).getActivityFeed(),
+  (ref) async => (await ref.watch(salesListReadProvider.future)).data,
 );
 
 final notificationsProvider = FutureProvider<List<LocalNotificationRecord>>(
-  (ref) async => (await ref.watch(repositoryProvider.future)).getNotifications(),
+  (ref) async =>
+      (await ref.watch(repositoryProvider.future)).getNotifications(),
 );
 
 final conflictsProvider = FutureProvider<List<LocalProduct>>(
-  (ref) async => (await ref.watch(repositoryProvider.future)).getConflictProducts(),
+  (ref) async =>
+      (await ref.watch(repositoryProvider.future)).getConflictProducts(),
 );
 
-final stockCountSessionsProvider = FutureProvider<List<StockCountSessionRecord>>(
-  (ref) async => (await ref.watch(repositoryProvider.future)).getStockCountSessions(),
+final stockCountSessionsProvider =
+    FutureProvider<List<StockCountSessionRecord>>(
+  (ref) async =>
+      (await ref.watch(repositoryProvider.future)).getStockCountSessions(),
 );
 
-final stockCountSessionProvider = FutureProvider.family<StockCountSessionRecord?, String>(
-  (ref, sessionId) async => (await ref.watch(repositoryProvider.future)).getStockCountSession(sessionId),
+final stockCountSessionProvider =
+    FutureProvider.family<StockCountSessionRecord?, String>(
+  (ref, sessionId) async => (await ref.watch(
+    repositoryProvider.future,
+  ))
+      .getStockCountSession(sessionId),
 );
 
-final stockCountLinesProvider = FutureProvider.family<List<StockCountLineRecord>, String>(
-  (ref, sessionId) async => (await ref.watch(repositoryProvider.future)).getStockCountLines(sessionId),
+final stockCountLinesProvider =
+    FutureProvider.family<List<StockCountLineRecord>, String>(
+  (ref, sessionId) async => (await ref.watch(
+    repositoryProvider.future,
+  ))
+      .getStockCountLines(sessionId),
+);
+
+final productSearchReadProvider =
+    FutureProvider.family<CachedRead<List<LocalProduct>>, String>(
+  (ref, query) async =>
+      (await ref.watch(repositoryProvider.future)).searchProductsRead(
+    query: query,
+  ),
 );
 
 final productSearchProvider = FutureProvider.family<List<LocalProduct>, String>(
-  (ref, query) async => (await ref.watch(repositoryProvider.future)).searchProducts(query: query),
+  (ref, query) async =>
+      (await ref.watch(productSearchReadProvider(query).future)).data,
+);
+
+final productDetailReadProvider =
+    FutureProvider.family<CachedRead<LocalProduct?>, String>(
+  (ref, productId) async =>
+      (await ref.watch(repositoryProvider.future)).getProductDetail(
+    productId: productId,
+  ),
 );
 
 void refreshDataProviders(WidgetRef ref) {
   ref.invalidate(dashboardProvider);
+  ref.invalidate(dashboardReadProvider);
+  ref.invalidate(reportsSummaryProvider);
+  ref.invalidate(branchOverviewProvider);
+  ref.invalidate(salesListReadProvider);
   ref.invalidate(activityFeedProvider);
   ref.invalidate(notificationsProvider);
   ref.invalidate(conflictsProvider);
@@ -205,6 +277,10 @@ void refreshDataProviders(WidgetRef ref) {
 
 void refreshDataProvidersFromRef(Ref ref) {
   ref.invalidate(dashboardProvider);
+  ref.invalidate(dashboardReadProvider);
+  ref.invalidate(reportsSummaryProvider);
+  ref.invalidate(branchOverviewProvider);
+  ref.invalidate(salesListReadProvider);
   ref.invalidate(activityFeedProvider);
   ref.invalidate(notificationsProvider);
   ref.invalidate(conflictsProvider);

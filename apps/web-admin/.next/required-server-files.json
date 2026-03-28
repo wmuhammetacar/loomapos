@@ -99,7 +99,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/home/macar/workspace1/looma/eticaret-projesi/apps/web-admin",
+    "outputFileTracingRoot": "/home/macar/workspace1/looma/eticaret-projesi",
     "allowedDevOrigins": [
       "127.0.0.1"
     ],
@@ -292,11 +292,83 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.ts",
     "turbopack": {
-      "root": "/home/macar/workspace1/looma/eticaret-projesi/apps/web-admin"
-    }
+      "root": "/home/macar/workspace1/looma/eticaret-projesi"
+    },
+    "_originalRedirects": [
+      {
+        "source": "/features/reports",
+        "destination": "/features/reporting/reports",
+        "permanent": true
+      },
+      {
+        "source": "/features/staff-management",
+        "destination": "/features/staff/staff-management",
+        "permanent": true
+      },
+      {
+        "source": "/features/branch-management",
+        "destination": "/features/multi-branch/branch-management",
+        "permanent": true
+      },
+      {
+        "source": "/features/branches",
+        "destination": "/features/multi-branch/branch-management",
+        "permanent": true
+      },
+      {
+        "source": "/features/online-payments",
+        "destination": "/features/payments/online-payments",
+        "permanent": true
+      },
+      {
+        "source": "/features/collections",
+        "destination": "/features/payments/online-payments",
+        "permanent": true
+      },
+      {
+        "source": "/features/product-variants",
+        "destination": "/features/inventory/product-variants",
+        "permanent": true
+      },
+      {
+        "source": "/features/variants",
+        "destination": "/features/inventory/product-variants",
+        "permanent": true
+      },
+      {
+        "source": "/features/einvoice",
+        "destination": "/features/e-invoice/e-invoice",
+        "permanent": true
+      },
+      {
+        "source": "/features/cash-register-integrations",
+        "destination": "/features/integrations/cash-register-integrations",
+        "permanent": true
+      },
+      {
+        "source": "/features/fiscal",
+        "destination": "/features/integrations/cash-register-integrations",
+        "permanent": true
+      },
+      {
+        "source": "/features/pricing-management",
+        "destination": "/features/pricing-control/pricing-management",
+        "permanent": true
+      },
+      {
+        "source": "/features/admin-control",
+        "destination": "/features/admin/admin-control",
+        "permanent": true
+      },
+      {
+        "source": "/features/dashboard",
+        "destination": "/features/admin/admin-control",
+        "permanent": true
+      }
+    ]
   },
   "appDir": "/home/macar/workspace1/looma/eticaret-projesi/apps/web-admin",
-  "relativeAppDir": "",
+  "relativeAppDir": "apps/web-admin",
   "files": [
     ".next/routes-manifest.json",
     ".next/server/pages-manifest.json",
@@ -318,6 +390,6 @@
     ".next/required-server-files.json"
   ],
   "ignore": [
-    "node_modules/next/dist/compiled/@ampproject/toolbox-optimizer/**/*"
+    "../../node_modules/.pnpm/next@15.5.13_@playwright+test@1.58.2_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/compiled/@ampproject/toolbox-optimizer/**/*"
   ]
 }

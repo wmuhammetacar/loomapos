@@ -5,7 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Reseller application",
   description:
-    "Apply to the LoomaPOS reseller program and submit partner details for follow-up and approval.",
+    "Apply to the LoomaPOS reseller program with your region and business profile for partner onboarding.",
   path: "/resellers/apply"
 });
 
@@ -15,7 +15,7 @@ export default function ResellersApplyPage() {
       <PageHero
         eyebrow="Reseller application"
         title="Apply to become a LoomaPOS reseller"
-        description="Share your company profile, field experience and proof of reach so the sales team can review your partner application."
+        description="Submit your business model, regional coverage and sales experience. Approved partners get referral tracking, lead assignment and commission tools."
       />
       <ResellerApplyForm />
     </>

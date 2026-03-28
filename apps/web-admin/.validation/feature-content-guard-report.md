@@ -1,0 +1,17 @@
+Feature Content Guard Summary
+- total_pages: 11
+- passed_pages: 11
+- failed_pages: 0
+- reliability_percent: 100
+- total_failures: 0
+- valid: true
+- rule_failures:
+  - structure: 0
+  - keyword_owner: 0
+  - title_h1_similarity: 0
+  - semantic_overlap: 0
+  - cluster_boundary: 0
+  - differentiation_block: 0
+  - link_budget: 0
+  - uniqueness: 0
+  - source_drift: 0

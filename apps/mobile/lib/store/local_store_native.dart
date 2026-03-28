@@ -101,61 +101,56 @@ class LocalStore {
     }
 
     final now = DateTime.now().toUtc();
-    await replaceBranches(
-      [
-        LocalBranch(
-          id: "00000000-0000-0000-0000-000000000001",
-          name: "Merkez Sube",
-          isAssigned: true,
-          isSelected: true,
-          settingsJson: "{}",
-          updatedAt: now,
-        ),
-      ],
-      selectedBranchId: "00000000-0000-0000-0000-000000000001",
-    );
-    await replaceProducts(
-      [
-        LocalProduct(
-          id: "30000000-0000-0000-0000-000000000001",
-          name: "Su 0.5L",
-          barcode: "869000000001",
-          sku: "SU-05",
-          categoryName: "Icecek",
-          salePrice: 10,
-          purchasePrice: 6,
-          taxRate: 10,
-          stockTracked: true,
-          minStock: 6,
-          isActive: true,
-          stockQty: 12,
-          syncStatus: "synced",
-          conflictState: "none",
-          conflictReason: null,
-          pendingVerification: false,
-          updatedAt: now,
-        ),
-        LocalProduct(
-          id: "30000000-0000-0000-0000-000000000002",
-          name: "Kahve Buyuk",
-          barcode: "869000000003",
-          sku: "KHV-BYK",
-          categoryName: "Icecek",
-          salePrice: 95,
-          purchasePrice: 62,
-          taxRate: 20,
-          stockTracked: true,
-          minStock: 4,
-          isActive: true,
-          stockQty: 3,
-          syncStatus: "synced",
-          conflictState: "none",
-          conflictReason: null,
-          pendingVerification: false,
-          updatedAt: now,
-        ),
-      ],
-    );
+    await replaceBranches([
+      LocalBranch(
+        id: "00000000-0000-0000-0000-000000000001",
+        name: "Merkez Sube",
+        isAssigned: true,
+        isSelected: true,
+        settingsJson: "{}",
+        updatedAt: now,
+      ),
+    ], selectedBranchId: "00000000-0000-0000-0000-000000000001");
+    await replaceProducts([
+      LocalProduct(
+        id: "30000000-0000-0000-0000-000000000001",
+        name: "Su 0.5L",
+        barcode: "869000000001",
+        sku: "SU-05",
+        categoryName: "Icecek",
+        salePrice: 10,
+        purchasePrice: 6,
+        taxRate: 10,
+        stockTracked: true,
+        minStock: 6,
+        isActive: true,
+        stockQty: 12,
+        syncStatus: "synced",
+        conflictState: "none",
+        conflictReason: null,
+        pendingVerification: false,
+        updatedAt: now,
+      ),
+      LocalProduct(
+        id: "30000000-0000-0000-0000-000000000002",
+        name: "Kahve Buyuk",
+        barcode: "869000000003",
+        sku: "KHV-BYK",
+        categoryName: "Icecek",
+        salePrice: 95,
+        purchasePrice: 62,
+        taxRate: 20,
+        stockTracked: true,
+        minStock: 4,
+        isActive: true,
+        stockQty: 3,
+        syncStatus: "synced",
+        conflictState: "none",
+        conflictReason: null,
+        pendingVerification: false,
+        updatedAt: now,
+      ),
+    ]);
   }
 
   Future<LocalSession?> getActiveSession() async {
@@ -193,10 +188,8 @@ class LocalStore {
   }
 
   Future<LocalActivation?> getActivation() async {
-    final row = await _db.customSelect(
-      "SELECT * FROM local_activation LIMIT 1",
-      readsFrom: {},
-    ).getSingleOrNull();
+    final row = await _db.customSelect("SELECT * FROM local_activation LIMIT 1",
+        readsFrom: {}).getSingleOrNull();
     return row == null ? null : _mapActivation(row);
   }
 
@@ -215,7 +208,9 @@ class LocalStore {
           activation.status,
           activation.activationToken,
           activation.companyName,
-          activation.licenseExpiresAt == null ? null : _iso(activation.licenseExpiresAt!),
+          activation.licenseExpiresAt == null
+              ? null
+              : _iso(activation.licenseExpiresAt!),
           jsonEncode(activation.featureFlags),
           jsonEncode(activation.permissionActions),
           jsonEncode(activation.allowedBranchIds),
@@ -276,7 +271,15 @@ class LocalStore {
   }) async {
     await _db.customStatement(
       "INSERT INTO local_users(user_id,full_name,email,phone,role_code,status,last_synced_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET full_name=excluded.full_name,email=excluded.email,phone=excluded.phone,role_code=excluded.role_code,status=excluded.status,last_synced_at=excluded.last_synced_at",
-      [userId, fullName, email, phone, roleCode, status, _iso(DateTime.now().toUtc())],
+      [
+        userId,
+        fullName,
+        email,
+        phone,
+        roleCode,
+        status,
+        _iso(DateTime.now().toUtc()),
+      ],
     );
   }
 
@@ -289,7 +292,10 @@ class LocalStore {
           [action, 1, snapshot.roleCode, _iso(DateTime.now().toUtc())],
         );
       }
-      await _setSetting("allowed_branch_ids", snapshot.allowedBranchIds.toList());
+      await _setSetting(
+        "allowed_branch_ids",
+        snapshot.allowedBranchIds.toList(),
+      );
     });
   }
 
@@ -301,9 +307,10 @@ class LocalStore {
     if (rows.isEmpty) {
       return PermissionSnapshot.empty;
     }
-    final allowedBranches = (await _getSetting("allowed_branch_ids") as List<dynamic>? ?? [])
-        .map((value) => value.toString())
-        .toSet();
+    final allowedBranches =
+        (await _getSetting("allowed_branch_ids") as List<dynamic>? ?? [])
+            .map((value) => value.toString())
+            .toSet();
     return PermissionSnapshot(
       roleCode: rows.first.read<String>("role_code"),
       actions: rows.map((row) => row.read<String>("action_key")).toSet(),
@@ -319,10 +326,14 @@ class LocalStore {
     return rows.map(_mapBranch).toList();
   }
 
-  Future<void> replaceBranches(List<LocalBranch> branches, {String? selectedBranchId}) async {
+  Future<void> replaceBranches(
+    List<LocalBranch> branches, {
+    String? selectedBranchId,
+  }) async {
     await _db.transaction(() async {
       await _db.customStatement("DELETE FROM local_branches");
-      final selection = selectedBranchId ?? (branches.isEmpty ? null : branches.first.id);
+      final selection =
+          selectedBranchId ?? (branches.isEmpty ? null : branches.first.id);
       for (final branch in branches) {
         await _db.customStatement(
           "INSERT INTO local_branches(branch_id,name,is_assigned,is_selected,settings_json,updated_at) VALUES(?,?,?,?,?,?)",
@@ -403,19 +414,29 @@ class LocalStore {
         if (selectedBranchId != null) {
           await _db.customStatement(
             "INSERT INTO local_stock_snapshot(product_id,branch_id,qty,updated_at) VALUES(?,?,?,?) ON CONFLICT(product_id,branch_id) DO UPDATE SET qty=excluded.qty,updated_at=excluded.updated_at",
-            [product.id, selectedBranchId, product.stockQty, _iso(product.updatedAt)],
+            [
+              product.id,
+              selectedBranchId,
+              product.stockQty,
+              _iso(product.updatedAt),
+            ],
           );
         }
       }
     });
   }
 
-  Future<List<LocalProduct>> searchProducts({String? query, String? barcode}) async {
+  Future<List<LocalProduct>> searchProducts({
+    String? query,
+    String? barcode,
+  }) async {
     final filters = <String>[];
     final args = <Object?>[];
     if (query != null && query.trim().isNotEmpty) {
       final normalized = "%${query.trim().toLowerCase()}%";
-      filters.add("(LOWER(name) LIKE ? OR LOWER(COALESCE(sku,'')) LIKE ? OR LOWER(COALESCE(barcode,'')) LIKE ?)");
+      filters.add(
+        "(LOWER(name) LIKE ? OR LOWER(COALESCE(sku,'')) LIKE ? OR LOWER(COALESCE(barcode,'')) LIKE ?)",
+      );
       args.addAll([normalized, normalized, normalized]);
     }
     if (barcode != null && barcode.trim().isNotEmpty) {
@@ -444,7 +465,10 @@ class LocalStore {
   Future<LocalProduct?> getProductByBarcode(String barcode) async {
     final row = await _db.customSelect(
       "SELECT p.* FROM local_products p LEFT JOIN local_product_barcodes b ON b.product_id=p.product_id WHERE p.barcode=? OR b.barcode=? LIMIT 1",
-      variables: [Variable.withString(barcode), Variable.withString(barcode)],
+      variables: [
+        Variable.withString(barcode),
+        Variable.withString(barcode),
+      ],
       readsFrom: {},
     ).getSingleOrNull();
     return row == null ? null : _mapProduct(row);
@@ -484,7 +508,8 @@ class LocalStore {
       name: name.trim(),
       barcode: barcode?.trim().isEmpty ?? true ? null : barcode!.trim(),
       sku: sku?.trim().isEmpty ?? true ? null : sku!.trim(),
-      categoryName: categoryName?.trim().isEmpty ?? true ? null : categoryName!.trim(),
+      categoryName:
+          categoryName?.trim().isEmpty ?? true ? null : categoryName!.trim(),
       salePrice: salePrice,
       purchasePrice: purchasePrice,
       taxRate: taxRate,
@@ -522,7 +547,10 @@ class LocalStore {
           _iso(product.updatedAt),
         ],
       );
-      await _db.customStatement("DELETE FROM local_product_barcodes WHERE product_id=?", [product.id]);
+      await _db.customStatement(
+        "DELETE FROM local_product_barcodes WHERE product_id=?",
+        [product.id],
+      );
       if (product.barcode != null && product.barcode!.isNotEmpty) {
         await _db.customStatement(
           "INSERT OR REPLACE INTO local_product_barcodes(barcode,product_id) VALUES(?,?)",
@@ -610,7 +638,9 @@ class LocalStore {
     return rows.map(_mapStockCountSession).toList();
   }
 
-  Future<StockCountSessionRecord?> getStockCountSession(String sessionId) async {
+  Future<StockCountSessionRecord?> getStockCountSession(
+    String sessionId,
+  ) async {
     final row = await _db.customSelect(
       "SELECT s.*, (SELECT COUNT(1) FROM local_stock_count_lines l WHERE l.local_stock_count_session_id=s.local_stock_count_session_id) AS line_count FROM local_stock_count_sessions s WHERE local_stock_count_session_id=? LIMIT 1",
       variables: [Variable.withString(sessionId)],
@@ -619,7 +649,9 @@ class LocalStore {
     return row == null ? null : _mapStockCountSession(row);
   }
 
-  Future<List<StockCountLineRecord>> listStockCountLines(String sessionId) async {
+  Future<List<StockCountLineRecord>> listStockCountLines(
+    String sessionId,
+  ) async {
     final rows = await _db.customSelect(
       "SELECT * FROM local_stock_count_lines WHERE local_stock_count_session_id=? ORDER BY updated_at DESC",
       variables: [Variable.withString(sessionId)],
@@ -646,7 +678,10 @@ class LocalStore {
     if (mergeOnProduct && lineId == null) {
       final existing = await _db.customSelect(
         "SELECT local_stock_count_line_id, counted_qty FROM local_stock_count_lines WHERE local_stock_count_session_id=? AND product_id=? LIMIT 1",
-        variables: [Variable.withString(sessionId), Variable.withString(productId)],
+        variables: [
+          Variable.withString(sessionId),
+          Variable.withString(productId),
+        ],
         readsFrom: {},
       ).getSingleOrNull();
       if (existing != null) {
@@ -654,7 +689,9 @@ class LocalStore {
         nextCountedQty += _asDouble(existing.read("counted_qty"));
       }
     }
-    final deltaQty = expectedQtySnapshot == null ? null : nextCountedQty - expectedQtySnapshot;
+    final deltaQty = expectedQtySnapshot == null
+        ? null
+        : nextCountedQty - expectedQtySnapshot;
     await _db.customStatement(
       "INSERT INTO local_stock_count_lines(local_stock_count_line_id,local_stock_count_session_id,product_id,variant_id,barcode_snapshot,product_name_snapshot,expected_qty_snapshot,counted_qty,delta_qty,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(local_stock_count_line_id) DO UPDATE SET product_id=excluded.product_id,variant_id=excluded.variant_id,barcode_snapshot=excluded.barcode_snapshot,product_name_snapshot=excluded.product_name_snapshot,expected_qty_snapshot=excluded.expected_qty_snapshot,counted_qty=excluded.counted_qty,delta_qty=excluded.delta_qty,note=excluded.note,updated_at=excluded.updated_at",
       [
@@ -687,7 +724,9 @@ class LocalStore {
 
   Future<void> submitStockCountSession(String sessionId) async {
     final session = await getStockCountSession(sessionId);
-    if (session == null || session.status == "submitted" || session.status == "synced") {
+    if (session == null ||
+        session.status == "submitted" ||
+        session.status == "synced") {
       return;
     }
     final lines = await listStockCountLines(sessionId);
@@ -776,7 +815,9 @@ class LocalStore {
     return rows.map(_mapActivityItem).toList();
   }
 
-  Future<void> replaceNotifications(List<LocalNotificationRecord> notifications) async {
+  Future<void> replaceNotifications(
+    List<LocalNotificationRecord> notifications,
+  ) async {
     await _db.transaction(() async {
       await _db.customStatement("DELETE FROM local_notifications");
       for (final notification in notifications) {
@@ -887,10 +928,49 @@ class LocalStore {
             ),
           )
           .toList(),
-      paymentMethodSummary: (payload["paymentMethodSummary"] as Map<String, dynamic>? ?? {})
-          .map((key, value) => MapEntry(key, _asDouble(value))),
+      paymentMethodSummary:
+          (payload["paymentMethodSummary"] as Map<String, dynamic>? ?? {}).map(
+        (key, value) => MapEntry(key, _asDouble(value)),
+      ),
       lastUpdatedAt: _parseDate(payload["lastUpdatedAt"]?.toString()),
     );
+  }
+
+  Future<void> saveReadCache(
+    String cacheKey,
+    Map<String, dynamic> payload,
+  ) async {
+    final now = DateTime.now().toUtc();
+    final wrapped = <String, dynamic>{
+      "_cachedAt": _iso(now),
+      "payload": payload,
+    };
+    await _db.customStatement(
+      "INSERT INTO local_report_snapshots(snapshot_key,payload_json,updated_at) VALUES(?,?,?) ON CONFLICT(snapshot_key) DO UPDATE SET payload_json=excluded.payload_json,updated_at=excluded.updated_at",
+      [cacheKey, jsonEncode(wrapped), _iso(now)],
+    );
+  }
+
+  Future<Map<String, dynamic>?> getReadCache(String cacheKey) async {
+    final row = await _db.customSelect(
+      "SELECT payload_json FROM local_report_snapshots WHERE snapshot_key=? LIMIT 1",
+      variables: [Variable.withString(cacheKey)],
+      readsFrom: {},
+    ).getSingleOrNull();
+    if (row == null) {
+      return null;
+    }
+
+    final decoded = jsonDecode(row.read<String>("payload_json"));
+    if (decoded is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final payload = decoded["payload"];
+    if (payload is Map<String, dynamic>) {
+      return <String, dynamic>{...payload, "_cachedAt": decoded["_cachedAt"]};
+    }
+    return null;
   }
 
   Future<void> appendOutboxEvent({
@@ -920,7 +1000,9 @@ class LocalStore {
     );
   }
 
-  Future<List<LocalOutboxEvent>> getDispatchableOutboxEvents({int limit = 20}) async {
+  Future<List<LocalOutboxEvent>> getDispatchableOutboxEvents({
+    int limit = 20,
+  }) async {
     final rows = await _db.customSelect(
       "SELECT * FROM outbox_events WHERE status IN ('pending','failed','dead_letter') AND (next_retry_at IS NULL OR next_retry_at <= ?) ORDER BY created_at ASC LIMIT $limit",
       variables: [Variable.withString(_iso(DateTime.now().toUtc()))],
@@ -964,7 +1046,10 @@ class LocalStore {
     );
   }
 
-  Future<void> markOutboxConflict(String eventId, {required String errorMessage}) async {
+  Future<void> markOutboxConflict(
+    String eventId, {
+    required String errorMessage,
+  }) async {
     await markOutboxFailed(
       eventId,
       errorCode: "conflict",
@@ -989,14 +1074,18 @@ class LocalStore {
       return SyncDiagnostics.initial;
     }
     return SyncDiagnostics(
-      running: _asBool(row.read("running")),
-      online: _asBool(row.read("online")),
-      pendingCount: _asInt(row.read("pending_count")),
-      failedCount: _asInt(row.read("failed_count")),
-      deadLetterCount: _asInt(row.read("dead_letter_count")),
-      lastSuccessfulSyncAt: _parseDate(row.readNullable<String>("last_successful_sync_at")),
+      running: _asBool(row.read<int>("running")),
+      online: _asBool(row.read<int>("online")),
+      pendingCount: _asInt(row.read<int>("pending_count")),
+      failedCount: _asInt(row.read<int>("failed_count")),
+      deadLetterCount: _asInt(row.read<int>("dead_letter_count")),
+      lastSuccessfulSyncAt: _parseDate(
+        row.readNullable<String>("last_successful_sync_at"),
+      ),
       lastPullAt: _parseDate(row.readNullable<String>("last_pull_at")),
-      lastHeartbeatAt: _parseDate(row.readNullable<String>("last_heartbeat_at")),
+      lastHeartbeatAt: _parseDate(
+        row.readNullable<String>("last_heartbeat_at"),
+      ),
       lastError: row.readNullable<String>("last_error"),
       blockedReason: row.readNullable<String>("blocked_reason"),
     );
@@ -1011,9 +1100,13 @@ class LocalStore {
         diagnostics.pendingCount,
         diagnostics.failedCount,
         diagnostics.deadLetterCount,
-        diagnostics.lastSuccessfulSyncAt == null ? null : _iso(diagnostics.lastSuccessfulSyncAt!),
+        diagnostics.lastSuccessfulSyncAt == null
+            ? null
+            : _iso(diagnostics.lastSuccessfulSyncAt!),
         diagnostics.lastPullAt == null ? null : _iso(diagnostics.lastPullAt!),
-        diagnostics.lastHeartbeatAt == null ? null : _iso(diagnostics.lastHeartbeatAt!),
+        diagnostics.lastHeartbeatAt == null
+            ? null
+            : _iso(diagnostics.lastHeartbeatAt!),
         diagnostics.lastError,
         diagnostics.blockedReason,
       ],
@@ -1088,10 +1181,8 @@ class LocalStore {
   }
 
   Future<int> _count(String table) async {
-    final row = await _db.customSelect(
-      "SELECT COUNT(1) AS c FROM $table",
-      readsFrom: {},
-    ).getSingle();
+    final row = await _db.customSelect("SELECT COUNT(1) AS c FROM $table",
+        readsFrom: {}).getSingle();
     return row.read<int>("c");
   }
 
@@ -1138,12 +1229,20 @@ class LocalStore {
       status: row.read<String>("status"),
       activationToken: row.read<String>("activation_token"),
       companyName: row.readNullable<String>("company_name"),
-      licenseExpiresAt: _parseDate(row.readNullable<String>("license_expires_at")),
+      licenseExpiresAt: _parseDate(
+        row.readNullable<String>("license_expires_at"),
+      ),
       featureFlags: _decodeStringList(row.read<String>("feature_flags_json")),
-      permissionActions: _decodeStringList(row.read<String>("permission_actions_json")),
-      allowedBranchIds: _decodeStringList(row.read<String>("allowed_branch_ids_json")),
+      permissionActions: _decodeStringList(
+        row.read<String>("permission_actions_json"),
+      ),
+      allowedBranchIds: _decodeStringList(
+        row.read<String>("allowed_branch_ids_json"),
+      ),
       lastValidationAt: DateTime.parse(row.read<String>("last_validation_at")),
-      offlineGraceUntil: DateTime.parse(row.read<String>("offline_grace_until")),
+      offlineGraceUntil: DateTime.parse(
+        row.read<String>("offline_grace_until"),
+      ),
       selectedBranchId: row.readNullable<String>("selected_branch_id"),
     );
   }
@@ -1152,8 +1251,8 @@ class LocalStore {
     return LocalBranch(
       id: row.read<String>("branch_id"),
       name: row.read<String>("name"),
-      isAssigned: _asBool(row.read("is_assigned")),
-      isSelected: _asBool(row.read("is_selected")),
+      isAssigned: _asBool(row.read<int>("is_assigned")),
+      isSelected: _asBool(row.read<int>("is_selected")),
       settingsJson: row.read<String>("settings_json"),
       updatedAt: DateTime.parse(row.read<String>("updated_at")),
     );
@@ -1166,17 +1265,17 @@ class LocalStore {
       barcode: row.readNullable<String>("barcode"),
       sku: row.readNullable<String>("sku"),
       categoryName: row.readNullable<String>("category_name"),
-      salePrice: _asDouble(row.read("sale_price")),
-      purchasePrice: _asDouble(row.read("purchase_price")),
-      taxRate: _asDouble(row.read("tax_rate")),
-      stockTracked: _asBool(row.read("stock_tracked")),
-      minStock: _asDouble(row.read("min_stock")),
-      isActive: _asBool(row.read("is_active")),
-      stockQty: _asDouble(row.read("stock_qty")),
+      salePrice: _asDouble(row.read<double>("sale_price")),
+      purchasePrice: _asDouble(row.read<double>("purchase_price")),
+      taxRate: _asDouble(row.read<double>("tax_rate")),
+      stockTracked: _asBool(row.read<int>("stock_tracked")),
+      minStock: _asDouble(row.read<double>("min_stock")),
+      isActive: _asBool(row.read<int>("is_active")),
+      stockQty: _asDouble(row.read<double>("stock_qty")),
       syncStatus: row.read<String>("sync_status"),
       conflictState: row.read<String>("conflict_state"),
       conflictReason: row.readNullable<String>("conflict_reason"),
-      pendingVerification: _asBool(row.read("pending_verification")),
+      pendingVerification: _asBool(row.read<int>("pending_verification")),
       updatedAt: DateTime.parse(row.read<String>("updated_at")),
     );
   }
@@ -1194,7 +1293,7 @@ class LocalStore {
       submittedAt: _parseDate(row.readNullable<String>("submitted_at")),
       notes: row.readNullable<String>("notes"),
       lastError: row.readNullable<String>("last_error"),
-      lineCount: _asInt(row.read("line_count")),
+      lineCount: _asInt(row.read<int>("line_count")),
     );
   }
 
@@ -1206,11 +1305,14 @@ class LocalStore {
       variantId: row.readNullable<String>("variant_id"),
       barcodeSnapshot: row.readNullable<String>("barcode_snapshot"),
       productNameSnapshot: row.read<String>("product_name_snapshot"),
-      expectedQtySnapshot: row.readNullable("expected_qty_snapshot") == null
+      expectedQtySnapshot:
+          row.readNullable<double>("expected_qty_snapshot") == null
+              ? null
+              : _asDouble(row.read<double>("expected_qty_snapshot")),
+      countedQty: _asDouble(row.read<double>("counted_qty")),
+      deltaQty: row.readNullable<double>("delta_qty") == null
           ? null
-          : _asDouble(row.read("expected_qty_snapshot")),
-      countedQty: _asDouble(row.read("counted_qty")),
-      deltaQty: row.readNullable("delta_qty") == null ? null : _asDouble(row.read("delta_qty")),
+          : _asDouble(row.read<double>("delta_qty")),
       note: row.readNullable<String>("note"),
       createdAt: DateTime.parse(row.read<String>("created_at")),
       updatedAt: DateTime.parse(row.read<String>("updated_at")),
@@ -1225,8 +1327,12 @@ class LocalStore {
       subtitle: row.read<String>("subtitle"),
       branchName: row.readNullable<String>("branch_name"),
       actorName: row.readNullable<String>("actor_name"),
-      amount: row.readNullable("amount") == null ? null : _asDouble(row.read("amount")),
-      qtyImpact: row.readNullable("qty_impact") == null ? null : _asDouble(row.read("qty_impact")),
+      amount: row.readNullable<double>("amount") == null
+          ? null
+          : _asDouble(row.read<double>("amount")),
+      qtyImpact: row.readNullable<double>("qty_impact") == null
+          ? null
+          : _asDouble(row.read<double>("qty_impact")),
       createdAt: DateTime.parse(row.read<String>("created_at")),
       syncState: row.read<String>("sync_state"),
     );
@@ -1239,7 +1345,7 @@ class LocalStore {
       title: row.read<String>("title"),
       body: row.read<String>("body"),
       targetRoute: row.readNullable<String>("target_route"),
-      isRead: _asBool(row.read("is_read")),
+      isRead: _asBool(row.read<int>("is_read")),
       createdAt: DateTime.parse(row.read<String>("created_at")),
     );
   }
@@ -1251,10 +1357,10 @@ class LocalStore {
       aggregateType: row.read<String>("aggregate_type"),
       aggregateId: row.read<String>("aggregate_id"),
       payloadJson: row.read<String>("payload_json"),
-      payloadVersion: _asInt(row.read("payload_version")),
+      payloadVersion: _asInt(row.read<int>("payload_version")),
       createdAt: DateTime.parse(row.read<String>("created_at")),
       status: row.read<String>("status"),
-      retryCount: _asInt(row.read("retry_count")),
+      retryCount: _asInt(row.read<int>("retry_count")),
       nextRetryAt: _parseDate(row.readNullable<String>("next_retry_at")),
       errorCode: row.readNullable<String>("error_code"),
       errorMessage: row.readNullable<String>("error_message"),
@@ -1340,6 +1446,7 @@ String _uuid() {
   final bytes = List<int>.generate(16, (_) => random.nextInt(256));
   bytes[6] = (bytes[6] & 0x0F) | 0x40;
   bytes[8] = (bytes[8] & 0x3F) | 0x80;
-  final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, "0")).join();
+  final hex =
+      bytes.map((value) => value.toRadixString(16).padLeft(2, "0")).join();
   return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}";
 }

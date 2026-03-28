@@ -1,4 +1,5 @@
 import { downloadArtifacts, pricingPlans, siteConfig } from "@/lib/site-content";
+import { getCanonicalFeaturePathByAnySlug } from "@/lib/feature-governance";
 
 export interface MarketingCtaItem {
   href: string;
@@ -14,6 +15,9 @@ export interface ScreenshotPlaceholder {
 
 export interface MarketingFeaturePage {
   slug: string;
+  route?: string;
+  clusterSlug?: string;
+  locale?: string;
   legacySlugs?: string[];
   keyword: string;
   title: string;
@@ -1494,7 +1498,18 @@ export function getMarketingBlogTags() {
 }
 
 export function getRelatedFeatures(slugs: string[]) {
-  return marketingFeatures.filter((feature) => slugs.includes(feature.slug));
+  const resolved = slugs
+    .map((slug) => marketingFeatures.find((feature) => feature.slug === slug || feature.legacySlugs?.includes(slug)))
+    .filter((feature) => Boolean(feature)) as MarketingFeaturePage[];
+
+  const seen = new Set<string>();
+  return resolved.filter((feature) => {
+    if (seen.has(feature.slug)) {
+      return false;
+    }
+    seen.add(feature.slug);
+    return true;
+  });
 }
 
 export function getRelatedDocs(slugs: string[]) {
@@ -1534,7 +1549,7 @@ export function buildMarketingSitemapRoutes() {
     ...seoLandingPages.map((page) => `/${page.slug}`),
     ...solutionPages.map((page) => `/solutions/${page.slug}`),
     ...alternativePages.map((page) => `/alternatives/${page.slug}`),
-    ...marketingFeatures.map((feature) => `/features/${feature.slug}`),
+    ...marketingFeatures.map((feature) => getCanonicalFeaturePathByAnySlug(feature.slug)),
     ...integrationHighlights.map((page) => `/integrations/${page.slug}`),
     ...docsPages.map((page) => `/docs/${page.slug}`),
     ...marketingBlogPosts.map((post) => `/blog/${post.slug}`),

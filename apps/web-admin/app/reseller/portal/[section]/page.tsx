@@ -6,11 +6,13 @@ const allowedSections = [
   "analytics",
   "onboarding",
   "customers",
+  "leads",
   "referrals",
   "commissions",
   "payouts",
   "licenses",
   "assets",
+  "training",
   "support",
   "settings"
 ] as const;
@@ -36,5 +38,9 @@ export default async function ResellerPortalSectionPage({
     return <ResellerAnalyticsPanel />;
   }
 
-  return <ResellerPortalPanelsPhase6 section={section as Exclude<(typeof allowedSections)[number], "analytics">} />;
+  return (
+    <ResellerPortalPanelsPhase6
+      section={section as Exclude<(typeof allowedSections)[number], "analytics">}
+    />
+  );
 }

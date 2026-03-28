@@ -14,9 +14,10 @@ import {
   seedLocalProducts,
   voidSale
 } from "../pos/pos-service.js";
+import { restoreCartDraftForSession } from "../pos/cart-draft-service.js";
 import { printRawReceiptText, renderReceiptText } from "../printer/escpos-printer.js";
 import { submitFiscalRefund, submitFiscalSale } from "../fiscal/fiscal-integration.js";
-import { getSyncStatus, retryDeadLetterSync, triggerSyncNow } from "../sync/sync-worker.js";
+import { getSyncDiagnostics, getSyncStatus, retryDeadLetterSync, triggerSyncNow } from "../sync/sync-worker.js";
 import { clearCartDraft, getCartDraft, saveCartDraft } from "../storage/local-state-repository.js";
 import {
   closeCashSession,
@@ -26,6 +27,7 @@ import {
   recordCashAdjustment
 } from "../operations/operations-service.js";
 import { hardwareAdapters } from "../hardware/hardware-service.js";
+import { getLicenseRuntimeStatus } from "../license/license-client.js";
 
 export interface PosContext {
   tenantId: string;
@@ -40,6 +42,16 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
     const context = contextProvider.getContext();
     seedLocalProducts(context.tenantId);
     return context;
+  };
+
+  const ensureWritableRuntime = () => {
+    const license = getLicenseRuntimeStatus();
+    if (license.status === "LOCKED") {
+      throw new Error("Hesap askida/bloklu. Islem su anda kapali.");
+    }
+    if (license.status === "READ_ONLY") {
+      throw new Error("Deneme suresi bitti. Sistem salt-okunur modda; operasyonel yazma islemleri kapali.");
+    }
   };
 
   ipcMain.handle("pos:get-context", () => {
@@ -61,6 +73,7 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
   });
 
   ipcMain.handle("pos:open-shift", (_event, args: { openingCash: number }) => {
+    ensureWritableRuntime();
     const context = resolveContext();
     return openCashSession({
       tenantId: context.tenantId,
@@ -75,6 +88,7 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
   ipcMain.handle(
     "pos:record-cash-adjustment",
     (_event, args: { type: "cash_in" | "cash_out" | "correction"; amount: number; reason: string }) => {
+      ensureWritableRuntime();
       const context = resolveContext();
       return recordCashAdjustment({
         tenantId: context.tenantId,
@@ -100,6 +114,7 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
         lines: Array<{ productId: string; qty: number; unitPrice: number; discount: number }>;
       }
     ) => {
+      ensureWritableRuntime();
       const context = resolveContext();
       const created = createSale(
         {
@@ -114,6 +129,8 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
         },
         (receiptModel) => renderReceiptText(receiptModel)
       );
+
+      clearCartDraft(context.tenantId, context.branchId, context.deviceId);
 
       let printWarning: string | undefined;
       try {
@@ -157,6 +174,7 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
   );
 
   ipcMain.handle("pos:void-sale", (_event, args: { saleId: string; reason: string }) => {
+    ensureWritableRuntime();
     const context = resolveContext();
     voidSale(context.tenantId, context.branchId, context.deviceId, args.saleId, args.reason);
     return { ok: true };
@@ -186,6 +204,7 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
         }>;
       }
     ) => {
+      ensureWritableRuntime();
       const context = resolveContext();
       const created = createRefund(
         {
@@ -350,6 +369,7 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
   );
 
   ipcMain.handle("pos:get-sync-status", () => getSyncStatus());
+  ipcMain.handle("pos:get-sync-diagnostics", () => getSyncDiagnostics());
   ipcMain.handle("pos:sync-now", async () => {
     await triggerSyncNow();
     return getSyncStatus();
@@ -362,6 +382,11 @@ export const registerPosIpc = (contextProvider: { getContext: () => PosContext }
   ipcMain.handle("pos:get-cart-draft", () => {
     const context = resolveContext();
     return getCartDraft(context.tenantId, context.branchId, context.deviceId);
+  });
+
+  ipcMain.handle("pos:restore-cart-draft", () => {
+    const context = resolveContext();
+    return restoreCartDraftForSession(context.tenantId, context.branchId, context.deviceId);
   });
 
   ipcMain.handle(

@@ -131,7 +131,33 @@ export interface TrialPromoStatus {
   promoAmount?: number | null;
   annualDiscountLabel?: string | null;
   conversionState: "paid" | "trialing" | "trial_expired" | "coupon_applied";
+  lifecycleState?: TrialLifecycleState | string | null;
+  lifecycleLabel?: string | null;
+  lifecycleMessage?: string | null;
+  allowedActions?: string[];
+  blockedActions?: string[];
+  writeLocked?: boolean;
 }
+
+export type TrialLifecycleState =
+  | "trial_active"
+  | "trial_expiring"
+  | "trial_expired"
+  | "subscription_active"
+  | "subscription_past_due"
+  | "subscription_canceled"
+  | "suspended_blocked";
+
+export interface TrialLifecycleDescriptor {
+  state: TrialLifecycleState;
+  label: string;
+  message: string;
+  nextActionLabel: string;
+  nextActionHref: string;
+  allowedActions: string[];
+  blockedActions: string[];
+}
+
 
 export interface CustomerPortalExperience extends CustomerPortalSnapshot {
   roleCode: PortalRole;

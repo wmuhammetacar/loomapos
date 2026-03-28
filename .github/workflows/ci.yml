@@ -28,6 +28,20 @@ jobs:
         with:
           dotnet-version: "9.0.x"
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Install Node deps
+        working-directory: ../..
+        run: pnpm install
+
       - name: Restore
         run: |
           dotnet restore src/LoomaPos.Api/LoomaPos.Api.csproj
@@ -36,6 +50,12 @@ jobs:
 
       - name: Build
         run: dotnet build src/LoomaPos.Api/LoomaPos.Api.csproj --no-restore -c Release
+
+      - name: Node API typecheck
+        run: pnpm --filter @loomapos/api node:typecheck
+
+      - name: Node API tests
+        run: pnpm --filter @loomapos/api node:test
 
       - name: Validate migration strategy docs
         working-directory: ../..
@@ -83,8 +103,35 @@ jobs:
       - name: Build API Docker Image
         run: docker build -f src/LoomaPos.Api/Dockerfile -t loomapos-api:ci .
 
+  feature-content-guard:
+    name: Feature Content Guard
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Install deps
+        run: pnpm install
+
+      - name: Run feature content guard
+        run: pnpm validate:features
+
+      - name: Run feature content guard fixtures
+        run: pnpm validate:features:test
+
   web-admin:
     name: Web Admin Lint & Build
+    needs: feature-content-guard
     runs-on: ubuntu-latest
 
     steps:

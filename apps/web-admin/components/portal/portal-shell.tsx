@@ -35,10 +35,10 @@ export function PortalShell({ eyebrow, title, nav, children }: PortalShellProps)
           <div className="mb-6 flex flex-col gap-4 rounded-[32px] border border-line bg-white px-6 py-5 shadow-[0_24px_70px_rgba(15,23,42,0.05)] md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand">
-                Commercial portal
+                Ticari Portal
               </p>
               <p className="mt-2 text-sm leading-6 text-text/68">
-                Burasi sadece abonelik, lisans, indirme, billing ve cihaz metadata gorunumu
+                Burasi sadece abonelik, lisans, indirme, faturalama ve cihaz metadata gorunumu
                 sunar. Operasyonel POS islevleri burada yer almaz.
               </p>
             </div>

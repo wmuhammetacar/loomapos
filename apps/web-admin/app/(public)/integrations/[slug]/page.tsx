@@ -13,6 +13,7 @@ import {
   getRelatedFeaturesServer
 } from "@/lib/marketing-content-server";
 import { buildMetadata } from "@/lib/seo";
+import { getCanonicalFeaturePathByAnySlug } from "@/lib/feature-governance";
 
 interface IntegrationDetailPageProps {
   params: Promise<{ slug: string }>;
@@ -76,7 +77,7 @@ export default async function IntegrationDetailPage({
             <Card key={feature.slug}>
               <p className="font-semibold text-text">{feature.title}</p>
               <p className="mt-3 text-sm leading-6 text-text/72">{feature.summary}</p>
-              <Link href={`/features/${feature.slug}` as never} className="mt-4 inline-flex text-sm font-semibold text-brand">
+              <Link href={getCanonicalFeaturePathByAnySlug(feature.slug) as never} className="mt-4 inline-flex text-sm font-semibold text-brand">
                 Open feature
               </Link>
             </Card>

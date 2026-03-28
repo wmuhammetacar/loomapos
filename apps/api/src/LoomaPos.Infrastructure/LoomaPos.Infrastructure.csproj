@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\LoomaPos.Domain\LoomaPos.Domain.csproj" />
+    <ProjectReference Include="..\LoomaPos.Application\LoomaPos.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

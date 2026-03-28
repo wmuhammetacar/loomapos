@@ -487,3 +487,17 @@ class AppShellState {
     syncDiagnostics: SyncDiagnostics.initial,
   );
 }
+
+class CachedRead<T> {
+  const CachedRead({
+    required this.data,
+    required this.isStale,
+    required this.source,
+    required this.cachedAt,
+  });
+
+  final T data;
+  final bool isStale;
+  final String source;
+  final DateTime? cachedAt;
+}

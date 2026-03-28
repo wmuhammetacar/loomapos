@@ -2,138 +2,167 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { MarketingCtaGroup } from "@/components/site/marketing-cta-group";
 import { PageHero } from "@/components/site/page-hero";
-import { ScreenshotGallery } from "@/components/site/screenshot-gallery";
 import { SectionHeading } from "@/components/site/section-heading";
+import { Breadcrumbs } from "@/components/ui/breadcrumb";
 import { Card, CardTitle } from "@/components/ui/card";
 import {
   marketingPrimaryCtas,
   marketingSecondaryCtas
 } from "@/lib/marketing-content";
 import {
-  getCanonicalFeatureSlugServer,
-  getMarketingFeatureBySlugServer
+  getFeatureClusterBySlugServer,
+  getMarketingFeaturesByClusterServer
 } from "@/lib/marketing-content-server";
+import { getFeatureRegistryEntryByAnySlug, getFeaturesByClusterSlug } from "@/lib/feature-governance";
 import { buildMetadata } from "@/lib/seo";
 
-interface FeatureDetailPageProps {
+interface FeatureClusterPageProps {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: FeatureDetailPageProps) {
+export async function generateMetadata({ params }: FeatureClusterPageProps) {
   const { slug } = await params;
-  const feature = await getMarketingFeatureBySlugServer(slug);
-
-  if (!feature) {
-    return buildMetadata({
-      title: "Feature",
-      description: "Feature sayfasi bulunamadi.",
-      path: `/features/${slug}`
-    });
-  }
+  const clusterInfo = await getFeatureClusterBySlugServer(slug);
 
   return buildMetadata({
-    title: feature.title,
-    description: feature.summary,
-    path: `/features/${feature.slug}`
+    title: clusterInfo?.title_tr ?? "Feature cluster",
+    description:
+      clusterInfo?.value_proposition_tr ??
+      "Feature cluster hub sayfasi: ilgili ozellikler, cozum baglantilari ve donusum aksiyonlari.",
+    path: `/features/${slug}`
   });
 }
 
-export default async function FeatureDetailPage({ params }: FeatureDetailPageProps) {
-  const { slug } = await params;
-  const feature = await getMarketingFeatureBySlugServer(slug);
+function toLabelFromPath(href: string) {
+  const slug = href.split("/").filter(Boolean).at(-1) ?? href;
+  return slug.replace(/-/g, " ");
+}
 
-  if (!feature) {
+export default async function FeatureClusterPage({ params }: FeatureClusterPageProps) {
+  const { slug } = await params;
+  const [clusterInfo, features] = await Promise.all([
+    getFeatureClusterBySlugServer(slug),
+    getMarketingFeaturesByClusterServer(slug)
+  ]);
+
+  if (!clusterInfo) {
+    const legacyFeature = getFeatureRegistryEntryByAnySlug(slug);
+    if (legacyFeature) {
+      redirect(legacyFeature.route as never);
+    }
+
     notFound();
   }
 
-  const canonicalSlug = await getCanonicalFeatureSlugServer(slug);
-  if (canonicalSlug !== slug) {
-    redirect(`/features/${canonicalSlug}`);
+  if (features.length === 0) {
+    notFound();
   }
+
+  const registryEntries = getFeaturesByClusterSlug(slug);
+  const integrationLinks = Array.from(
+    new Set(
+      registryEntries.flatMap((entry) => entry.section_links.integrations ?? [])
+    )
+  );
 
   return (
     <>
+      <Breadcrumbs
+        items={[
+          { label: "Features", href: "/features" },
+          { label: clusterInfo.title_tr }
+        ]}
+        className="mb-2"
+      />
+
       <PageHero
-        eyebrow={feature.keyword}
-        title={feature.title}
-        description={feature.summary}
-        actions={marketingPrimaryCtas}
+        eyebrow="Cluster hub"
+        title={clusterInfo.title_tr}
+        description={clusterInfo.value_proposition_tr}
+        actions={[marketingPrimaryCtas[0], marketingPrimaryCtas[1]]}
         aside={
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/60">
-              Feature detail page
+              Kimin icin?
             </p>
-            <p className="text-sm leading-6 text-white/75">{feature.whatItDoes}</p>
+            <p className="text-sm leading-6 text-white/75">{clusterInfo.audience_tr}</p>
+            <p className="text-sm leading-6 text-white/70">
+              Bu hub altinda yer alan tum detaylar Desktop/Mobile operasyon yuzeyine baglanir; web sadece tanitim ve donusum katmanidir.
+            </p>
           </div>
         }
       />
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <SectionHeading
-            eyebrow="What it does"
-            title="Capability summary"
-            description={feature.whatItDoes}
-          />
-        </Card>
-        <Card>
-          <SectionHeading
-            eyebrow="Business impact"
-            title="Why buyers care"
-            description={feature.businessBenefits.join(" ")}
-          />
-        </Card>
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardTitle>Desktop use case</CardTitle>
-          <p className="mt-3 text-sm leading-6 text-text/72">{feature.desktopFlow}</p>
-        </Card>
-        <Card>
-          <CardTitle>Mobile use case</CardTitle>
-          <p className="mt-3 text-sm leading-6 text-text/72">{feature.mobileFlow}</p>
-        </Card>
-      </section>
-
       <section className="space-y-6">
         <SectionHeading
-          eyebrow="Screenshots"
-          title="Desktop and Mobile walkthrough placeholders"
-          description="These product visuals support trust and SEO while keeping live workflows inside the real apps."
+          eyebrow="Feature details"
+          title="Bu cluster altindaki ozellikler"
+          description="Her kart canonical detail route ile acilir ve trial/pricing funnel'ina doner."
         />
-        <ScreenshotGallery items={feature.screenshots} />
-      </section>
-
-      <section className="space-y-6">
-        <SectionHeading
-          eyebrow="Use cases"
-          title="Example usage"
-          description="Business-ready scenarios help visitors understand fit before they commit to demo, trial or purchase."
-        />
-        <div className="grid gap-4 md:grid-cols-3">
-          {feature.usageExamples.map((item) => (
-            <Card key={item} className="text-sm leading-6 text-text/72">
-              {item}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {features.map((feature) => (
+            <Card key={feature.slug}>
+              <CardTitle>{feature.title}</CardTitle>
+              <p className="mt-3 text-sm leading-6 text-text/72">{feature.summary}</p>
+              <p className="mt-4 text-xs uppercase tracking-[0.2em] text-text/55">
+                Keyword: {feature.keyword}
+              </p>
+              <Link
+                href={(feature.route ?? `/features/${slug}/${feature.slug}`) as never}
+                className="mt-5 inline-flex text-sm font-semibold text-brand"
+              >
+                Feature detayina git
+              </Link>
             </Card>
           ))}
         </div>
       </section>
 
-      <section className="rounded-[36px] border border-line bg-white px-6 py-8">
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <SectionHeading
+            eyebrow="Related solutions"
+            title="Cozum sayfasi baglantilari"
+            description="Cluster -> solution baglantisi, kim icin degerli oldugunu netlestirir."
+          />
+          <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold">
+            {clusterInfo.related_solutions.map((solutionSlug) => (
+              <Link
+                key={solutionSlug}
+                href={`/solutions/${solutionSlug}` as never}
+                className="text-brand"
+              >
+                {solutionSlug.replace(/-/g, " ")}
+              </Link>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <SectionHeading
+            eyebrow="Integrations/docs"
+            title="Bagli entegrasyon ve dokumanlar"
+            description="Feature degerlendirme asamasinda teknik uyum baglantilari hizli ulasilabilir olmalidir."
+          />
+          <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold">
+            {integrationLinks.map((href) => (
+              <Link key={href} href={href as never} className="text-brand">
+                {toLabelFromPath(href)}
+              </Link>
+            ))}
+          </div>
+        </Card>
+      </section>
+
+      <section className="space-y-6 rounded-[36px] border border-line bg-white px-6 py-8">
         <SectionHeading
-          eyebrow="Action"
-          title="Move from feature education to action"
-          description="Each feature page drives the visitor into the right next step: pricing, trial, demo, download or reseller evaluation."
+          eyebrow="Cluster action"
+          title="Trial veya pricing adimina gec"
+          description="Cluster hub, donusum omurgasini bolmeden tek ana akisi destekler."
         />
-        <MarketingCtaGroup items={[...marketingPrimaryCtas, ...marketingSecondaryCtas]} context={`feature_${feature.slug}_bottom`} className="mt-6" />
-        <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold">
-          {feature.relatedSolutions.map((solution) => (
-            <Link key={solution} href={`/solutions/${solution}` as never} className="text-brand">
-              {solution}
-            </Link>
-          ))}
-        </div>
+        <MarketingCtaGroup
+          items={[marketingPrimaryCtas[0], marketingPrimaryCtas[1], marketingSecondaryCtas[0]]}
+          context={`feature_cluster_${slug}_bottom`}
+        />
       </section>
     </>
   );

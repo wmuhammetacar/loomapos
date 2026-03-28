@@ -9,25 +9,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { submitResellerApplicationWithFallback } from "@/lib/commerce-service";
 import { captureCrmLead, trackCrmEvent } from "@/lib/crm-service";
 import { trackMarketingEvent } from "@/lib/marketing-service";
+import { submitResellerGrowthApplication } from "@/lib/reseller-growth-service";
 
 const schema = z.object({
-  fullName: z.string().min(3, "Ad soyad gerekli."),
+  name: z.string().min(3, "Ad soyad gerekli."),
   companyName: z.string().min(2, "Sirket adi gerekli."),
-  city: z.string().min(2, "Sehir gerekli."),
-  phone: z.string().min(10, "Telefon gerekli."),
   email: z.string().email("Gecerli bir e-posta girin."),
-  websiteOrSocialProof: z.string().min(3, "Web sitesi veya sosyal kanit gerekli."),
-  experience: z.string().min(10, "Deneyiminizi kisaca yazin."),
-  message: z.string().min(10, "Mesajinizi yazin.")
+  phone: z.string().optional(),
+  businessType: z.string().min(2, "Is modeli gerekli."),
+  experience: z.string().optional(),
+  region: z.string().min(2, "Bolge gerekli.")
 });
 
 type FormValues = z.infer<typeof schema>;
 
 export function ResellerApplyForm() {
-  const [resultCode, setResultCode] = useState<string | null>(null);
+  const [applicationCode, setApplicationCode] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const {
     register,
@@ -42,29 +41,39 @@ export function ResellerApplyForm() {
   const onSubmit = handleSubmit((values) => {
     startTransition(async () => {
       try {
-        const lead = await submitResellerApplicationWithFallback(values);
+        const application = await submitResellerGrowthApplication({
+          name: values.name,
+          companyName: values.companyName,
+          email: values.email,
+          phone: values.phone,
+          businessType: values.businessType,
+          experience: values.experience,
+          region: values.region
+        });
+
         await captureCrmLead({
-          name: values.fullName,
+          name: values.name,
           email: values.email,
           phone: values.phone,
           companyName: values.companyName,
           source: "reseller_application",
-          resellerId: lead.referralCode,
+          resellerId: application.applicationId,
           commissionEligible: true
         });
+
         await trackCrmEvent({
           eventType: "reseller_assigned",
           email: values.email,
-          name: values.fullName,
+          name: values.name,
           companyName: values.companyName,
           phone: values.phone,
           source: "reseller_application",
-          resellerId: lead.referralCode,
+          resellerId: application.applicationId,
           commissionEligible: true,
           path: "/resellers/apply",
-          detail: "Reseller application submitted and referral code generated."
+          detail: "Reseller application submitted to phase-15 channel growth workflow."
         });
-        setResultCode(lead.referralCode);
+
         trackMarketingEvent({
           type: "lead_submit",
           path: "/resellers/apply",
@@ -72,6 +81,8 @@ export function ResellerApplyForm() {
           context: "reseller_apply_form",
           source: values.companyName
         });
+
+        setApplicationCode(application.applicationId);
         reset();
       } catch (error) {
         setError("root", {
@@ -85,37 +96,34 @@ export function ResellerApplyForm() {
     <Card>
       <CardTitle>Bayi basvuru formu</CardTitle>
       <form onSubmit={onSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
-        <Field label="Ad Soyad" error={errors.fullName?.message}>
-          <Input {...register("fullName")} />
+        <Field label="Ad Soyad" error={errors.name?.message}>
+          <Input {...register("name")} />
         </Field>
         <Field label="Sirket Adi" error={errors.companyName?.message}>
           <Input {...register("companyName")} />
         </Field>
-        <Field label="Sehir" error={errors.city?.message}>
-          <Input {...register("city")} />
-        </Field>
-        <Field label="Telefon" error={errors.phone?.message}>
-          <Input {...register("phone")} />
-        </Field>
         <Field label="E-posta" error={errors.email?.message}>
           <Input {...register("email")} />
         </Field>
-        <Field label="Website / Sosyal Kanit" error={errors.websiteOrSocialProof?.message}>
-          <Input {...register("websiteOrSocialProof")} />
+        <Field label="Telefon (opsiyonel)" error={errors.phone?.message}>
+          <Input {...register("phone")} />
         </Field>
-        <Field label="Deneyim" error={errors.experience?.message} className="md:col-span-2">
-          <Textarea {...register("experience")} />
+        <Field label="Is modeli" error={errors.businessType?.message}>
+          <Input {...register("businessType")} placeholder="Danismanlik, distributor, entegrator..." />
         </Field>
-        <Field label="Mesaj" error={errors.message?.message} className="md:col-span-2">
-          <Textarea {...register("message")} />
+        <Field label="Bolge" error={errors.region?.message}>
+          <Input {...register("region")} placeholder="Marmara, Ege, Ic Anadolu..." />
+        </Field>
+        <Field label="Deneyim (opsiyonel)" error={errors.experience?.message} className="md:col-span-2">
+          <Textarea {...register("experience")} placeholder="Satis ve onboarding deneyiminizi kisaca belirtin." />
         </Field>
         {errors.root ? (
           <p className="text-sm text-danger md:col-span-2">{errors.root.message}</p>
         ) : null}
-        {resultCode ? (
+        {applicationCode ? (
           <div className="rounded-[24px] border border-brand/20 bg-brand/10 px-5 py-4 text-sm text-text md:col-span-2">
-            Basvurunuz kaydedildi. Takip kodunuz: <strong>{resultCode}</strong>. Onay surecinden
-            sonra reseller login erisimi acilacaktir.
+            Basvurunuz kaydedildi. Takip kodunuz: <strong>{applicationCode}</strong>. Inceleme
+            tamamlandiginda tarafiniza onay/red bildirimi yapilacaktir.
           </div>
         ) : null}
         <div className="md:col-span-2">

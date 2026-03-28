@@ -45,10 +45,20 @@ declare namespace __next_route_internal_types__ {
     | `/api/marketing/events`
     | `/api/marketing/leads`
     | `/api/onboarding/events`
+    | `/api/reseller-growth/applications`
+    | `/api/reseller-growth/commissions`
+    | `/api/reseller-growth/dashboard`
+    | `/api/reseller-growth/leads`
+    | `/api/reseller-growth/leads/assign`
+    | `/api/reseller-growth/payouts`
+    | `/api/reseller-growth/portal`
+    | `/api/reseller-growth/referrals/track`
+    | `/api/reseller-growth/resellers`
     | `/ar`
     | `/auth/callback`
     | `/blog`
     | `/checkout`
+    | `/compare`
     | `/contact`
     | `/demo`
     | `/docs`
@@ -56,6 +66,20 @@ declare namespace __next_route_internal_types__ {
     | `/en`
     | `/faq`
     | `/features`
+    | `/features/admin-control`
+    | `/features/branch-management`
+    | `/features/branches`
+    | `/features/cash-register-integrations`
+    | `/features/collections`
+    | `/features/dashboard`
+    | `/features/einvoice`
+    | `/features/fiscal`
+    | `/features/online-payments`
+    | `/features/pricing-management`
+    | `/features/product-variants`
+    | `/features/reports`
+    | `/features/staff-management`
+    | `/features/variants`
     | `/forgot-password`
     | `/integrations`
     | `/login`
@@ -87,9 +111,15 @@ declare namespace __next_route_internal_types__ {
     | `/api/crm/leads/${SafeSlug<T>}/activities`
     | `/api/crm/leads/${SafeSlug<T>}/demo`
     | `/api/crm/leads/${SafeSlug<T>}/notes`
+    | `/api/reseller-growth/applications/${SafeSlug<T>}/review`
+    | `/api/reseller-growth/commissions/${SafeSlug<T>}`
+    | `/api/reseller-growth/payouts/${SafeSlug<T>}`
+    | `/api/reseller-growth/resellers/${SafeSlug<T>}`
     | `/blog/${SafeSlug<T>}`
+    | `/compare/${SafeSlug<T>}`
     | `/docs/${SafeSlug<T>}`
     | `/features/${SafeSlug<T>}`
+    | `/features/${SafeSlug<T>}/${SafeSlug<T>}`
     | `/integrations/${SafeSlug<T>}`
     | `/legal/${SafeSlug<T>}`
     | `/portal/${SafeSlug<T>}`

@@ -19,6 +19,14 @@ import {
   type AdminSupportCase,
   type AdminTenantDetail
 } from "@/lib/admin-service";
+import {
+  createResellerGrowthPayout,
+  loadResellerGrowthResellerDetail,
+  updateResellerGrowthCommissionStatus,
+  updateResellerGrowthPayoutStatus,
+  updateResellerGrowthProfile
+} from "@/lib/reseller-growth-service";
+import type { ResellerDetailWorkspace } from "@/lib/reseller-growth-types";
 
 export function AdminTenantDetailPanel({ tenantId }: { tenantId: string }) {
   const [detail, setDetail] = useState<AdminTenantDetail | null>(null);
@@ -77,28 +85,223 @@ export function AdminTenantDetailPanel({ tenantId }: { tenantId: string }) {
 
 export function AdminResellerDetailPanel({ resellerId }: { resellerId: string }) {
   const [detail, setDetail] = useState<AdminResellerSummary | null>(null);
+  const [growth, setGrowth] = useState<ResellerDetailWorkspace | null>(null);
+  const [status, setStatus] = useState("active");
+  const [commissionRate, setCommissionRate] = useState("0.12");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const reload = async () => {
+    const [adminDetail, growthDetail] = await Promise.all([
+      loadAdminResellerDetail(resellerId),
+      loadResellerGrowthResellerDetail(resellerId).catch(() => null)
+    ]);
+
+    setDetail(adminDetail);
+    setGrowth(growthDetail);
+
+    if (growthDetail) {
+      setStatus(growthDetail.reseller.status);
+      setCommissionRate(String(growthDetail.reseller.commissionRate));
+    }
+  };
 
   useEffect(() => {
-    void loadAdminResellerDetail(resellerId).then(setDetail);
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resellerId]);
 
-  if (!detail) {
+  const run = async (task: () => Promise<void>, success: string) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await task();
+      await reload();
+      setMessage(success);
+    } catch (actionError) {
+      setMessage(actionError instanceof Error ? actionError.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!detail && !growth) {
     return <PlaceholderCard title="Reseller detail" body="Loading reseller performance and exception data." />;
   }
 
+  const companyName = growth?.reseller.companyName ?? detail?.name ?? resellerId;
+  const resellerStatus = growth?.reseller.status ?? detail?.status ?? "-";
+  const resellerCode = growth?.reseller.referralCode ?? detail?.code ?? "-";
+  const monthlyConversions =
+    growth?.metrics.conversionCount ?? detail?.monthlyConversions ?? 0;
+  const customerCount = growth?.metrics.activeCustomers ?? detail?.customers ?? 0;
+  const pendingAmount =
+    growth?.metrics.pendingCommission ?? detail?.pendingCommission ?? 0;
+  const paidAmount = growth?.metrics.paidCommission ?? detail?.paidOut ?? 0;
+
+  const commissionQueue = growth?.commissions ?? [];
+  const payoutQueue = growth?.payouts ?? [];
+
   return (
-    <Card>
-      <CardTitle>{detail.name}</CardTitle>
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Code" value={detail.code} />
-        <Metric label="Status" value={detail.status} />
-        <Metric label="Customers" value={String(detail.customers)} />
-        <Metric label="Conversions" value={String(detail.monthlyConversions)} />
-      </div>
-      <p className="mt-5 text-sm leading-6 text-text/68">
-        Pending commission {formatCurrency(detail.pendingCommission)}. Paid out {formatCurrency(detail.paidOut)}. Suspicion flag: {detail.suspicious ? "watch" : "clear"}.
-      </p>
-    </Card>
+    <div className="space-y-6">
+      <Card>
+        <CardTitle>{companyName}</CardTitle>
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Code" value={resellerCode} />
+          <Metric label="Status" value={resellerStatus} />
+          <Metric label="Customers" value={String(customerCount)} />
+          <Metric label="Conversions" value={String(monthlyConversions)} />
+        </div>
+        <p className="mt-5 text-sm leading-6 text-text/68">
+          Pending commission {formatCurrency(pendingAmount)}. Paid out {formatCurrency(paidAmount)}.
+          Suspicion flag: {detail?.suspicious ? "watch" : "clear"}.
+        </p>
+      </Card>
+
+      <Card>
+        <CardTitle>Channel controls</CardTitle>
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <Input
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            placeholder="Status (pending/active/suspended)"
+          />
+          <Input
+            value={commissionRate}
+            onChange={(event) => setCommissionRate(event.target.value)}
+            placeholder="Commission rate (0.12)"
+          />
+          <Button
+            disabled={busy || !growth}
+            onClick={() =>
+              void run(
+                async () => {
+                  if (!growth) {
+                    return;
+                  }
+
+                  await updateResellerGrowthProfile(growth.reseller.resellerId, {
+                    status:
+                      status === "pending" || status === "active" || status === "suspended"
+                        ? status
+                        : undefined,
+                    commissionRate:
+                      !Number.isNaN(Number(commissionRate)) && Number(commissionRate) > 0
+                        ? Number(commissionRate)
+                        : undefined
+                  });
+                },
+                "Reseller profile updated."
+              )
+            }
+          >
+            Save profile
+          </Button>
+          <Button
+            variant="outline"
+            disabled={busy || !growth}
+            onClick={() =>
+              void run(
+                async () => {
+                  if (!growth) {
+                    return;
+                  }
+
+                  await createResellerGrowthPayout({ resellerId: growth.reseller.resellerId });
+                },
+                "Payout batch created from approved commissions."
+              )
+            }
+          >
+            Create payout batch
+          </Button>
+        </div>
+        {message ? <p className="mt-4 text-sm text-brand">{message}</p> : null}
+      </Card>
+
+      {commissionQueue.length > 0 ? (
+        <Card>
+          <CardTitle>Commission queue</CardTitle>
+          <div className="mt-5 space-y-3">
+            {commissionQueue.slice(0, 20).map((item) => (
+              <div key={item.commissionId} className="rounded-[24px] border border-line bg-muted/30 px-4 py-4">
+                <p className="font-semibold text-text">{item.customerId}</p>
+                <p className="mt-1 text-sm text-text/72">
+                  {item.triggerType} - {item.status} - {formatCurrency(item.amount)}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {item.status === "pending" ? (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(
+                          async () => {
+                            await updateResellerGrowthCommissionStatus(item.commissionId, "approved");
+                          },
+                          "Commission approved."
+                        )
+                      }
+                    >
+                      Approve
+                    </Button>
+                  ) : null}
+                  {item.status !== "paid" ? (
+                    <Button
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(
+                          async () => {
+                            await updateResellerGrowthCommissionStatus(item.commissionId, "paid");
+                          },
+                          "Commission marked as paid."
+                        )
+                      }
+                    >
+                      Mark paid
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {payoutQueue.length > 0 ? (
+        <Card>
+          <CardTitle>Payout history</CardTitle>
+          <div className="mt-5 space-y-3">
+            {payoutQueue.slice(0, 20).map((item) => (
+              <div key={item.payoutId} className="rounded-[24px] border border-line bg-muted/30 px-4 py-4">
+                <p className="font-semibold text-text">{formatCurrency(item.amount)}</p>
+                <p className="mt-1 text-sm text-text/72">
+                  {item.status} - {item.commissionIds.length} commissions
+                </p>
+                {item.status !== "paid" ? (
+                  <Button
+                    variant="outline"
+                    className="mt-3"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(
+                        async () => {
+                          await updateResellerGrowthPayoutStatus(item.payoutId, "paid");
+                        },
+                        "Payout marked as paid."
+                      )
+                    }
+                  >
+                    Mark payout paid
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+    </div>
   );
 }
 

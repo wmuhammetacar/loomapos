@@ -140,9 +140,38 @@ const api = {
       printWarning?: string;
     }>,
   getSyncStatus: () => ipcRenderer.invoke("pos:get-sync-status"),
+  getSyncDiagnostics: () => ipcRenderer.invoke("pos:get-sync-diagnostics") as Promise<{
+    pendingCount: number;
+    failedCount: number;
+    lastSuccessfulSyncAt: string | null;
+    health: "healthy" | "delayed" | "failed";
+  }>,
   syncNow: () => ipcRenderer.invoke("pos:sync-now"),
   retryDeadLetterSync: () => ipcRenderer.invoke("pos:retry-dead-letter-sync"),
   getCartDraft: () => ipcRenderer.invoke("pos:get-cart-draft"),
+  restoreCartDraft: () =>
+    ipcRenderer.invoke("pos:restore-cart-draft") as Promise<{
+      restored: boolean;
+      draft: {
+        cart: Array<{
+          productId: string;
+          name: string;
+          taxRate: number;
+          qty: number;
+          unitPrice: number;
+          discount: number;
+        }>;
+        headerDiscount: number;
+        customerName: string;
+        paymentDraft: {
+          method: "CASH" | "CARD";
+          cashReceived: number | null;
+        };
+        updatedAt: string;
+      } | null;
+      warningCode: "stale" | "invalid" | "missing_products" | null;
+      skippedProductCount: number;
+    }>,
   saveCartDraft: (args: { payloadJson: string }) => ipcRenderer.invoke("pos:save-cart-draft", args),
   clearCartDraft: () => ipcRenderer.invoke("pos:clear-cart-draft"),
   getLicenseStatus: () => ipcRenderer.invoke("pos:get-license-status"),

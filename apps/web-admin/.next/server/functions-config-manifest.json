@@ -2,15 +2,28 @@
   "version": 1,
   "functions": {
     "/api/crm/dashboard": {},
+    "/api/crm/leads/[leadId]/demo": {},
     "/api/crm/leads/[leadId]/activities": {},
     "/api/crm/events": {},
     "/api/crm/leads/[leadId]/notes": {},
-    "/api/crm/leads/[leadId]/demo": {},
-    "/api/crm/leads/[leadId]": {},
     "/api/marketing/content": {},
-    "/api/crm/leads": {},
+    "/api/crm/leads/[leadId]": {},
     "/api/marketing/events": {},
+    "/api/crm/leads": {},
+    "/api/reseller-growth/applications/[applicationId]/review": {},
+    "/api/reseller-growth/applications": {},
+    "/api/onboarding/events": {},
     "/api/marketing/leads": {},
-    "/api/onboarding/events": {}
+    "/api/reseller-growth/dashboard": {},
+    "/api/reseller-growth/leads": {},
+    "/api/reseller-growth/commissions/[commissionId]": {},
+    "/api/reseller-growth/commissions": {},
+    "/api/reseller-growth/payouts": {},
+    "/api/reseller-growth/leads/assign": {},
+    "/api/reseller-growth/portal": {},
+    "/api/reseller-growth/referrals/track": {},
+    "/api/reseller-growth/payouts/[payoutId]": {},
+    "/api/reseller-growth/resellers": {},
+    "/api/reseller-growth/resellers/[resellerId]": {}
   }
 }

@@ -14,6 +14,7 @@ import {
   getSeoLandingPageBySlugServer
 } from "@/lib/marketing-content-server";
 import { buildMetadata } from "@/lib/seo";
+import { getCanonicalFeaturePathByAnySlug } from "@/lib/feature-governance";
 
 interface SeoLandingPageProps {
   params: Promise<{ slug: string }>;
@@ -95,7 +96,7 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
             <Card key={feature.slug}>
               <CardTitle>{feature.title}</CardTitle>
               <p className="mt-3 text-sm leading-6 text-text/72">{feature.summary}</p>
-              <Link href={`/features/${feature.slug}` as never} className="mt-5 inline-flex text-sm font-semibold text-brand">
+              <Link href={getCanonicalFeaturePathByAnySlug(feature.slug) as never} className="mt-5 inline-flex text-sm font-semibold text-brand">
                 Open feature
               </Link>
             </Card>

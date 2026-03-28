@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using LoomaPos.Api.Commerce;
 using LoomaPos.Infrastructure.MultiTenancy;
 
 namespace LoomaPos.Api.Middleware;
@@ -22,6 +23,24 @@ public sealed class TenantContextMiddleware
             context.User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? context.User.FindFirstValue("sub")
             ?? context.Request.Headers["X-User-Id"].FirstOrDefault());
+
+        if (!tenantId.HasValue)
+        {
+            var authService = context.RequestServices.GetService<IPortalAuthService>();
+            if (authService is not null)
+            {
+                var access = await authService.GetAccessContextAsync(context, context.RequestAborted);
+                if (access?.TenantId is Guid accessTenantId)
+                {
+                    tenantId = accessTenantId;
+                }
+
+                if (!userId.HasValue && access?.CustomerAccountId is Guid accessUserId)
+                {
+                    userId = accessUserId;
+                }
+            }
+        }
 
         tenantProvider.SetContext(tenantId, branchId, userId, deviceId);
         await _next(context);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { AdminCrmPanel } from "@/components/admin/admin-crm-panels";
+import { AdminResellerGrowthPanel } from "@/components/admin/admin-reseller-growth-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -103,28 +104,7 @@ export function AdminPanels({ section }: { section: AdminSection }) {
   }
 
   if (section === "resellers") {
-    return (
-      <ListCard title="Reseller operations">
-        {snapshot.resellers.map((reseller) => (
-          <div key={reseller.id} className="rounded-[24px] border border-line bg-muted/30 px-4 py-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="font-semibold text-text">{reseller.name}</p>
-                <p className="mt-1 text-sm text-text/72">
-                  {reseller.code} - {reseller.status} - customers {reseller.customers}
-                </p>
-                <p className="mt-2 text-sm text-text/72">
-                  Pending {formatCurrency(reseller.pendingCommission)} | Paid {formatCurrency(reseller.paidOut)}
-                </p>
-              </div>
-              <Link href={`/admin/resellers/${reseller.id}`} className="text-sm font-semibold text-brand">
-                Inspect reseller
-              </Link>
-            </div>
-          </div>
-        ))}
-      </ListCard>
-    );
+    return <AdminResellerGrowthPanel />;
   }
 
   if (section === "support") {
@@ -318,14 +298,6 @@ function ListCard({ title, children }: { title: string; children: ReactNode }) {
       <div className="mt-5 space-y-3">{children}</div>
     </Card>
   );
-}
-
-function formatCurrency(value: number, currency = "TRY") {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2
-  }).format(value);
 }
 
 function formatDate(value: string) {

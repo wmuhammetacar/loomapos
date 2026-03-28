@@ -1,0 +1,5123 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict nqhNxurfoeiOGGtcnD62WQ2G1aUtPEyqI9HLyp9loPMZKuqqbnNMiZDBxCUmFf9
+
+-- Dumped from database version 16.13
+-- Dumped by pg_dump version 16.10 (Debian 16.10-1.pgdg13+1)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
+--
+
+CREATE SCHEMA public;
+
+
+ALTER SCHEMA public OWNER TO pg_database_owner;
+
+--
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: pg_database_owner
+--
+
+COMMENT ON SCHEMA public IS 'standard public schema';
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: __ef_migrations_history; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.__ef_migrations_history (
+    "MigrationId" character varying(150) NOT NULL,
+    "ProductVersion" character varying(32) NOT NULL
+);
+
+
+ALTER TABLE public.__ef_migrations_history OWNER TO loomapos;
+
+--
+-- Name: abuse_flags; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.abuse_flags (
+    id uuid NOT NULL,
+    tenant_id uuid,
+    flag_type character varying(80) NOT NULL,
+    severity character varying(20) NOT NULL,
+    summary character varying(300) NOT NULL,
+    status character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.abuse_flags OWNER TO loomapos;
+
+--
+-- Name: activation_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.activation_events (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    device_activation_id uuid NOT NULL,
+    event_type character varying(80) NOT NULL,
+    payload_json text DEFAULT '{}'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.activation_events OWNER TO loomapos;
+
+--
+-- Name: admin_action_approvals; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.admin_action_approvals (
+    id uuid NOT NULL,
+    admin_action_request_id uuid NOT NULL,
+    approved_by_internal_user_id uuid NOT NULL,
+    decision character varying(30) NOT NULL,
+    note character varying(500),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.admin_action_approvals OWNER TO loomapos;
+
+--
+-- Name: admin_action_requests; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.admin_action_requests (
+    id uuid NOT NULL,
+    requested_by_internal_user_id uuid NOT NULL,
+    action_code character varying(120) NOT NULL,
+    target_type character varying(80) NOT NULL,
+    target_id character varying(120) NOT NULL,
+    reason character varying(500) NOT NULL,
+    status character varying(30) DEFAULT 'recorded'::character varying NOT NULL,
+    requires_approval boolean DEFAULT false NOT NULL,
+    metadata_json text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.admin_action_requests OWNER TO loomapos;
+
+--
+-- Name: alert_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.alert_events (
+    id uuid NOT NULL,
+    alert_rule_id uuid,
+    environment character varying(40) NOT NULL,
+    severity character varying(20) NOT NULL,
+    summary character varying(300) NOT NULL,
+    status character varying(30) NOT NULL,
+    triggered_at timestamp with time zone NOT NULL,
+    acknowledged_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.alert_events OWNER TO loomapos;
+
+--
+-- Name: alert_rules; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.alert_rules (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    code character varying(120) NOT NULL,
+    severity character varying(20) NOT NULL,
+    threshold_summary character varying(300) NOT NULL,
+    status character varying(30) NOT NULL,
+    runbook_code character varying(120),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.alert_rules OWNER TO loomapos;
+
+--
+-- Name: analytics_report_schedules; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.analytics_report_schedules (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    name character varying(180) NOT NULL,
+    report_code character varying(80) NOT NULL,
+    frequency character varying(30) NOT NULL,
+    format character varying(20) NOT NULL,
+    timezone character varying(80) NOT NULL,
+    recipients_json text NOT NULL,
+    filters_json text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    last_run_at timestamp with time zone,
+    next_run_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.analytics_report_schedules OWNER TO loomapos;
+
+--
+-- Name: analytics_saved_views; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.analytics_saved_views (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    customer_account_id uuid,
+    scope character varying(30) NOT NULL,
+    name character varying(180) NOT NULL,
+    view_code character varying(80) NOT NULL,
+    filters_json text NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.analytics_saved_views OWNER TO loomapos;
+
+--
+-- Name: app_releases; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.app_releases (
+    id uuid NOT NULL,
+    platform character varying(30) NOT NULL,
+    channel character varying(30) DEFAULT 'stable'::character varying NOT NULL,
+    version character varying(40) NOT NULL,
+    release_date date NOT NULL,
+    release_notes_markdown text NOT NULL,
+    install_guide_markdown text NOT NULL,
+    minimum_requirements text NOT NULL,
+    is_public boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.app_releases OWNER TO loomapos;
+
+--
+-- Name: audit_logs; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.audit_logs (
+    id bigint NOT NULL,
+    tenant_id uuid NOT NULL,
+    user_id uuid,
+    action character varying(100) NOT NULL,
+    entity character varying(100) NOT NULL,
+    entity_id character varying(100) NOT NULL,
+    payload_json text DEFAULT '{}'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.audit_logs OWNER TO loomapos;
+
+--
+-- Name: audit_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: loomapos
+--
+
+CREATE SEQUENCE public.audit_logs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.audit_logs_id_seq OWNER TO loomapos;
+
+--
+-- Name: audit_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: loomapos
+--
+
+ALTER SEQUENCE public.audit_logs_id_seq OWNED BY public.audit_logs.id;
+
+
+--
+-- Name: backup_runs; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.backup_runs (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    backup_type character varying(40) NOT NULL,
+    status character varying(30) NOT NULL,
+    region character varying(60) NOT NULL,
+    retention_policy character varying(120) NOT NULL,
+    artifact_reference character varying(240),
+    started_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.backup_runs OWNER TO loomapos;
+
+--
+-- Name: billing_profiles; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.billing_profiles (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    customer_account_id uuid,
+    company_name character varying(200) NOT NULL,
+    billing_email character varying(320) NOT NULL,
+    phone character varying(40),
+    tax_office character varying(120),
+    tax_number character varying(50),
+    address_line character varying(500),
+    city character varying(120),
+    country character varying(8) DEFAULT 'TR'::character varying NOT NULL,
+    locale character varying(20) DEFAULT 'tr-TR'::character varying NOT NULL,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.billing_profiles OWNER TO loomapos;
+
+--
+-- Name: branches; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.branches (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    name character varying(200) NOT NULL,
+    address character varying(500),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    phone character varying(40),
+    tax_number character varying(50),
+    settings_json text
+);
+
+
+ALTER TABLE public.branches OWNER TO loomapos;
+
+--
+-- Name: capacity_snapshots; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.capacity_snapshots (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    resource_type character varying(60) NOT NULL,
+    scope character varying(120) NOT NULL,
+    utilization_summary character varying(300) NOT NULL,
+    headroom_state character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.capacity_snapshots OWNER TO loomapos;
+
+--
+-- Name: cash_transactions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.cash_transactions (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    type character varying(20) NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    reason character varying(150) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.cash_transactions OWNER TO loomapos;
+
+--
+-- Name: categories; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.categories (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    name character varying(200) NOT NULL,
+    parent_id uuid
+);
+
+
+ALTER TABLE public.categories OWNER TO loomapos;
+
+--
+-- Name: checkout_sessions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.checkout_sessions (
+    id uuid NOT NULL,
+    tenant_id uuid,
+    company_name character varying(200) NOT NULL,
+    email character varying(320) NOT NULL,
+    plan_code character varying(50) NOT NULL,
+    billing_cycle character varying(20) NOT NULL,
+    reseller_code character varying(50),
+    amount numeric(18,2) NOT NULL,
+    currency character varying(8) DEFAULT 'TRY'::character varying NOT NULL,
+    status character varying(30) DEFAULT 'created'::character varying NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    customer_account_id uuid,
+    subscription_id uuid,
+    billing_profile_id uuid,
+    license_id uuid,
+    checkout_reference character varying(80) NOT NULL,
+    contact_name character varying(200) NOT NULL,
+    phone character varying(40),
+    provider character varying(40) NOT NULL,
+    provider_session_id character varying(150),
+    provider_payment_reference character varying(150),
+    coupon_code character varying(50),
+    tax_amount numeric(18,2) DEFAULT 0 NOT NULL,
+    payment_status character varying(30) DEFAULT 'pending'::character varying NOT NULL,
+    checkout_payload_json text DEFAULT '{}'::text NOT NULL,
+    billing_payload_json text DEFAULT '{}'::text NOT NULL,
+    idempotency_key character varying(120),
+    provisioned_at timestamp with time zone,
+    error text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.checkout_sessions OWNER TO loomapos;
+
+--
+-- Name: commissions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.commissions (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    reseller_id uuid NOT NULL,
+    subscription_id uuid NOT NULL,
+    invoice_id uuid NOT NULL,
+    rate numeric(8,4) NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    status character varying(30) DEFAULT 'accrued'::character varying NOT NULL,
+    accrued_at timestamp with time zone DEFAULT now() NOT NULL,
+    paid_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.commissions OWNER TO loomapos;
+
+--
+-- Name: contact_ledger; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.contact_ledger (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    amount_delta numeric(18,2) NOT NULL,
+    reason character varying(150) NOT NULL,
+    ref_type character varying(100) NOT NULL,
+    ref_id character varying(100) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.contact_ledger OWNER TO loomapos;
+
+--
+-- Name: contacts; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.contacts (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    type character varying(20) NOT NULL,
+    name character varying(200) NOT NULL,
+    phone character varying(40),
+    email character varying(320),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.contacts OWNER TO loomapos;
+
+--
+-- Name: customer_accounts; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.customer_accounts (
+    id uuid NOT NULL,
+    email character varying(320) NOT NULL,
+    password_hash text NOT NULL,
+    full_name character varying(200) NOT NULL,
+    phone character varying(40),
+    account_status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    email_verified_at timestamp with time zone,
+    last_login_at timestamp with time zone,
+    password_reset_token_hash text,
+    password_reset_expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    email_verification_token_hash text,
+    email_verification_expires_at timestamp with time zone
+);
+
+
+ALTER TABLE public.customer_accounts OWNER TO loomapos;
+
+--
+-- Name: dependency_status_records; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.dependency_status_records (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    dependency_code character varying(80) NOT NULL,
+    status character varying(30) NOT NULL,
+    last_error_summary character varying(300),
+    last_success_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.dependency_status_records OWNER TO loomapos;
+
+--
+-- Name: deployment_records; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.deployment_records (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    service_name character varying(80) NOT NULL,
+    version character varying(40) NOT NULL,
+    commit_sha character varying(80) NOT NULL,
+    status character varying(30) NOT NULL,
+    release_channel character varying(30) NOT NULL,
+    artifact_type character varying(30) NOT NULL,
+    correlation_id character varying(120),
+    metadata_json text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.deployment_records OWNER TO loomapos;
+
+--
+-- Name: device_activations; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.device_activations (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    device_id uuid NOT NULL,
+    device_name character varying(150) NOT NULL,
+    platform character varying(40) NOT NULL,
+    app_version character varying(40),
+    activation_source character varying(40) DEFAULT 'desktop'::character varying NOT NULL,
+    activated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    license_id uuid,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.device_activations OWNER TO loomapos;
+
+--
+-- Name: devices; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.devices (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    name character varying(150) NOT NULL,
+    type character varying(50) NOT NULL,
+    last_seen_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.devices OWNER TO loomapos;
+
+--
+-- Name: download_accesses; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.download_accesses (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    downloadable_asset_id uuid NOT NULL,
+    subscription_id uuid,
+    license_id uuid,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.download_accesses OWNER TO loomapos;
+
+--
+-- Name: downloadable_assets; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.downloadable_assets (
+    id uuid NOT NULL,
+    app_release_id uuid NOT NULL,
+    label character varying(150) NOT NULL,
+    platform character varying(30) NOT NULL,
+    visibility character varying(20) DEFAULT 'portal'::character varying NOT NULL,
+    download_url character varying(500) NOT NULL,
+    checksum character varying(128) NOT NULL,
+    requires_active_license boolean DEFAULT true NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.downloadable_assets OWNER TO loomapos;
+
+--
+-- Name: email_notifications; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.email_notifications (
+    id uuid NOT NULL,
+    tenant_id uuid,
+    customer_account_id uuid,
+    event_code character varying(80) NOT NULL,
+    to_email character varying(320) NOT NULL,
+    subject character varying(200) NOT NULL,
+    body_markdown text NOT NULL,
+    status character varying(30) DEFAULT 'queued'::character varying NOT NULL,
+    sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.email_notifications OWNER TO loomapos;
+
+--
+-- Name: environment_configs; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.environment_configs (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    config_key character varying(120) NOT NULL,
+    value_kind character varying(30) NOT NULL,
+    is_secret_reference boolean DEFAULT false NOT NULL,
+    value_preview character varying(200),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.environment_configs OWNER TO loomapos;
+
+--
+-- Name: feature_flags; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.feature_flags (
+    id uuid NOT NULL,
+    code character varying(80) NOT NULL,
+    name character varying(150) NOT NULL,
+    description character varying(500) NOT NULL,
+    is_public boolean DEFAULT true NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone,
+    disabled_at timestamp with time zone
+);
+
+
+ALTER TABLE public.feature_flags OWNER TO loomapos;
+
+--
+-- Name: incident_records; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.incident_records (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    severity character varying(20) NOT NULL,
+    title character varying(180) NOT NULL,
+    status character varying(30) NOT NULL,
+    category character varying(60) NOT NULL,
+    impact_summary character varying(600),
+    owner character varying(120),
+    linked_runbook_code character varying(120),
+    opened_at timestamp with time zone NOT NULL,
+    resolved_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.incident_records OWNER TO loomapos;
+
+--
+-- Name: incident_timeline_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.incident_timeline_events (
+    id uuid NOT NULL,
+    incident_record_id uuid NOT NULL,
+    event_type character varying(60) NOT NULL,
+    summary character varying(500) NOT NULL,
+    metadata_json text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.incident_timeline_events OWNER TO loomapos;
+
+--
+-- Name: internal_sessions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.internal_sessions (
+    id uuid NOT NULL,
+    internal_user_id uuid NOT NULL,
+    access_token_hash character varying(128) NOT NULL,
+    refresh_token_hash character varying(128) NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    refresh_expires_at timestamp with time zone NOT NULL,
+    user_agent character varying(400),
+    ip_address character varying(120),
+    revoked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.internal_sessions OWNER TO loomapos;
+
+--
+-- Name: internal_user_roles; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.internal_user_roles (
+    id uuid NOT NULL,
+    internal_user_id uuid NOT NULL,
+    role_code character varying(80) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.internal_user_roles OWNER TO loomapos;
+
+--
+-- Name: internal_users; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.internal_users (
+    id uuid NOT NULL,
+    email character varying(320) NOT NULL,
+    display_name character varying(200) NOT NULL,
+    password_hash character varying(500) NOT NULL,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    require_mfa boolean DEFAULT false NOT NULL,
+    last_login_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.internal_users OWNER TO loomapos;
+
+--
+-- Name: invoice_lines; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.invoice_lines (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    invoice_id uuid NOT NULL,
+    description character varying(500) NOT NULL,
+    quantity numeric(18,2) DEFAULT 1 NOT NULL,
+    unit_amount numeric(18,2) DEFAULT 0 NOT NULL,
+    tax_amount numeric(18,2) DEFAULT 0 NOT NULL,
+    total_amount numeric(18,2) DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.invoice_lines OWNER TO loomapos;
+
+--
+-- Name: invoices; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.invoices (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    subscription_id uuid NOT NULL,
+    invoice_no character varying(80) NOT NULL,
+    total numeric(18,2) NOT NULL,
+    currency character varying(8) DEFAULT 'TRY'::character varying NOT NULL,
+    status character varying(30) NOT NULL,
+    issued_at timestamp with time zone NOT NULL,
+    paid_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    billing_profile_id uuid,
+    description character varying(500) NOT NULL,
+    subtotal numeric(18,2) DEFAULT 0 NOT NULL,
+    tax_amount numeric(18,2) DEFAULT 0 NOT NULL,
+    due_at timestamp with time zone,
+    billing_period_start timestamp with time zone,
+    billing_period_end timestamp with time zone,
+    provider_invoice_reference character varying(150),
+    pdf_url character varying(500),
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.invoices OWNER TO loomapos;
+
+--
+-- Name: license_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.license_events (
+    id bigint NOT NULL,
+    tenant_id uuid NOT NULL,
+    license_id uuid NOT NULL,
+    event_type character varying(80) NOT NULL,
+    payload_json text DEFAULT '{}'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.license_events OWNER TO loomapos;
+
+--
+-- Name: license_events_id_seq; Type: SEQUENCE; Schema: public; Owner: loomapos
+--
+
+CREATE SEQUENCE public.license_events_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.license_events_id_seq OWNER TO loomapos;
+
+--
+-- Name: license_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: loomapos
+--
+
+ALTER SEQUENCE public.license_events_id_seq OWNED BY public.license_events.id;
+
+
+--
+-- Name: licenses; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.licenses (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    subscription_id uuid NOT NULL,
+    plan_code character varying(50) NOT NULL,
+    license_token text NOT NULL,
+    features_json text NOT NULL,
+    device_limit integer,
+    issued_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    grace_days integer DEFAULT 7 NOT NULL,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    license_key character varying(120) NOT NULL,
+    signature character varying(256) NOT NULL
+);
+
+
+ALTER TABLE public.licenses OWNER TO loomapos;
+
+--
+-- Name: marketing_lead_activities; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.marketing_lead_activities (
+    id uuid NOT NULL,
+    lead_id uuid NOT NULL,
+    activity_type character varying(80) NOT NULL,
+    summary character varying(300) NOT NULL,
+    details_json text,
+    internal_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.marketing_lead_activities OWNER TO loomapos;
+
+--
+-- Name: marketing_lead_demos; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.marketing_lead_demos (
+    id uuid NOT NULL,
+    lead_id uuid NOT NULL,
+    assigned_internal_user_id uuid,
+    assigned_to character varying(320),
+    scheduled_at timestamp with time zone NOT NULL,
+    meeting_link character varying(800),
+    status character varying(40) NOT NULL,
+    notes character varying(4000),
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.marketing_lead_demos OWNER TO loomapos;
+
+--
+-- Name: marketing_lead_notes; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.marketing_lead_notes (
+    id uuid NOT NULL,
+    lead_id uuid NOT NULL,
+    internal_user_id uuid,
+    author character varying(320) NOT NULL,
+    note character varying(4000) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.marketing_lead_notes OWNER TO loomapos;
+
+--
+-- Name: marketing_leads; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.marketing_leads (
+    id uuid NOT NULL,
+    lead_type character varying(40) NOT NULL,
+    full_name character varying(200) NOT NULL,
+    company_name character varying(200),
+    email character varying(320) NOT NULL,
+    phone character varying(40),
+    message character varying(4000) NOT NULL,
+    page_path character varying(260),
+    status character varying(40) NOT NULL,
+    traffic_source character varying(120),
+    traffic_medium character varying(120),
+    campaign character varying(160),
+    metadata_json text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source character varying(120) DEFAULT 'website'::character varying NOT NULL,
+    score integer DEFAULT 0 NOT NULL,
+    assigned_internal_user_id uuid,
+    assigned_to character varying(320),
+    converted_tenant_id uuid,
+    converted_at timestamp with time zone,
+    reseller_id uuid,
+    commission_eligible boolean DEFAULT false NOT NULL,
+    checkout_started_at timestamp with time zone,
+    abandoned_checkout_at timestamp with time zone,
+    last_activity_at timestamp with time zone,
+    last_contacted_at timestamp with time zone,
+    loss_reason character varying(600)
+);
+
+
+ALTER TABLE public.marketing_leads OWNER TO loomapos;
+
+--
+-- Name: marketing_telemetry_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.marketing_telemetry_events (
+    id uuid NOT NULL,
+    event_type character varying(60) NOT NULL,
+    page_path character varying(260) NOT NULL,
+    cta_key character varying(160),
+    lead_type character varying(40),
+    traffic_source character varying(120),
+    traffic_medium character varying(120),
+    campaign character varying(160),
+    referrer character varying(500),
+    metadata_json text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.marketing_telemetry_events OWNER TO loomapos;
+
+--
+-- Name: migration_runs; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.migration_runs (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    migration_name character varying(180) NOT NULL,
+    status character varying(30) NOT NULL,
+    verification_summary character varying(500),
+    started_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.migration_runs OWNER TO loomapos;
+
+--
+-- Name: ops_audit_logs; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.ops_audit_logs (
+    id uuid NOT NULL,
+    actor_email character varying(320) NOT NULL,
+    action character varying(120) NOT NULL,
+    target_type character varying(80) NOT NULL,
+    target_id character varying(120) NOT NULL,
+    reason character varying(500),
+    metadata_json text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.ops_audit_logs OWNER TO loomapos;
+
+--
+-- Name: payment_attempts; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.payment_attempts (
+    id uuid NOT NULL,
+    checkout_session_id uuid NOT NULL,
+    payment_transaction_id uuid,
+    provider character varying(40) NOT NULL,
+    status character varying(30) DEFAULT 'pending'::character varying NOT NULL,
+    failure_reason character varying(500),
+    metadata_json text DEFAULT '{}'::text NOT NULL,
+    attempted_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.payment_attempts OWNER TO loomapos;
+
+--
+-- Name: payment_transactions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.payment_transactions (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    subscription_id uuid,
+    invoice_id uuid,
+    checkout_session_id uuid,
+    provider character varying(40) NOT NULL,
+    provider_payment_id character varying(150) NOT NULL,
+    provider_customer_reference character varying(150),
+    amount numeric(18,2) DEFAULT 0 NOT NULL,
+    tax_amount numeric(18,2) DEFAULT 0 NOT NULL,
+    currency character varying(8) DEFAULT 'TRY'::character varying NOT NULL,
+    status character varying(30) DEFAULT 'pending'::character varying NOT NULL,
+    payment_method_summary character varying(120) DEFAULT 'card'::character varying NOT NULL,
+    metadata_json text DEFAULT '{}'::text NOT NULL,
+    paid_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.payment_transactions OWNER TO loomapos;
+
+--
+-- Name: payment_webhooks; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.payment_webhooks (
+    id uuid NOT NULL,
+    provider character varying(40) NOT NULL,
+    event_id character varying(150) NOT NULL,
+    payload_json text NOT NULL,
+    status character varying(30) DEFAULT 'received'::character varying NOT NULL,
+    error text,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    processed_at timestamp with time zone
+);
+
+
+ALTER TABLE public.payment_webhooks OWNER TO loomapos;
+
+--
+-- Name: payments; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.payments (
+    id uuid NOT NULL,
+    sale_id uuid NOT NULL,
+    method character varying(20) NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.payments OWNER TO loomapos;
+
+--
+-- Name: payouts; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.payouts (
+    id uuid NOT NULL,
+    reseller_id uuid NOT NULL,
+    period_start timestamp with time zone NOT NULL,
+    period_end timestamp with time zone NOT NULL,
+    total numeric(18,2) NOT NULL,
+    status character varying(30) DEFAULT 'pending'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    paid_at timestamp with time zone
+);
+
+
+ALTER TABLE public.payouts OWNER TO loomapos;
+
+--
+-- Name: plan_feature_flags; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.plan_feature_flags (
+    id uuid NOT NULL,
+    subscription_plan_id uuid NOT NULL,
+    feature_flag_id uuid NOT NULL,
+    is_enabled boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.plan_feature_flags OWNER TO loomapos;
+
+--
+-- Name: plan_prices; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.plan_prices (
+    id uuid NOT NULL,
+    subscription_plan_id uuid NOT NULL,
+    billing_period character varying(20) NOT NULL,
+    currency character varying(8) DEFAULT 'TRY'::character varying NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    promo_amount numeric(18,2),
+    external_price_id character varying(150),
+    trial_days integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.plan_prices OWNER TO loomapos;
+
+--
+-- Name: plans; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.plans (
+    id uuid NOT NULL,
+    code character varying(50) NOT NULL,
+    name character varying(150) NOT NULL,
+    monthly_price numeric(18,2) DEFAULT 0 NOT NULL,
+    yearly_price numeric(18,2) DEFAULT 0 NOT NULL,
+    max_branches integer,
+    max_users integer,
+    max_devices integer,
+    features_json text DEFAULT '[]'::text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.plans OWNER TO loomapos;
+
+--
+-- Name: portal_sessions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.portal_sessions (
+    id uuid NOT NULL,
+    customer_account_id uuid,
+    reseller_account_id uuid,
+    tenant_id uuid,
+    portal_type character varying(30) NOT NULL,
+    role_code character varying(50) NOT NULL,
+    access_token_hash text NOT NULL,
+    refresh_token_hash text NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    refresh_expires_at timestamp with time zone NOT NULL,
+    user_agent character varying(500),
+    ip_address character varying(80),
+    revoked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.portal_sessions OWNER TO loomapos;
+
+--
+-- Name: processed_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.processed_events (
+    event_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    device_id uuid NOT NULL,
+    processed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.processed_events OWNER TO loomapos;
+
+--
+-- Name: product_barcodes; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.product_barcodes (
+    product_id uuid NOT NULL,
+    barcode character varying(64) NOT NULL
+);
+
+
+ALTER TABLE public.product_barcodes OWNER TO loomapos;
+
+--
+-- Name: product_variants; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.product_variants (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    name character varying(160) NOT NULL,
+    sku character varying(100),
+    barcode character varying(64),
+    attributes_json text DEFAULT '{}'::text NOT NULL,
+    price_delta numeric(18,2) DEFAULT 0 NOT NULL,
+    stock_tracking_enabled boolean DEFAULT true NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.product_variants OWNER TO loomapos;
+
+--
+-- Name: products; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.products (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    name character varying(200) NOT NULL,
+    sku character varying(100),
+    barcode character varying(64),
+    unit character varying(20) NOT NULL,
+    tax_rate numeric(18,4) DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    category_id uuid,
+    sale_price numeric(18,2) DEFAULT 1 NOT NULL,
+    purchase_price numeric(18,2) DEFAULT 0 NOT NULL,
+    stock_tracking_enabled boolean DEFAULT true NOT NULL,
+    min_stock numeric(18,4) DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE public.products OWNER TO loomapos;
+
+--
+-- Name: rate_limit_policies; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.rate_limit_policies (
+    id uuid NOT NULL,
+    policy_code character varying(120) NOT NULL,
+    scope character varying(60) NOT NULL,
+    target character varying(120) NOT NULL,
+    limit_summary character varying(240) NOT NULL,
+    status character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.rate_limit_policies OWNER TO loomapos;
+
+--
+-- Name: reseller_accounts; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.reseller_accounts (
+    id uuid NOT NULL,
+    code character varying(50) NOT NULL,
+    name character varying(200) NOT NULL,
+    email character varying(320) NOT NULL,
+    status character varying(30) DEFAULT 'pending'::character varying NOT NULL,
+    commission_rate numeric(8,4) DEFAULT 0.10 NOT NULL,
+    approved_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    company_name character varying(200),
+    city character varying(120),
+    phone character varying(40),
+    website_or_social_proof character varying(500),
+    experience text,
+    message text,
+    password_hash text,
+    last_login_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    business_type character varying(80),
+    region character varying(120),
+    commission_rule_type character varying(30) DEFAULT 'percentage'::character varying NOT NULL,
+    commission_fixed_amount numeric(18,2),
+    tier character varying(30) DEFAULT 'bronze'::character varying NOT NULL
+);
+
+
+ALTER TABLE public.reseller_accounts OWNER TO loomapos;
+
+--
+-- Name: reseller_codes; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.reseller_codes (
+    id uuid NOT NULL,
+    reseller_account_id uuid NOT NULL,
+    code character varying(50) NOT NULL,
+    is_primary boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.reseller_codes OWNER TO loomapos;
+
+--
+-- Name: reseller_commission_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.reseller_commission_events (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    reseller_account_id uuid NOT NULL,
+    subscription_id uuid,
+    invoice_id uuid,
+    rate numeric(8,4) DEFAULT 0 NOT NULL,
+    amount numeric(18,2) DEFAULT 0 NOT NULL,
+    status character varying(30) DEFAULT 'accrued'::character varying NOT NULL,
+    event_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.reseller_commission_events OWNER TO loomapos;
+
+--
+-- Name: reseller_customer_links; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.reseller_customer_links (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    reseller_account_id uuid NOT NULL,
+    customer_account_id uuid,
+    subscription_id uuid,
+    referral_code character varying(50) NOT NULL,
+    linked_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.reseller_customer_links OWNER TO loomapos;
+
+--
+-- Name: reseller_customers; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.reseller_customers (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    reseller_id uuid NOT NULL,
+    referred_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.reseller_customers OWNER TO loomapos;
+
+--
+-- Name: reseller_referrals; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.reseller_referrals (
+    id uuid NOT NULL,
+    reseller_account_id uuid NOT NULL,
+    checkout_session_id uuid NOT NULL,
+    tenant_id uuid,
+    referral_code character varying(50) NOT NULL,
+    status character varying(30) DEFAULT 'attached'::character varying NOT NULL,
+    commission_eligible boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.reseller_referrals OWNER TO loomapos;
+
+--
+-- Name: restore_validation_runs; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.restore_validation_runs (
+    id uuid NOT NULL,
+    backup_run_id uuid,
+    environment character varying(40) NOT NULL,
+    status character varying(30) NOT NULL,
+    validation_type character varying(50) NOT NULL,
+    findings_json text,
+    started_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.restore_validation_runs OWNER TO loomapos;
+
+--
+-- Name: retention_policies; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.retention_policies (
+    id uuid NOT NULL,
+    policy_code character varying(120) NOT NULL,
+    data_class character varying(80) NOT NULL,
+    hot_retention character varying(80) NOT NULL,
+    archive_retention character varying(80) NOT NULL,
+    disposal_policy character varying(200) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.retention_policies OWNER TO loomapos;
+
+--
+-- Name: roles; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.roles (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    name character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.roles OWNER TO loomapos;
+
+--
+-- Name: rollout_records; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.rollout_records (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    channel character varying(30) NOT NULL,
+    target_type character varying(40) NOT NULL,
+    target_version character varying(40) NOT NULL,
+    status character varying(30) NOT NULL,
+    compatibility_window character varying(120),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.rollout_records OWNER TO loomapos;
+
+--
+-- Name: runbook_records; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.runbook_records (
+    id uuid NOT NULL,
+    code character varying(120) NOT NULL,
+    title character varying(180) NOT NULL,
+    category character varying(60) NOT NULL,
+    severity character varying(20) NOT NULL,
+    markdown_path character varying(260) NOT NULL,
+    status character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.runbook_records OWNER TO loomapos;
+
+--
+-- Name: sale_lines; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.sale_lines (
+    id uuid NOT NULL,
+    sale_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    qty numeric(18,4) NOT NULL,
+    unit_price numeric(18,2) NOT NULL,
+    discount numeric(18,2) NOT NULL,
+    tax numeric(18,2) NOT NULL,
+    line_total numeric(18,2) NOT NULL
+);
+
+
+ALTER TABLE public.sale_lines OWNER TO loomapos;
+
+--
+-- Name: sales; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.sales (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    device_id uuid NOT NULL,
+    receipt_no character varying(80) NOT NULL,
+    status character varying(20) NOT NULL,
+    subtotal numeric(18,2) NOT NULL,
+    discount numeric(18,2) NOT NULL,
+    tax numeric(18,2) NOT NULL,
+    total numeric(18,2) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.sales OWNER TO loomapos;
+
+--
+-- Name: secret_references; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.secret_references (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    secret_name character varying(120) NOT NULL,
+    provider character varying(40) NOT NULL,
+    rotation_policy character varying(80) NOT NULL,
+    last_rotated_at timestamp with time zone,
+    status character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.secret_references OWNER TO loomapos;
+
+--
+-- Name: security_events; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.security_events (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    event_type character varying(80) NOT NULL,
+    severity character varying(20) NOT NULL,
+    summary character varying(300) NOT NULL,
+    status character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.security_events OWNER TO loomapos;
+
+--
+-- Name: service_versions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.service_versions (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    service_name character varying(80) NOT NULL,
+    version character varying(40) NOT NULL,
+    minimum_supported_version character varying(40) NOT NULL,
+    rollout_state character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.service_versions OWNER TO loomapos;
+
+--
+-- Name: slo_definitions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.slo_definitions (
+    id uuid NOT NULL,
+    environment character varying(40) NOT NULL,
+    service_name character varying(80) NOT NULL,
+    slo_code character varying(120) NOT NULL,
+    objective character varying(160) NOT NULL,
+    measurement_window character varying(40) NOT NULL,
+    alert_policy character varying(240) NOT NULL,
+    status character varying(30) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.slo_definitions OWNER TO loomapos;
+
+--
+-- Name: stock_balances; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.stock_balances (
+    tenant_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    qty numeric(18,4) DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE public.stock_balances OWNER TO loomapos;
+
+--
+-- Name: stock_moves; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.stock_moves (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    qty_delta numeric(18,4) NOT NULL,
+    reason character varying(150) NOT NULL,
+    ref_type character varying(100) NOT NULL,
+    ref_id character varying(100) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.stock_moves OWNER TO loomapos;
+
+--
+-- Name: subscription_payments; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.subscription_payments (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    subscription_id uuid NOT NULL,
+    invoice_id uuid NOT NULL,
+    provider character varying(40) NOT NULL,
+    payment_ref character varying(120) NOT NULL,
+    status character varying(30) NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    currency character varying(8) DEFAULT 'TRY'::character varying NOT NULL,
+    paid_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.subscription_payments OWNER TO loomapos;
+
+--
+-- Name: subscription_plans; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.subscription_plans (
+    id uuid NOT NULL,
+    code character varying(50) NOT NULL,
+    name character varying(150) NOT NULL,
+    description character varying(500) NOT NULL,
+    branch_limit integer,
+    user_limit integer,
+    device_limit integer,
+    support_tier character varying(60) NOT NULL,
+    reseller_commission_eligibility boolean DEFAULT false NOT NULL,
+    is_public boolean DEFAULT true NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    highlight_label character varying(120) DEFAULT ''::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.subscription_plans OWNER TO loomapos;
+
+--
+-- Name: subscriptions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.subscriptions (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    plan_code character varying(50) NOT NULL,
+    billing_cycle character varying(20) NOT NULL,
+    status character varying(30) NOT NULL,
+    current_period_start timestamp with time zone NOT NULL,
+    current_period_end timestamp with time zone NOT NULL,
+    reseller_code character varying(50),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    billing_profile_id uuid,
+    renewal_date timestamp with time zone,
+    cancel_at_period_end boolean DEFAULT false NOT NULL,
+    trial_ends_at timestamp with time zone,
+    grace_ends_at timestamp with time zone,
+    canceled_at timestamp with time zone,
+    provider_subscription_id character varying(150),
+    provider_customer_reference character varying(150),
+    plan_snapshot_json text DEFAULT '{}'::text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.subscriptions OWNER TO loomapos;
+
+--
+-- Name: support_access_sessions; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.support_access_sessions (
+    id uuid NOT NULL,
+    internal_user_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    access_mode character varying(40) NOT NULL,
+    reason character varying(500) NOT NULL,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.support_access_sessions OWNER TO loomapos;
+
+--
+-- Name: support_case_links; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.support_case_links (
+    id uuid NOT NULL,
+    support_case_id uuid NOT NULL,
+    entity_type character varying(80) NOT NULL,
+    entity_id character varying(120) NOT NULL,
+    label character varying(200),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.support_case_links OWNER TO loomapos;
+
+--
+-- Name: support_case_messages; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.support_case_messages (
+    id uuid NOT NULL,
+    support_case_id uuid NOT NULL,
+    author_type character varying(40) NOT NULL,
+    author_internal_user_id uuid,
+    author_customer_account_id uuid,
+    body character varying(8000) NOT NULL,
+    is_internal boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.support_case_messages OWNER TO loomapos;
+
+--
+-- Name: support_case_notes; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.support_case_notes (
+    id uuid NOT NULL,
+    support_case_id uuid NOT NULL,
+    internal_user_id uuid NOT NULL,
+    note character varying(4000) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.support_case_notes OWNER TO loomapos;
+
+--
+-- Name: support_cases; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.support_cases (
+    id uuid NOT NULL,
+    tenant_id uuid,
+    customer_account_id uuid,
+    reseller_account_id uuid,
+    source character varying(40) NOT NULL,
+    category character varying(60) NOT NULL,
+    priority character varying(30) NOT NULL,
+    status character varying(40) NOT NULL,
+    title character varying(260) NOT NULL,
+    summary character varying(4000) NOT NULL,
+    contact_preference character varying(60),
+    assignee_email character varying(320),
+    escalation_level character varying(40),
+    first_response_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.support_cases OWNER TO loomapos;
+
+--
+-- Name: tenant_users; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.tenant_users (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    customer_account_id uuid NOT NULL,
+    role_code character varying(50) NOT NULL,
+    is_owner boolean DEFAULT false NOT NULL,
+    status character varying(30) DEFAULT 'active'::character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.tenant_users OWNER TO loomapos;
+
+--
+-- Name: tenants; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.tenants (
+    id uuid NOT NULL,
+    name character varying(200) NOT NULL,
+    settings_json text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    tenant_code character varying(80) NOT NULL,
+    billing_email character varying(320) NOT NULL,
+    tax_office character varying(120),
+    tax_number character varying(50),
+    country character varying(8) NOT NULL,
+    default_locale character varying(20) NOT NULL,
+    status character varying(30) NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.tenants OWNER TO loomapos;
+
+--
+-- Name: user_roles; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.user_roles (
+    user_id uuid NOT NULL,
+    role_id uuid NOT NULL
+);
+
+
+ALTER TABLE public.user_roles OWNER TO loomapos;
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: loomapos
+--
+
+CREATE TABLE public.users (
+    id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    email character varying(320) NOT NULL,
+    name character varying(200) NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    branch_id uuid,
+    phone character varying(40)
+);
+
+
+ALTER TABLE public.users OWNER TO loomapos;
+
+--
+-- Name: audit_logs id; Type: DEFAULT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.audit_logs ALTER COLUMN id SET DEFAULT nextval('public.audit_logs_id_seq'::regclass);
+
+
+--
+-- Name: license_events id; Type: DEFAULT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.license_events ALTER COLUMN id SET DEFAULT nextval('public.license_events_id_seq'::regclass);
+
+
+--
+-- Data for Name: __ef_migrations_history; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.__ef_migrations_history ("MigrationId", "ProductVersion") FROM stdin;
+20260302180000_InitialSchema	9.0.4
+20260305190000_ProductAndOpsFields	9.0.4
+20260305203000_IdentityBranchUserOpsFields	9.0.4
+20260305220000_CommerceLicensingReseller	9.0.4
+20260306113000_ResellerLeadDetails	9.0.4
+20260307143000_Phase2CommerceCore	9.0.4
+20260310103000_InternalAdminAndProductionOps	9.0.4
+20260310120000_CommerceAuthHardening	9.0.4
+20260311110000_SupportCaseLifecycle	9.0.4
+20260311123000_AnalyticsSchedulesAndSavedViews	9.0.4
+20260316110000_FeatureFlagLifecycleAutomation	9.0.4
+20260316143000_MarketingGrowthEngine	9.0.4
+20260317100000_Phase14SalesCrm	9.0.4
+20260317143000_Phase15ResellerGrowth	9.0.4
+\.
+
+
+--
+-- Data for Name: abuse_flags; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.abuse_flags (id, tenant_id, flag_type, severity, summary, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: activation_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.activation_events (id, tenant_id, device_activation_id, event_type, payload_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: admin_action_approvals; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.admin_action_approvals (id, admin_action_request_id, approved_by_internal_user_id, decision, note, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: admin_action_requests; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.admin_action_requests (id, requested_by_internal_user_id, action_code, target_type, target_id, reason, status, requires_approval, metadata_json, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: alert_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.alert_events (id, alert_rule_id, environment, severity, summary, status, triggered_at, acknowledged_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: alert_rules; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.alert_rules (id, environment, code, severity, threshold_summary, status, runbook_code, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: analytics_report_schedules; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.analytics_report_schedules (id, tenant_id, name, report_code, frequency, format, timezone, recipients_json, filters_json, is_active, last_run_at, next_run_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: analytics_saved_views; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.analytics_saved_views (id, tenant_id, customer_account_id, scope, name, view_code, filters_json, is_default, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: app_releases; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.app_releases (id, platform, channel, version, release_date, release_notes_markdown, install_guide_markdown, minimum_requirements, is_public, is_active, created_at, updated_at) FROM stdin;
+7c100f0b-351c-4ee0-8127-9215bd5fbdd4	windows	stable	1.4.2	2026-02-28	Yeni lisans aktivasyon sihirbazi ve rollout iyilestirmeleri.	1. Kurulum paketini indirin.\n2. Yonetici olarak calistirin.\n3. Portal lisans anahtarini girin.	Windows 10 veya 11, 4 GB RAM, 500 MB alan.	f	t	2026-03-16 20:53:39.161197+00	2026-03-16 20:53:39.181982+00
+e0ec935c-745c-4166-abf2-412208816391	android	stable	1.4.2	2026-02-28	Mobil aktivasyon ve saha dogrulama iyilestirmeleri.	1. APK veya store linkini acin.\n2. Lisansli tenant hesabi ile giris yapin.	Android 10+, 200 MB alan.	f	t	2026-03-16 20:53:39.201625+00	2026-03-16 20:53:39.207254+00
+79fe3e1b-59f3-4690-93f8-4f23005475f2	ios	stable	1.4.2	2026-02-28	iOS dagitim bilgisi ve aktivasyon rehberi.	1. App Store/TestFlight dagitimini takip edin.\n2. Lisansli tenant ile giris yapin.	iOS 17+.	t	t	2026-03-16 20:53:39.212429+00	2026-03-16 20:53:39.213114+00
+\.
+
+
+--
+-- Data for Name: audit_logs; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.audit_logs (id, tenant_id, user_id, action, entity, entity_id, payload_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: backup_runs; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.backup_runs (id, environment, backup_type, status, region, retention_policy, artifact_reference, started_at, completed_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: billing_profiles; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.billing_profiles (id, tenant_id, customer_account_id, company_name, billing_email, phone, tax_office, tax_number, address_line, city, country, locale, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: branches; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.branches (id, tenant_id, name, address, created_at, phone, tax_number, settings_json) FROM stdin;
+\.
+
+
+--
+-- Data for Name: capacity_snapshots; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.capacity_snapshots (id, environment, resource_type, scope, utilization_summary, headroom_state, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: cash_transactions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.cash_transactions (id, tenant_id, branch_id, type, amount, reason, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: categories; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.categories (id, tenant_id, name, parent_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: checkout_sessions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.checkout_sessions (id, tenant_id, company_name, email, plan_code, billing_cycle, reseller_code, amount, currency, status, completed_at, created_at, customer_account_id, subscription_id, billing_profile_id, license_id, checkout_reference, contact_name, phone, provider, provider_session_id, provider_payment_reference, coupon_code, tax_amount, payment_status, checkout_payload_json, billing_payload_json, idempotency_key, provisioned_at, error, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: commissions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.commissions (id, tenant_id, reseller_id, subscription_id, invoice_id, rate, amount, status, accrued_at, paid_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: contact_ledger; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.contact_ledger (id, tenant_id, contact_id, amount_delta, reason, ref_type, ref_id, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: contacts; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.contacts (id, tenant_id, type, name, phone, email, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: customer_accounts; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.customer_accounts (id, email, password_hash, full_name, phone, account_status, email_verified_at, last_login_at, password_reset_token_hash, password_reset_expires_at, created_at, updated_at, email_verification_token_hash, email_verification_expires_at) FROM stdin;
+89ce0f18-7770-4b6a-af16-906117e5932f	desktop@loomapos.local	pbkdf2$120000$FtxhvQunMawryA4gzmKjrQ==$AoDII41cJSCENVtURFW9ptP7eRqOSdmGZCKD+Z3gbVs=	Desktop User	+905551112233	active	\N	2026-03-16 22:35:58.866677+00	\N	\N	2026-03-16 22:33:59.201063+00	2026-03-16 22:35:58.91219+00	f3184ca0808c8a62df0b8fb14e1a1e742423088c1a61912be1d615c8efad21d9	2026-03-18 22:33:59.387207+00
+\.
+
+
+--
+-- Data for Name: dependency_status_records; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.dependency_status_records (id, environment, dependency_code, status, last_error_summary, last_success_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: deployment_records; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.deployment_records (id, environment, service_name, version, commit_sha, status, release_channel, artifact_type, correlation_id, metadata_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: device_activations; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.device_activations (id, tenant_id, device_id, device_name, platform, app_version, activation_source, activated_at, last_seen_at, revoked_at, created_at, license_id, status, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: devices; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.devices (id, tenant_id, branch_id, name, type, last_seen_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: download_accesses; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.download_accesses (id, tenant_id, downloadable_asset_id, subscription_id, license_id, status, expires_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: downloadable_assets; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.downloadable_assets (id, app_release_id, label, platform, visibility, download_url, checksum, requires_active_license, is_active, created_at, updated_at) FROM stdin;
+219f0b40-f326-4c29-9761-2853dd91f314	7c100f0b-351c-4ee0-8127-9215bd5fbdd4	Windows Desktop Installer	windows	portal	https://downloads.loomapos.com/desktop/windows	placeholder-checksum	t	t	2026-03-16 20:53:39.188868+00	2026-03-16 20:53:39.20726+00
+be64cd9b-a704-44ed-9614-87b20db30483	e0ec935c-745c-4166-abf2-412208816391	Android App	android	portal	https://downloads.loomapos.com/mobile/android	placeholder-checksum	t	t	2026-03-16 20:53:39.211804+00	2026-03-16 20:53:39.213114+00
+89548055-db7a-4b28-a234-a21b0096aae4	79fe3e1b-59f3-4690-93f8-4f23005475f2	iOS Information	ios	public	https://downloads.loomapos.com/mobile/ios	placeholder-checksum	f	t	2026-03-16 20:53:39.215719+00	2026-03-16 20:53:39.216395+00
+\.
+
+
+--
+-- Data for Name: email_notifications; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.email_notifications (id, tenant_id, customer_account_id, event_code, to_email, subject, body_markdown, status, sent_at, created_at, updated_at) FROM stdin;
+227a8f60-961a-4912-9158-3499a3e33714	\N	89ce0f18-7770-4b6a-af16-906117e5932f	email_verification	desktop@loomapos.local	LoomaPOS e-posta dogrulamasi	Merhaba Desktop User,\n\nE-posta dogrulama kodunuz: `McvTA3goi13U6HLgBmoBSwyEcaRQEuA4vd8Qu-2qcIk`\nBu kod 48 saat gecerlidir.	sent	2026-03-16 22:34:03.163174+00	2026-03-16 22:33:59.387218+00	2026-03-16 22:34:03.163914+00
+3f76cb06-8845-45a5-abc9-f746120e9f43	\N	89ce0f18-7770-4b6a-af16-906117e5932f	registration	desktop@loomapos.local	LoomaPOS hesap kaydiniz alindi	Merhaba Desktop User,\n\nPortal kaydiniz hazir. Satin alma sonrasinda lisans ve indirme erisiminiz ayni hesapta acilacaktir.	sent	2026-03-16 22:34:03.161699+00	2026-03-16 22:33:59.362353+00	2026-03-16 22:34:03.163912+00
+\.
+
+
+--
+-- Data for Name: environment_configs; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.environment_configs (id, environment, config_key, value_kind, is_secret_reference, value_preview, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: feature_flags; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.feature_flags (id, code, name, description, is_public, is_active, created_at, updated_at, expires_at, disabled_at) FROM stdin;
+0431d8c3-304c-48ca-b2bd-745ca8c8fe3f	variant_products	Variant Products	Varyantli urun modulu	t	t	2026-03-16 20:53:38.933923+00	2026-03-16 20:53:38.951418+00	\N	\N
+04c8f594-bb4f-4093-b317-bcda5738dd7b	sales_operations	Sales Operations	Desktop ve mobile operasyon modulu	t	t	2026-03-16 20:53:38.879567+00	2026-03-16 20:53:38.951382+00	\N	\N
+38bd9d2a-0b55-400c-a95d-28dde19c5ac7	reporting	Reporting	Yonetici raporlama modulu	t	t	2026-03-16 20:53:38.931789+00	2026-03-16 20:53:38.951417+00	\N	\N
+4a06b3ba-1de2-4009-8f0b-0ab71ed05e37	online_collection	Online Collection	Uzak tahsilat entegrasyonu	t	t	2026-03-16 20:53:38.933169+00	2026-03-16 20:53:38.951418+00	\N	\N
+557793ef-5e3b-4e74-b873-6392c97da47b	fiscal_integrations	Fiscal Integrations	Mali cihaz entegrasyonlari	t	t	2026-03-16 20:53:38.935053+00	2026-03-16 20:53:38.951419+00	\N	\N
+6efd77d0-dad9-4029-a49d-ac93ca055420	staff_management	Staff Management	Rol ve personel modulu	t	t	2026-03-16 20:53:38.932215+00	2026-03-16 20:53:38.951418+00	\N	\N
+811ef93c-d9db-4229-85d1-36c8852853d8	branch_management	Branch Management	Cok sube yonetimi	t	t	2026-03-16 20:53:38.932707+00	2026-03-16 20:53:38.951418+00	\N	\N
+87db4008-cacc-41fc-94f8-9d900375bf81	download_center	Download Center	Uygulama indirme merkezi	t	t	2026-03-16 20:53:38.936003+00	2026-03-16 20:53:38.951419+00	\N	\N
+9bfe6f8d-8aae-4c38-af8b-6dd5d2ce729d	e_invoice	E-Invoice	E-fatura uyumlulugu	t	t	2026-03-16 20:53:38.93451+00	2026-03-16 20:53:38.951419+00	\N	\N
+eae2f06b-3e46-4873-b944-7b41e5b3f852	inventory_management	Inventory Management	Stok ve urun hareketi modulu	t	t	2026-03-16 20:53:38.930771+00	2026-03-16 20:53:38.951412+00	\N	\N
+f2b2ce35-14c8-4869-95b0-91763a6781a9	management_dashboard	Management Dashboard	Yonetici dashboard modulu	t	t	2026-03-16 20:53:38.935512+00	2026-03-16 20:53:38.951419+00	\N	\N
+\.
+
+
+--
+-- Data for Name: incident_records; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.incident_records (id, environment, severity, title, status, category, impact_summary, owner, linked_runbook_code, opened_at, resolved_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: incident_timeline_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.incident_timeline_events (id, incident_record_id, event_type, summary, metadata_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: internal_sessions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.internal_sessions (id, internal_user_id, access_token_hash, refresh_token_hash, expires_at, refresh_expires_at, user_agent, ip_address, revoked_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: internal_user_roles; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.internal_user_roles (id, internal_user_id, role_code, created_at) FROM stdin;
+a0d803ce-f86d-447b-ad5b-4ad0b96bbcab	69bda245-97b6-4ff6-ba62-fcfe9d636454	super_admin	2026-03-16 23:48:40.828409+00
+274b2adc-3bdb-4f50-999f-244c41e95c86	69bda245-97b6-4ff6-ba62-fcfe9d636454	sales_manager	2026-03-16 23:48:40.828409+00
+b9e9d83d-486f-4fa6-967c-2deeb64d7036	69bda245-97b6-4ff6-ba62-fcfe9d636454	sales_rep	2026-03-16 23:48:40.828409+00
+\.
+
+
+--
+-- Data for Name: internal_users; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.internal_users (id, email, display_name, password_hash, status, require_mfa, last_login_at, created_at, updated_at) FROM stdin;
+69bda245-97b6-4ff6-ba62-fcfe9d636454	ops@loomapos.local	LoomaPOS Operations	pbkdf2$120000$QQ/YCybxZExWBCSxH7SVHA==$+8orMCGgaB9G63y4dAJEI45jhj6mS6kxOvSGUwM70kA=	active	f	\N	2026-03-16 23:48:40.828409+00	2026-03-16 23:48:40.828409+00
+\.
+
+
+--
+-- Data for Name: invoice_lines; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.invoice_lines (id, tenant_id, invoice_id, description, quantity, unit_amount, tax_amount, total_amount, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: invoices; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.invoices (id, tenant_id, subscription_id, invoice_no, total, currency, status, issued_at, paid_at, created_at, billing_profile_id, description, subtotal, tax_amount, due_at, billing_period_start, billing_period_end, provider_invoice_reference, pdf_url, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: license_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.license_events (id, tenant_id, license_id, event_type, payload_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: licenses; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.licenses (id, tenant_id, subscription_id, plan_code, license_token, features_json, device_limit, issued_at, expires_at, grace_days, status, created_at, license_key, signature) FROM stdin;
+\.
+
+
+--
+-- Data for Name: marketing_lead_activities; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.marketing_lead_activities (id, lead_id, activity_type, summary, details_json, internal_user_id, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: marketing_lead_demos; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.marketing_lead_demos (id, lead_id, assigned_internal_user_id, assigned_to, scheduled_at, meeting_link, status, notes, completed_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: marketing_lead_notes; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.marketing_lead_notes (id, lead_id, internal_user_id, author, note, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: marketing_leads; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.marketing_leads (id, lead_type, full_name, company_name, email, phone, message, page_path, status, traffic_source, traffic_medium, campaign, metadata_json, created_at, updated_at, source, score, assigned_internal_user_id, assigned_to, converted_tenant_id, converted_at, reseller_id, commission_eligible, checkout_started_at, abandoned_checkout_at, last_activity_at, last_contacted_at, loss_reason) FROM stdin;
+\.
+
+
+--
+-- Data for Name: marketing_telemetry_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.marketing_telemetry_events (id, event_type, page_path, cta_key, lead_type, traffic_source, traffic_medium, campaign, referrer, metadata_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: migration_runs; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.migration_runs (id, environment, migration_name, status, verification_summary, started_at, completed_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ops_audit_logs; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.ops_audit_logs (id, actor_email, action, target_type, target_id, reason, metadata_json, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: payment_attempts; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.payment_attempts (id, checkout_session_id, payment_transaction_id, provider, status, failure_reason, metadata_json, attempted_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: payment_transactions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.payment_transactions (id, tenant_id, subscription_id, invoice_id, checkout_session_id, provider, provider_payment_id, provider_customer_reference, amount, tax_amount, currency, status, payment_method_summary, metadata_json, paid_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: payment_webhooks; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.payment_webhooks (id, provider, event_id, payload_json, status, error, received_at, processed_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: payments; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.payments (id, sale_id, method, amount, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: payouts; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.payouts (id, reseller_id, period_start, period_end, total, status, created_at, paid_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: plan_feature_flags; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.plan_feature_flags (id, subscription_plan_id, feature_flag_id, is_enabled, created_at) FROM stdin;
+36c65101-2a8d-46be-98f9-3f4d3ed4115e	e0b56045-c541-418e-88f4-d18a3f02dd53	38bd9d2a-0b55-400c-a95d-28dde19c5ac7	t	2026-03-16 20:53:39.105696+00
+583847c1-b35e-4ddf-9e42-7607e4bae4c7	e0b56045-c541-418e-88f4-d18a3f02dd53	eae2f06b-3e46-4873-b944-7b41e5b3f852	t	2026-03-16 20:53:39.105232+00
+b10d45c4-e79e-4557-8a5f-5bd709d3c9d8	e0b56045-c541-418e-88f4-d18a3f02dd53	04c8f594-bb4f-4093-b317-bcda5738dd7b	t	2026-03-16 20:53:39.098131+00
+f7555efe-31c6-4f4a-8c38-5748ea13d920	e0b56045-c541-418e-88f4-d18a3f02dd53	87db4008-cacc-41fc-94f8-9d900375bf81	t	2026-03-16 20:53:39.106185+00
+01670033-6978-4b47-8360-638d1aa28af5	a754ab59-6198-4db6-8717-dec0d0ba04c3	04c8f594-bb4f-4093-b317-bcda5738dd7b	t	2026-03-16 20:53:39.131418+00
+061f1869-8835-4af1-98b3-6301337718e8	a754ab59-6198-4db6-8717-dec0d0ba04c3	811ef93c-d9db-4229-85d1-36c8852853d8	t	2026-03-16 20:53:39.133437+00
+5549db18-79b0-47db-b5d9-3df58c8a9d9d	a754ab59-6198-4db6-8717-dec0d0ba04c3	eae2f06b-3e46-4873-b944-7b41e5b3f852	t	2026-03-16 20:53:39.13186+00
+5744ccc5-4920-4777-96f7-01faa4045c9b	a754ab59-6198-4db6-8717-dec0d0ba04c3	4a06b3ba-1de2-4009-8f0b-0ab71ed05e37	t	2026-03-16 20:53:39.133878+00
+76aa586d-8a3c-455f-bccb-9c4fd54f1382	a754ab59-6198-4db6-8717-dec0d0ba04c3	38bd9d2a-0b55-400c-a95d-28dde19c5ac7	t	2026-03-16 20:53:39.13241+00
+bbafc389-a7e4-4a3c-b682-7294a9e19cc5	a754ab59-6198-4db6-8717-dec0d0ba04c3	6efd77d0-dad9-4029-a49d-ac93ca055420	t	2026-03-16 20:53:39.132903+00
+ddfe1374-c93f-493c-b6b4-c7476e84cecd	a754ab59-6198-4db6-8717-dec0d0ba04c3	87db4008-cacc-41fc-94f8-9d900375bf81	t	2026-03-16 20:53:39.135408+00
+e0d852fa-e50a-4533-9d17-c2af588d7709	a754ab59-6198-4db6-8717-dec0d0ba04c3	9bfe6f8d-8aae-4c38-af8b-6dd5d2ce729d	t	2026-03-16 20:53:39.134922+00
+fa976440-1b5b-40ec-bbbf-0ceaa72697f5	a754ab59-6198-4db6-8717-dec0d0ba04c3	0431d8c3-304c-48ca-b2bd-745ca8c8fe3f	t	2026-03-16 20:53:39.134418+00
+1e598782-7124-4407-aaca-cfe7d8972975	35345fcb-584e-45d8-9838-59c1ff7b78d7	eae2f06b-3e46-4873-b944-7b41e5b3f852	t	2026-03-16 20:53:39.143328+00
+25169de8-20bf-4bf5-87c7-719565a42edb	35345fcb-584e-45d8-9838-59c1ff7b78d7	f2b2ce35-14c8-4869-95b0-91763a6781a9	t	2026-03-16 20:53:39.147565+00
+3516ddff-e68a-4346-8729-3ab1d39af612	35345fcb-584e-45d8-9838-59c1ff7b78d7	87db4008-cacc-41fc-94f8-9d900375bf81	t	2026-03-16 20:53:39.148067+00
+4b217c68-7bef-43a2-b9c9-c379297f7fa4	35345fcb-584e-45d8-9838-59c1ff7b78d7	6efd77d0-dad9-4029-a49d-ac93ca055420	t	2026-03-16 20:53:39.144283+00
+4d8478b4-6288-4410-8d08-4292e714a2dc	35345fcb-584e-45d8-9838-59c1ff7b78d7	4a06b3ba-1de2-4009-8f0b-0ab71ed05e37	t	2026-03-16 20:53:39.145245+00
+5b4fe0a2-b40d-4a22-bbe7-ebfd3d61e374	35345fcb-584e-45d8-9838-59c1ff7b78d7	9bfe6f8d-8aae-4c38-af8b-6dd5d2ce729d	t	2026-03-16 20:53:39.146317+00
+9fa345a9-d0ea-4020-b1f3-9144d22fc129	35345fcb-584e-45d8-9838-59c1ff7b78d7	557793ef-5e3b-4e74-b873-6392c97da47b	t	2026-03-16 20:53:39.14696+00
+a3b402ee-1f8a-4380-849b-98b0d8247743	35345fcb-584e-45d8-9838-59c1ff7b78d7	0431d8c3-304c-48ca-b2bd-745ca8c8fe3f	t	2026-03-16 20:53:39.145786+00
+be74a3bd-302e-4510-add0-8bb7027e6afd	35345fcb-584e-45d8-9838-59c1ff7b78d7	38bd9d2a-0b55-400c-a95d-28dde19c5ac7	t	2026-03-16 20:53:39.143821+00
+d31a65d9-1885-4984-bd35-c3b960901b9f	35345fcb-584e-45d8-9838-59c1ff7b78d7	811ef93c-d9db-4229-85d1-36c8852853d8	t	2026-03-16 20:53:39.144773+00
+fc5c1afb-1c15-4df9-bfaf-7b62a030c23c	35345fcb-584e-45d8-9838-59c1ff7b78d7	04c8f594-bb4f-4093-b317-bcda5738dd7b	t	2026-03-16 20:53:39.142844+00
+\.
+
+
+--
+-- Data for Name: plan_prices; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.plan_prices (id, subscription_plan_id, billing_period, currency, amount, promo_amount, external_price_id, trial_days, is_active, created_at, updated_at) FROM stdin;
+214ffe6a-b69e-464f-86c8-ce8f04cf009d	e0b56045-c541-418e-88f4-d18a3f02dd53	yearly	TRY	14900.00	\N	\N	0	t	2026-03-16 20:53:39.094178+00	2026-03-16 20:53:39.119626+00
+2cbdda37-1dca-4c01-a425-520bc357ef0a	e0b56045-c541-418e-88f4-d18a3f02dd53	monthly	TRY	1490.00	\N	\N	0	t	2026-03-16 20:53:39.078021+00	2026-03-16 20:53:39.119657+00
+0e0f8003-6cb1-4282-8ef4-096e8469468f	a754ab59-6198-4db6-8717-dec0d0ba04c3	yearly	TRY	29900.00	\N	\N	0	t	2026-03-16 20:53:39.13085+00	2026-03-16 20:53:39.136485+00
+3a1f18d1-8d57-4a09-a2ef-88fad4139400	a754ab59-6198-4db6-8717-dec0d0ba04c3	monthly	TRY	2990.00	\N	\N	0	t	2026-03-16 20:53:39.130322+00	2026-03-16 20:53:39.136486+00
+2bc858c0-2cc9-4bd2-9c42-dd48494f1a04	35345fcb-584e-45d8-9838-59c1ff7b78d7	yearly	TRY	59900.00	\N	\N	0	t	2026-03-16 20:53:39.142338+00	2026-03-16 20:53:39.148767+00
+7577d4eb-8bc9-401f-ac6a-042c9b651600	35345fcb-584e-45d8-9838-59c1ff7b78d7	monthly	TRY	5990.00	\N	\N	0	t	2026-03-16 20:53:39.141808+00	2026-03-16 20:53:39.148768+00
+\.
+
+
+--
+-- Data for Name: plans; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.plans (id, code, name, monthly_price, yearly_price, max_branches, max_users, max_devices, features_json, is_active, created_at) FROM stdin;
+10000000-0000-0000-0000-000000000001	starter	Starter	499.00	4990.00	1	3	1	["sales","inventory","reports","mobile"]	t	2026-03-16 20:53:37.535664+00
+10000000-0000-0000-0000-000000000002	pro	Pro	999.00	9990.00	5	10	5	["sales","inventory","reports","mobile","online_collection","variants"]	t	2026-03-16 20:53:37.535664+00
+10000000-0000-0000-0000-000000000003	enterprise	Enterprise	0.00	0.00	\N	\N	\N	["all"]	t	2026-03-16 20:53:37.535664+00
+\.
+
+
+--
+-- Data for Name: portal_sessions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.portal_sessions (id, customer_account_id, reseller_account_id, tenant_id, portal_type, role_code, access_token_hash, refresh_token_hash, expires_at, refresh_expires_at, user_agent, ip_address, revoked_at, created_at, updated_at) FROM stdin;
+43d37bec-e822-4b60-9fb3-2f986902d826	89ce0f18-7770-4b6a-af16-906117e5932f	\N	\N	customer	tenant_owner	9f6aa5791f72ec1bc09b721a0375a93b42fa03051809fb242065fe3ffa4a79ff	ae635f219626ac2b3d6b573f49a6c510aee9da61d19aad20e082ca874f5996ad	2026-03-17 10:33:59.424309+00	2026-04-15 22:33:59.424309+00	curl/8.5.0	::ffff:172.18.0.1	\N	2026-03-16 22:33:59.424513+00	2026-03-16 22:33:59.458563+00
+d16f388d-d0f7-4c4f-9e4d-dc952ad0be13	89ce0f18-7770-4b6a-af16-906117e5932f	\N	\N	customer	tenant_owner	ec08883d0c1baa9a6ec092554e9fada03b62951095eb3a412de2bd7cbeb930d4	4786174df1fabefa5c117de6a47884a4d8648bb2f77726c3dccb10eedb680513	2026-03-17 10:34:18.171372+00	2026-04-15 22:34:18.171372+00	curl/8.5.0	::ffff:172.18.0.1	\N	2026-03-16 22:34:18.171444+00	2026-03-16 22:34:18.172493+00
+c4d9c8bc-c9f3-44f1-91f6-f9b20f38a14e	89ce0f18-7770-4b6a-af16-906117e5932f	\N	\N	customer	tenant_owner	40b079c24934d2d53095194429196a085ecc235c6d73ed8e2c6bc0099489796b	7c895c64d8992c0aa538ad74d71e3aa9fa9868b5cfebbcc654fd6f485cd62e9c	2026-03-17 10:35:58.866677+00	2026-04-15 22:35:58.866677+00	curl/8.5.0	::ffff:172.18.0.1	\N	2026-03-16 22:35:58.866878+00	2026-03-16 22:35:58.912159+00
+\.
+
+
+--
+-- Data for Name: processed_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.processed_events (event_id, tenant_id, device_id, processed_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: product_barcodes; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.product_barcodes (product_id, barcode) FROM stdin;
+\.
+
+
+--
+-- Data for Name: product_variants; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.product_variants (id, tenant_id, product_id, name, sku, barcode, attributes_json, price_delta, stock_tracking_enabled, is_active, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: products; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.products (id, tenant_id, name, sku, barcode, unit, tax_rate, is_active, created_at, category_id, sale_price, purchase_price, stock_tracking_enabled, min_stock) FROM stdin;
+\.
+
+
+--
+-- Data for Name: rate_limit_policies; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.rate_limit_policies (id, policy_code, scope, target, limit_summary, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: reseller_accounts; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.reseller_accounts (id, code, name, email, status, commission_rate, approved_at, created_at, company_name, city, phone, website_or_social_proof, experience, message, password_hash, last_login_at, updated_at, business_type, region, commission_rule_type, commission_fixed_amount, tier) FROM stdin;
+574ee75b-d295-4cc3-ab77-5021cd518a85	MARMAR429	Aylin Demir	partner@loomapos.com	approved	0.1200	2026-03-16 20:53:39.297301+00	2026-03-16 20:53:39.227509+00	Marmara POS Danismanlik	Istanbul	+90 532 111 22 33	linkedin.com/company/marmarapos	7 yil perakende yazilim satis ve saha kurulum deneyimi	Marmara bolgesi icin aktif cozum ortakligi yurutmek istiyoruz.	pbkdf2$120000$NfLA/HIPHVRP1z2CJ1n/eQ==$GEogNULSjty69264AThsaAIHnmoxJ1r4CFCEt+u9ljg=	\N	2026-03-17 12:51:39.283625+00	\N	\N	percentage	\N	bronze
+\.
+
+
+--
+-- Data for Name: reseller_codes; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.reseller_codes (id, reseller_account_id, code, is_primary, is_active, created_at, updated_at) FROM stdin;
+0e506946-36d9-499c-9da3-4c375df1a256	574ee75b-d295-4cc3-ab77-5021cd518a85	MARMAR429	t	t	2026-03-16 20:53:39.347407+00	2026-03-16 20:53:39.359162+00
+\.
+
+
+--
+-- Data for Name: reseller_commission_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.reseller_commission_events (id, tenant_id, reseller_account_id, subscription_id, invoice_id, rate, amount, status, event_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: reseller_customer_links; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.reseller_customer_links (id, tenant_id, reseller_account_id, customer_account_id, subscription_id, referral_code, linked_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: reseller_customers; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.reseller_customers (id, tenant_id, reseller_id, referred_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: reseller_referrals; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.reseller_referrals (id, reseller_account_id, checkout_session_id, tenant_id, referral_code, status, commission_eligible, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: restore_validation_runs; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.restore_validation_runs (id, backup_run_id, environment, status, validation_type, findings_json, started_at, completed_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: retention_policies; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.retention_policies (id, policy_code, data_class, hot_retention, archive_retention, disposal_policy, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.roles (id, tenant_id, name) FROM stdin;
+\.
+
+
+--
+-- Data for Name: rollout_records; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.rollout_records (id, environment, channel, target_type, target_version, status, compatibility_window, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: runbook_records; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.runbook_records (id, code, title, category, severity, markdown_path, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sale_lines; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.sale_lines (id, sale_id, product_id, qty, unit_price, discount, tax, line_total) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sales; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.sales (id, tenant_id, branch_id, device_id, receipt_no, status, subtotal, discount, tax, total, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: secret_references; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.secret_references (id, environment, secret_name, provider, rotation_policy, last_rotated_at, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: security_events; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.security_events (id, environment, event_type, severity, summary, status, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: service_versions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.service_versions (id, environment, service_name, version, minimum_supported_version, rollout_state, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: slo_definitions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.slo_definitions (id, environment, service_name, slo_code, objective, measurement_window, alert_policy, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: stock_balances; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.stock_balances (tenant_id, branch_id, product_id, qty) FROM stdin;
+\.
+
+
+--
+-- Data for Name: stock_moves; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.stock_moves (id, tenant_id, branch_id, product_id, qty_delta, reason, ref_type, ref_id, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: subscription_payments; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.subscription_payments (id, tenant_id, subscription_id, invoice_id, provider, payment_ref, status, amount, currency, paid_at, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: subscription_plans; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.subscription_plans (id, code, name, description, branch_limit, user_limit, device_limit, support_tier, reseller_commission_eligibility, is_public, is_active, highlight_label, created_at, updated_at) FROM stdin;
+e0b56045-c541-418e-88f4-d18a3f02dd53	starter	Starter	Tek sube ile lisansli POS ekosistemine gecis.	1	3	1	standard	f	t	t		2026-03-16 20:53:39.037372+00	2026-03-16 20:53:39.062504+00
+a754ab59-6198-4db6-8717-dec0d0ba04c3	pro	Pro	Bayi ve cok subeli perakende ekipleri icin ana paket.	5	10	5	priority	t	t	t	Most popular	2026-03-16 20:53:39.106832+00	2026-03-16 20:53:39.119619+00
+35345fcb-584e-45d8-9838-59c1ff7b78d7	enterprise	Enterprise	Kurumsal zincirler icin kurumsal rollout paketi.	\N	\N	\N	enterprise	t	t	t	Custom SLA	2026-03-16 20:53:39.135994+00	2026-03-16 20:53:39.136486+00
+\.
+
+
+--
+-- Data for Name: subscriptions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.subscriptions (id, tenant_id, plan_code, billing_cycle, status, current_period_start, current_period_end, reseller_code, created_at, billing_profile_id, renewal_date, cancel_at_period_end, trial_ends_at, grace_ends_at, canceled_at, provider_subscription_id, provider_customer_reference, plan_snapshot_json, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: support_access_sessions; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.support_access_sessions (id, internal_user_id, tenant_id, access_mode, reason, status, expires_at, ended_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: support_case_links; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.support_case_links (id, support_case_id, entity_type, entity_id, label, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: support_case_messages; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.support_case_messages (id, support_case_id, author_type, author_internal_user_id, author_customer_account_id, body, is_internal, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: support_case_notes; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.support_case_notes (id, support_case_id, internal_user_id, note, created_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: support_cases; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.support_cases (id, tenant_id, customer_account_id, reseller_account_id, source, category, priority, status, title, summary, contact_preference, assignee_email, escalation_level, first_response_at, resolved_at, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: tenant_users; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.tenant_users (id, tenant_id, customer_account_id, role_code, is_owner, status, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: tenants; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.tenants (id, name, settings_json, created_at, tenant_code, billing_email, tax_office, tax_number, country, default_locale, status, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: user_roles; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.user_roles (user_id, role_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: loomapos
+--
+
+COPY public.users (id, tenant_id, email, name, is_active, created_at, branch_id, phone) FROM stdin;
+\.
+
+
+--
+-- Name: audit_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: loomapos
+--
+
+SELECT pg_catalog.setval('public.audit_logs_id_seq', 1, false);
+
+
+--
+-- Name: license_events_id_seq; Type: SEQUENCE SET; Schema: public; Owner: loomapos
+--
+
+SELECT pg_catalog.setval('public.license_events_id_seq', 1, false);
+
+
+--
+-- Name: __ef_migrations_history PK___ef_migrations_history; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.__ef_migrations_history
+    ADD CONSTRAINT "PK___ef_migrations_history" PRIMARY KEY ("MigrationId");
+
+
+--
+-- Name: abuse_flags abuse_flags_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.abuse_flags
+    ADD CONSTRAINT abuse_flags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: activation_events activation_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.activation_events
+    ADD CONSTRAINT activation_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: admin_action_approvals admin_action_approvals_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.admin_action_approvals
+    ADD CONSTRAINT admin_action_approvals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: admin_action_requests admin_action_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.admin_action_requests
+    ADD CONSTRAINT admin_action_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: alert_events alert_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.alert_events
+    ADD CONSTRAINT alert_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: alert_rules alert_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.alert_rules
+    ADD CONSTRAINT alert_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: analytics_report_schedules analytics_report_schedules_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.analytics_report_schedules
+    ADD CONSTRAINT analytics_report_schedules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: analytics_saved_views analytics_saved_views_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.analytics_saved_views
+    ADD CONSTRAINT analytics_saved_views_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: app_releases app_releases_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.app_releases
+    ADD CONSTRAINT app_releases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: backup_runs backup_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.backup_runs
+    ADD CONSTRAINT backup_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: billing_profiles billing_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.billing_profiles
+    ADD CONSTRAINT billing_profiles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: branches branches_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.branches
+    ADD CONSTRAINT branches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: capacity_snapshots capacity_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.capacity_snapshots
+    ADD CONSTRAINT capacity_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cash_transactions cash_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.cash_transactions
+    ADD CONSTRAINT cash_transactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: categories categories_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.categories
+    ADD CONSTRAINT categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: checkout_sessions checkout_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.checkout_sessions
+    ADD CONSTRAINT checkout_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: commissions commissions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.commissions
+    ADD CONSTRAINT commissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contact_ledger contact_ledger_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.contact_ledger
+    ADD CONSTRAINT contact_ledger_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contacts contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.contacts
+    ADD CONSTRAINT contacts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: customer_accounts customer_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.customer_accounts
+    ADD CONSTRAINT customer_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: dependency_status_records dependency_status_records_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.dependency_status_records
+    ADD CONSTRAINT dependency_status_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: deployment_records deployment_records_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.deployment_records
+    ADD CONSTRAINT deployment_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: device_activations device_activations_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.device_activations
+    ADD CONSTRAINT device_activations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: devices devices_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.devices
+    ADD CONSTRAINT devices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: download_accesses download_accesses_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.download_accesses
+    ADD CONSTRAINT download_accesses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: downloadable_assets downloadable_assets_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.downloadable_assets
+    ADD CONSTRAINT downloadable_assets_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_notifications email_notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.email_notifications
+    ADD CONSTRAINT email_notifications_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: environment_configs environment_configs_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.environment_configs
+    ADD CONSTRAINT environment_configs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: feature_flags feature_flags_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.feature_flags
+    ADD CONSTRAINT feature_flags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: incident_records incident_records_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.incident_records
+    ADD CONSTRAINT incident_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: incident_timeline_events incident_timeline_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.incident_timeline_events
+    ADD CONSTRAINT incident_timeline_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: internal_sessions internal_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.internal_sessions
+    ADD CONSTRAINT internal_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: internal_user_roles internal_user_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.internal_user_roles
+    ADD CONSTRAINT internal_user_roles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: internal_users internal_users_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.internal_users
+    ADD CONSTRAINT internal_users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: invoice_lines invoice_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.invoice_lines
+    ADD CONSTRAINT invoice_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: invoices invoices_invoice_no_key; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.invoices
+    ADD CONSTRAINT invoices_invoice_no_key UNIQUE (invoice_no);
+
+
+--
+-- Name: invoices invoices_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.invoices
+    ADD CONSTRAINT invoices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: license_events license_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.license_events
+    ADD CONSTRAINT license_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: licenses licenses_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.licenses
+    ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: marketing_lead_activities marketing_lead_activities_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_lead_activities
+    ADD CONSTRAINT marketing_lead_activities_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: marketing_lead_demos marketing_lead_demos_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_lead_demos
+    ADD CONSTRAINT marketing_lead_demos_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: marketing_lead_notes marketing_lead_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_lead_notes
+    ADD CONSTRAINT marketing_lead_notes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: marketing_leads marketing_leads_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_leads
+    ADD CONSTRAINT marketing_leads_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: marketing_telemetry_events marketing_telemetry_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_telemetry_events
+    ADD CONSTRAINT marketing_telemetry_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: migration_runs migration_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.migration_runs
+    ADD CONSTRAINT migration_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ops_audit_logs ops_audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.ops_audit_logs
+    ADD CONSTRAINT ops_audit_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payment_attempts payment_attempts_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_attempts
+    ADD CONSTRAINT payment_attempts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payment_transactions payment_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT payment_transactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payment_webhooks payment_webhooks_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_webhooks
+    ADD CONSTRAINT payment_webhooks_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payments payments_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payouts payouts_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payouts
+    ADD CONSTRAINT payouts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plan_feature_flags plan_feature_flags_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.plan_feature_flags
+    ADD CONSTRAINT plan_feature_flags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plan_prices plan_prices_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.plan_prices
+    ADD CONSTRAINT plan_prices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plans plans_code_key; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.plans
+    ADD CONSTRAINT plans_code_key UNIQUE (code);
+
+
+--
+-- Name: plans plans_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.plans
+    ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: portal_sessions portal_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT portal_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: processed_events processed_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.processed_events
+    ADD CONSTRAINT processed_events_pkey PRIMARY KEY (event_id);
+
+
+--
+-- Name: product_barcodes product_barcodes_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.product_barcodes
+    ADD CONSTRAINT product_barcodes_pkey PRIMARY KEY (product_id, barcode);
+
+
+--
+-- Name: product_variants product_variants_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.product_variants
+    ADD CONSTRAINT product_variants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: products products_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.products
+    ADD CONSTRAINT products_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rate_limit_policies rate_limit_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.rate_limit_policies
+    ADD CONSTRAINT rate_limit_policies_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reseller_accounts reseller_accounts_code_key; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_accounts
+    ADD CONSTRAINT reseller_accounts_code_key UNIQUE (code);
+
+
+--
+-- Name: reseller_accounts reseller_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_accounts
+    ADD CONSTRAINT reseller_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reseller_codes reseller_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_codes
+    ADD CONSTRAINT reseller_codes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reseller_commission_events reseller_commission_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_commission_events
+    ADD CONSTRAINT reseller_commission_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reseller_customer_links reseller_customer_links_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customer_links
+    ADD CONSTRAINT reseller_customer_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reseller_customers reseller_customers_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customers
+    ADD CONSTRAINT reseller_customers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reseller_referrals reseller_referrals_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_referrals
+    ADD CONSTRAINT reseller_referrals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: restore_validation_runs restore_validation_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.restore_validation_runs
+    ADD CONSTRAINT restore_validation_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: retention_policies retention_policies_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.retention_policies
+    ADD CONSTRAINT retention_policies_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rollout_records rollout_records_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.rollout_records
+    ADD CONSTRAINT rollout_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: runbook_records runbook_records_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.runbook_records
+    ADD CONSTRAINT runbook_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sale_lines sale_lines_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.sale_lines
+    ADD CONSTRAINT sale_lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sales sales_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.sales
+    ADD CONSTRAINT sales_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: secret_references secret_references_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.secret_references
+    ADD CONSTRAINT secret_references_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: security_events security_events_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.security_events
+    ADD CONSTRAINT security_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: service_versions service_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.service_versions
+    ADD CONSTRAINT service_versions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: slo_definitions slo_definitions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.slo_definitions
+    ADD CONSTRAINT slo_definitions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: stock_balances stock_balances_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.stock_balances
+    ADD CONSTRAINT stock_balances_pkey PRIMARY KEY (tenant_id, branch_id, product_id);
+
+
+--
+-- Name: stock_moves stock_moves_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.stock_moves
+    ADD CONSTRAINT stock_moves_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscription_payments subscription_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.subscription_payments
+    ADD CONSTRAINT subscription_payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscription_plans subscription_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.subscription_plans
+    ADD CONSTRAINT subscription_plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: subscriptions subscriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.subscriptions
+    ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_access_sessions support_access_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_access_sessions
+    ADD CONSTRAINT support_access_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_case_links support_case_links_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_links
+    ADD CONSTRAINT support_case_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_case_messages support_case_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_messages
+    ADD CONSTRAINT support_case_messages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_case_notes support_case_notes_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_notes
+    ADD CONSTRAINT support_case_notes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: support_cases support_cases_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_cases
+    ADD CONSTRAINT support_cases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenant_users tenant_users_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.tenant_users
+    ADD CONSTRAINT tenant_users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenants tenants_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.tenants
+    ADD CONSTRAINT tenants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_pkey PRIMARY KEY (user_id, role_id);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ix_abuse_flags_tenant_flag_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_abuse_flags_tenant_flag_created ON public.abuse_flags USING btree (tenant_id, flag_type, created_at DESC);
+
+
+--
+-- Name: ix_activation_events_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_activation_events_tenant_created ON public.activation_events USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_admin_action_approvals_request_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_admin_action_approvals_request_created ON public.admin_action_approvals USING btree (admin_action_request_id, created_at DESC);
+
+
+--
+-- Name: ix_admin_action_requests_action_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_admin_action_requests_action_created ON public.admin_action_requests USING btree (action_code, created_at DESC);
+
+
+--
+-- Name: ix_alert_events_env_triggered; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_alert_events_env_triggered ON public.alert_events USING btree (environment, triggered_at DESC);
+
+
+--
+-- Name: ix_alert_rules_env_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_alert_rules_env_code ON public.alert_rules USING btree (environment, code);
+
+
+--
+-- Name: ix_analytics_report_schedules_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_analytics_report_schedules_tenant_created ON public.analytics_report_schedules USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_analytics_saved_views_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_analytics_saved_views_tenant_created ON public.analytics_saved_views USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_analytics_saved_views_unique; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_analytics_saved_views_unique ON public.analytics_saved_views USING btree (tenant_id, customer_account_id, view_code, name);
+
+
+--
+-- Name: ix_app_releases_platform_channel_version; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_app_releases_platform_channel_version ON public.app_releases USING btree (platform, channel, version);
+
+
+--
+-- Name: ix_audit_logs_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_audit_logs_tenant_created ON public.audit_logs USING btree (tenant_id, created_at);
+
+
+--
+-- Name: ix_backup_runs_env_type_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_backup_runs_env_type_created ON public.backup_runs USING btree (environment, backup_type, created_at DESC);
+
+
+--
+-- Name: ix_billing_profiles_tenant_email; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_billing_profiles_tenant_email ON public.billing_profiles USING btree (tenant_id, billing_email);
+
+
+--
+-- Name: ix_capacity_snapshots_env_resource_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_capacity_snapshots_env_resource_created ON public.capacity_snapshots USING btree (environment, resource_type, created_at DESC);
+
+
+--
+-- Name: ix_cash_transactions_tenant_branch_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_cash_transactions_tenant_branch_created ON public.cash_transactions USING btree (tenant_id, branch_id, created_at);
+
+
+--
+-- Name: ix_categories_tenant_name; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_categories_tenant_name ON public.categories USING btree (tenant_id, name);
+
+
+--
+-- Name: ix_checkout_sessions_checkout_reference; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_checkout_sessions_checkout_reference ON public.checkout_sessions USING btree (checkout_reference);
+
+
+--
+-- Name: ix_checkout_sessions_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_checkout_sessions_created ON public.checkout_sessions USING btree (created_at DESC);
+
+
+--
+-- Name: ix_checkout_sessions_idempotency_key; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_checkout_sessions_idempotency_key ON public.checkout_sessions USING btree (idempotency_key);
+
+
+--
+-- Name: ix_checkout_sessions_provider_payment_reference; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_checkout_sessions_provider_payment_reference ON public.checkout_sessions USING btree (provider_payment_reference);
+
+
+--
+-- Name: ix_commissions_reseller_status_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_commissions_reseller_status_created ON public.commissions USING btree (reseller_id, status, created_at DESC);
+
+
+--
+-- Name: ix_contact_ledger_tenant_contact_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_contact_ledger_tenant_contact_created ON public.contact_ledger USING btree (tenant_id, contact_id, created_at);
+
+
+--
+-- Name: ix_contacts_tenant_type_name; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_contacts_tenant_type_name ON public.contacts USING btree (tenant_id, type, name);
+
+
+--
+-- Name: ix_customer_accounts_email; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_customer_accounts_email ON public.customer_accounts USING btree (email);
+
+
+--
+-- Name: ix_customer_accounts_status_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_customer_accounts_status_created ON public.customer_accounts USING btree (account_status, created_at DESC);
+
+
+--
+-- Name: ix_dependency_status_records_env_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_dependency_status_records_env_code ON public.dependency_status_records USING btree (environment, dependency_code);
+
+
+--
+-- Name: ix_deployment_records_environment_service_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_deployment_records_environment_service_created ON public.deployment_records USING btree (environment, service_name, created_at DESC);
+
+
+--
+-- Name: ix_device_activations_tenant_revoked; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_device_activations_tenant_revoked ON public.device_activations USING btree (tenant_id, revoked_at);
+
+
+--
+-- Name: ix_devices_tenant_branch_name; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_devices_tenant_branch_name ON public.devices USING btree (tenant_id, branch_id, name);
+
+
+--
+-- Name: ix_download_accesses_tenant_asset; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_download_accesses_tenant_asset ON public.download_accesses USING btree (tenant_id, downloadable_asset_id);
+
+
+--
+-- Name: ix_downloadable_assets_release_platform; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_downloadable_assets_release_platform ON public.downloadable_assets USING btree (app_release_id, platform);
+
+
+--
+-- Name: ix_email_notifications_event_status_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_email_notifications_event_status_created ON public.email_notifications USING btree (event_code, status, created_at DESC);
+
+
+--
+-- Name: ix_environment_configs_env_key; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_environment_configs_env_key ON public.environment_configs USING btree (environment, config_key);
+
+
+--
+-- Name: ix_feature_flags_active_expires; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_feature_flags_active_expires ON public.feature_flags USING btree (is_active, expires_at);
+
+
+--
+-- Name: ix_feature_flags_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_feature_flags_code ON public.feature_flags USING btree (code);
+
+
+--
+-- Name: ix_incident_records_env_status_opened; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_incident_records_env_status_opened ON public.incident_records USING btree (environment, status, opened_at DESC);
+
+
+--
+-- Name: ix_incident_timeline_events_incident_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_incident_timeline_events_incident_created ON public.incident_timeline_events USING btree (incident_record_id, created_at DESC);
+
+
+--
+-- Name: ix_internal_sessions_access_token_hash; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_internal_sessions_access_token_hash ON public.internal_sessions USING btree (access_token_hash);
+
+
+--
+-- Name: ix_internal_sessions_user_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_internal_sessions_user_created ON public.internal_sessions USING btree (internal_user_id, created_at DESC);
+
+
+--
+-- Name: ix_internal_user_roles_user_role; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_internal_user_roles_user_role ON public.internal_user_roles USING btree (internal_user_id, role_code);
+
+
+--
+-- Name: ix_internal_users_email; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_internal_users_email ON public.internal_users USING btree (email);
+
+
+--
+-- Name: ix_invoice_lines_tenant_invoice; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_invoice_lines_tenant_invoice ON public.invoice_lines USING btree (tenant_id, invoice_id);
+
+
+--
+-- Name: ix_invoices_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_invoices_tenant_created ON public.invoices USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_license_events_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_license_events_tenant_created ON public.license_events USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_licenses_license_key; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_licenses_license_key ON public.licenses USING btree (license_key);
+
+
+--
+-- Name: ix_licenses_tenant_status_exp; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_licenses_tenant_status_exp ON public.licenses USING btree (tenant_id, status, expires_at DESC);
+
+
+--
+-- Name: ix_marketing_events_page_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_events_page_created ON public.marketing_telemetry_events USING btree (page_path, created_at DESC);
+
+
+--
+-- Name: ix_marketing_events_type_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_events_type_created ON public.marketing_telemetry_events USING btree (event_type, created_at DESC);
+
+
+--
+-- Name: ix_marketing_lead_activities_lead_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_lead_activities_lead_created ON public.marketing_lead_activities USING btree (lead_id, created_at DESC);
+
+
+--
+-- Name: ix_marketing_lead_activities_type_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_lead_activities_type_created ON public.marketing_lead_activities USING btree (activity_type, created_at DESC);
+
+
+--
+-- Name: ix_marketing_lead_demos_lead_scheduled; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_lead_demos_lead_scheduled ON public.marketing_lead_demos USING btree (lead_id, scheduled_at DESC);
+
+
+--
+-- Name: ix_marketing_lead_demos_status_scheduled; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_lead_demos_status_scheduled ON public.marketing_lead_demos USING btree (status, scheduled_at DESC);
+
+
+--
+-- Name: ix_marketing_lead_notes_lead_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_lead_notes_lead_created ON public.marketing_lead_notes USING btree (lead_id, created_at DESC);
+
+
+--
+-- Name: ix_marketing_leads_assigned_user; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_leads_assigned_user ON public.marketing_leads USING btree (assigned_internal_user_id);
+
+
+--
+-- Name: ix_marketing_leads_checkout_abandoned; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_leads_checkout_abandoned ON public.marketing_leads USING btree (abandoned_checkout_at DESC);
+
+
+--
+-- Name: ix_marketing_leads_converted_at; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_leads_converted_at ON public.marketing_leads USING btree (converted_at DESC);
+
+
+--
+-- Name: ix_marketing_leads_email_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_leads_email_created ON public.marketing_leads USING btree (email, created_at DESC);
+
+
+--
+-- Name: ix_marketing_leads_reseller_id; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_leads_reseller_id ON public.marketing_leads USING btree (reseller_id);
+
+
+--
+-- Name: ix_marketing_leads_status_score; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_leads_status_score ON public.marketing_leads USING btree (status, score DESC);
+
+
+--
+-- Name: ix_marketing_leads_type_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_marketing_leads_type_created ON public.marketing_leads USING btree (lead_type, created_at DESC);
+
+
+--
+-- Name: ix_migration_runs_env_name_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_migration_runs_env_name_created ON public.migration_runs USING btree (environment, migration_name, created_at DESC);
+
+
+--
+-- Name: ix_ops_audit_logs_actor_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_ops_audit_logs_actor_created ON public.ops_audit_logs USING btree (actor_email, created_at DESC);
+
+
+--
+-- Name: ix_payment_attempts_checkout_attempted; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_payment_attempts_checkout_attempted ON public.payment_attempts USING btree (checkout_session_id, attempted_at DESC);
+
+
+--
+-- Name: ix_payment_transactions_provider_payment_id; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_payment_transactions_provider_payment_id ON public.payment_transactions USING btree (provider_payment_id);
+
+
+--
+-- Name: ix_payment_transactions_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_payment_transactions_tenant_created ON public.payment_transactions USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_payment_webhooks_provider_event; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_payment_webhooks_provider_event ON public.payment_webhooks USING btree (provider, event_id);
+
+
+--
+-- Name: ix_payouts_reseller_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_payouts_reseller_created ON public.payouts USING btree (reseller_id, created_at DESC);
+
+
+--
+-- Name: ix_plan_feature_flags_plan_flag; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_plan_feature_flags_plan_flag ON public.plan_feature_flags USING btree (subscription_plan_id, feature_flag_id);
+
+
+--
+-- Name: ix_plan_prices_plan_period_currency; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_plan_prices_plan_period_currency ON public.plan_prices USING btree (subscription_plan_id, billing_period, currency);
+
+
+--
+-- Name: ix_portal_sessions_access_token_hash; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_portal_sessions_access_token_hash ON public.portal_sessions USING btree (access_token_hash);
+
+
+--
+-- Name: ix_portal_sessions_customer_revoked; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_portal_sessions_customer_revoked ON public.portal_sessions USING btree (customer_account_id, revoked_at);
+
+
+--
+-- Name: ix_portal_sessions_refresh_token_hash; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_portal_sessions_refresh_token_hash ON public.portal_sessions USING btree (refresh_token_hash);
+
+
+--
+-- Name: ix_processed_events_tenant_device_processed; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_processed_events_tenant_device_processed ON public.processed_events USING btree (tenant_id, device_id, processed_at);
+
+
+--
+-- Name: ix_product_variants_tenant_barcode; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_product_variants_tenant_barcode ON public.product_variants USING btree (tenant_id, barcode);
+
+
+--
+-- Name: ix_product_variants_tenant_product; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_product_variants_tenant_product ON public.product_variants USING btree (tenant_id, product_id);
+
+
+--
+-- Name: ix_products_tenant_barcode; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_products_tenant_barcode ON public.products USING btree (tenant_id, barcode);
+
+
+--
+-- Name: ix_products_tenant_category; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_products_tenant_category ON public.products USING btree (tenant_id, category_id);
+
+
+--
+-- Name: ix_rate_limit_policies_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_rate_limit_policies_code ON public.rate_limit_policies USING btree (policy_code);
+
+
+--
+-- Name: ix_reseller_accounts_email; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_reseller_accounts_email ON public.reseller_accounts USING btree (email);
+
+
+--
+-- Name: ix_reseller_accounts_region; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_reseller_accounts_region ON public.reseller_accounts USING btree (region);
+
+
+--
+-- Name: ix_reseller_accounts_status_region; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_reseller_accounts_status_region ON public.reseller_accounts USING btree (status, region);
+
+
+--
+-- Name: ix_reseller_accounts_tier; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_reseller_accounts_tier ON public.reseller_accounts USING btree (tier);
+
+
+--
+-- Name: ix_reseller_codes_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_reseller_codes_code ON public.reseller_codes USING btree (code);
+
+
+--
+-- Name: ix_reseller_commission_events_account_status_event; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_reseller_commission_events_account_status_event ON public.reseller_commission_events USING btree (reseller_account_id, status, event_at DESC);
+
+
+--
+-- Name: ix_reseller_customer_links_account_tenant; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_reseller_customer_links_account_tenant ON public.reseller_customer_links USING btree (reseller_account_id, tenant_id);
+
+
+--
+-- Name: ix_reseller_referrals_checkout_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_reseller_referrals_checkout_code ON public.reseller_referrals USING btree (checkout_session_id, referral_code);
+
+
+--
+-- Name: ix_restore_validation_runs_env_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_restore_validation_runs_env_created ON public.restore_validation_runs USING btree (environment, created_at DESC);
+
+
+--
+-- Name: ix_retention_policies_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_retention_policies_code ON public.retention_policies USING btree (policy_code);
+
+
+--
+-- Name: ix_rollout_records_env_channel_target; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_rollout_records_env_channel_target ON public.rollout_records USING btree (environment, channel, target_type, target_version);
+
+
+--
+-- Name: ix_runbook_records_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_runbook_records_code ON public.runbook_records USING btree (code);
+
+
+--
+-- Name: ix_sales_tenant_branch_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_sales_tenant_branch_created ON public.sales USING btree (tenant_id, branch_id, created_at);
+
+
+--
+-- Name: ix_sales_tenant_receipt; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_sales_tenant_receipt ON public.sales USING btree (tenant_id, receipt_no);
+
+
+--
+-- Name: ix_secret_references_env_name; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_secret_references_env_name ON public.secret_references USING btree (environment, secret_name);
+
+
+--
+-- Name: ix_security_events_env_type_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_security_events_env_type_created ON public.security_events USING btree (environment, event_type, created_at DESC);
+
+
+--
+-- Name: ix_service_versions_environment_service; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_service_versions_environment_service ON public.service_versions USING btree (environment, service_name);
+
+
+--
+-- Name: ix_slo_definitions_env_service_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_slo_definitions_env_service_code ON public.slo_definitions USING btree (environment, service_name, slo_code);
+
+
+--
+-- Name: ix_stock_moves_tenant_branch_product_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_stock_moves_tenant_branch_product_created ON public.stock_moves USING btree (tenant_id, branch_id, product_id, created_at);
+
+
+--
+-- Name: ix_sub_payments_payment_ref; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_sub_payments_payment_ref ON public.subscription_payments USING btree (payment_ref);
+
+
+--
+-- Name: ix_sub_payments_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_sub_payments_tenant_created ON public.subscription_payments USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_subscription_plans_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_subscription_plans_code ON public.subscription_plans USING btree (code);
+
+
+--
+-- Name: ix_subscription_plans_public_active; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_subscription_plans_public_active ON public.subscription_plans USING btree (is_public, is_active);
+
+
+--
+-- Name: ix_subscriptions_tenant_status_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_subscriptions_tenant_status_created ON public.subscriptions USING btree (tenant_id, status, created_at DESC);
+
+
+--
+-- Name: ix_support_access_sessions_user_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_support_access_sessions_user_created ON public.support_access_sessions USING btree (internal_user_id, created_at DESC);
+
+
+--
+-- Name: ix_support_case_links_case_entity; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_support_case_links_case_entity ON public.support_case_links USING btree (support_case_id, entity_type, entity_id);
+
+
+--
+-- Name: ix_support_case_messages_case_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_support_case_messages_case_created ON public.support_case_messages USING btree (support_case_id, created_at);
+
+
+--
+-- Name: ix_support_case_notes_case_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_support_case_notes_case_created ON public.support_case_notes USING btree (support_case_id, created_at);
+
+
+--
+-- Name: ix_support_cases_reseller_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_support_cases_reseller_created ON public.support_cases USING btree (reseller_account_id, created_at DESC);
+
+
+--
+-- Name: ix_support_cases_status_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_support_cases_status_created ON public.support_cases USING btree (status, created_at DESC);
+
+
+--
+-- Name: ix_support_cases_tenant_created; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_support_cases_tenant_created ON public.support_cases USING btree (tenant_id, created_at DESC);
+
+
+--
+-- Name: ix_tenant_users_tenant_customer; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_tenant_users_tenant_customer ON public.tenant_users USING btree (tenant_id, customer_account_id);
+
+
+--
+-- Name: ix_tenant_users_tenant_role; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_tenant_users_tenant_role ON public.tenant_users USING btree (tenant_id, role_code);
+
+
+--
+-- Name: ix_tenants_billing_email; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_tenants_billing_email ON public.tenants USING btree (billing_email);
+
+
+--
+-- Name: ix_tenants_tenant_code; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ix_tenants_tenant_code ON public.tenants USING btree (tenant_code);
+
+
+--
+-- Name: ix_users_tenant_branch; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE INDEX ix_users_tenant_branch ON public.users USING btree (tenant_id, branch_id);
+
+
+--
+-- Name: ux_branches_tenant_name; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ux_branches_tenant_name ON public.branches USING btree (tenant_id, name);
+
+
+--
+-- Name: ux_device_activations_tenant_device; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ux_device_activations_tenant_device ON public.device_activations USING btree (tenant_id, device_id);
+
+
+--
+-- Name: ux_products_tenant_barcode_unique; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ux_products_tenant_barcode_unique ON public.products USING btree (tenant_id, barcode) WHERE ((barcode IS NOT NULL) AND (btrim((barcode)::text) <> ''::text));
+
+
+--
+-- Name: ux_products_tenant_sku; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ux_products_tenant_sku ON public.products USING btree (tenant_id, sku);
+
+
+--
+-- Name: ux_reseller_customers_reseller_tenant; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ux_reseller_customers_reseller_tenant ON public.reseller_customers USING btree (reseller_id, tenant_id);
+
+
+--
+-- Name: ux_roles_tenant_name; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ux_roles_tenant_name ON public.roles USING btree (tenant_id, name);
+
+
+--
+-- Name: ux_users_tenant_email; Type: INDEX; Schema: public; Owner: loomapos
+--
+
+CREATE UNIQUE INDEX ux_users_tenant_email ON public.users USING btree (tenant_id, email);
+
+
+--
+-- Name: abuse_flags fk_abuse_flags_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.abuse_flags
+    ADD CONSTRAINT fk_abuse_flags_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: activation_events fk_activation_events_device; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.activation_events
+    ADD CONSTRAINT fk_activation_events_device FOREIGN KEY (device_activation_id) REFERENCES public.device_activations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: activation_events fk_activation_events_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.activation_events
+    ADD CONSTRAINT fk_activation_events_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: admin_action_approvals fk_admin_action_approvals_request; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.admin_action_approvals
+    ADD CONSTRAINT fk_admin_action_approvals_request FOREIGN KEY (admin_action_request_id) REFERENCES public.admin_action_requests(id) ON DELETE CASCADE;
+
+
+--
+-- Name: admin_action_approvals fk_admin_action_approvals_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.admin_action_approvals
+    ADD CONSTRAINT fk_admin_action_approvals_user FOREIGN KEY (approved_by_internal_user_id) REFERENCES public.internal_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: admin_action_requests fk_admin_action_requests_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.admin_action_requests
+    ADD CONSTRAINT fk_admin_action_requests_user FOREIGN KEY (requested_by_internal_user_id) REFERENCES public.internal_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: alert_events fk_alert_events_rule; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.alert_events
+    ADD CONSTRAINT fk_alert_events_rule FOREIGN KEY (alert_rule_id) REFERENCES public.alert_rules(id) ON DELETE SET NULL;
+
+
+--
+-- Name: analytics_report_schedules fk_analytics_report_schedules_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.analytics_report_schedules
+    ADD CONSTRAINT fk_analytics_report_schedules_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: analytics_saved_views fk_analytics_saved_views_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.analytics_saved_views
+    ADD CONSTRAINT fk_analytics_saved_views_customer FOREIGN KEY (customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: analytics_saved_views fk_analytics_saved_views_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.analytics_saved_views
+    ADD CONSTRAINT fk_analytics_saved_views_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: billing_profiles fk_billing_profiles_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.billing_profiles
+    ADD CONSTRAINT fk_billing_profiles_customer FOREIGN KEY (customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: billing_profiles fk_billing_profiles_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.billing_profiles
+    ADD CONSTRAINT fk_billing_profiles_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: branches fk_branches_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.branches
+    ADD CONSTRAINT fk_branches_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: checkout_sessions fk_checkout_sessions_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.checkout_sessions
+    ADD CONSTRAINT fk_checkout_sessions_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: commissions fk_commissions_invoice; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.commissions
+    ADD CONSTRAINT fk_commissions_invoice FOREIGN KEY (invoice_id) REFERENCES public.invoices(id) ON DELETE CASCADE;
+
+
+--
+-- Name: commissions fk_commissions_reseller; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.commissions
+    ADD CONSTRAINT fk_commissions_reseller FOREIGN KEY (reseller_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: commissions fk_commissions_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.commissions
+    ADD CONSTRAINT fk_commissions_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: commissions fk_commissions_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.commissions
+    ADD CONSTRAINT fk_commissions_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contact_ledger fk_contact_ledger_contact; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.contact_ledger
+    ADD CONSTRAINT fk_contact_ledger_contact FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: device_activations fk_device_activations_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.device_activations
+    ADD CONSTRAINT fk_device_activations_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: download_accesses fk_download_accesses_asset; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.download_accesses
+    ADD CONSTRAINT fk_download_accesses_asset FOREIGN KEY (downloadable_asset_id) REFERENCES public.downloadable_assets(id) ON DELETE CASCADE;
+
+
+--
+-- Name: download_accesses fk_download_accesses_license; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.download_accesses
+    ADD CONSTRAINT fk_download_accesses_license FOREIGN KEY (license_id) REFERENCES public.licenses(id) ON DELETE SET NULL;
+
+
+--
+-- Name: download_accesses fk_download_accesses_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.download_accesses
+    ADD CONSTRAINT fk_download_accesses_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: download_accesses fk_download_accesses_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.download_accesses
+    ADD CONSTRAINT fk_download_accesses_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: downloadable_assets fk_downloadable_assets_release; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.downloadable_assets
+    ADD CONSTRAINT fk_downloadable_assets_release FOREIGN KEY (app_release_id) REFERENCES public.app_releases(id) ON DELETE CASCADE;
+
+
+--
+-- Name: email_notifications fk_email_notifications_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.email_notifications
+    ADD CONSTRAINT fk_email_notifications_customer FOREIGN KEY (customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: email_notifications fk_email_notifications_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.email_notifications
+    ADD CONSTRAINT fk_email_notifications_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: incident_timeline_events fk_incident_timeline_events_incident; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.incident_timeline_events
+    ADD CONSTRAINT fk_incident_timeline_events_incident FOREIGN KEY (incident_record_id) REFERENCES public.incident_records(id) ON DELETE CASCADE;
+
+
+--
+-- Name: internal_sessions fk_internal_sessions_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.internal_sessions
+    ADD CONSTRAINT fk_internal_sessions_user FOREIGN KEY (internal_user_id) REFERENCES public.internal_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: internal_user_roles fk_internal_user_roles_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.internal_user_roles
+    ADD CONSTRAINT fk_internal_user_roles_user FOREIGN KEY (internal_user_id) REFERENCES public.internal_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoice_lines fk_invoice_lines_invoice; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.invoice_lines
+    ADD CONSTRAINT fk_invoice_lines_invoice FOREIGN KEY (invoice_id) REFERENCES public.invoices(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoice_lines fk_invoice_lines_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.invoice_lines
+    ADD CONSTRAINT fk_invoice_lines_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoices fk_invoices_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.invoices
+    ADD CONSTRAINT fk_invoices_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoices fk_invoices_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.invoices
+    ADD CONSTRAINT fk_invoices_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: license_events fk_license_events_license; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.license_events
+    ADD CONSTRAINT fk_license_events_license FOREIGN KEY (license_id) REFERENCES public.licenses(id) ON DELETE CASCADE;
+
+
+--
+-- Name: license_events fk_license_events_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.license_events
+    ADD CONSTRAINT fk_license_events_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: licenses fk_licenses_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.licenses
+    ADD CONSTRAINT fk_licenses_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: licenses fk_licenses_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.licenses
+    ADD CONSTRAINT fk_licenses_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: marketing_lead_activities fk_marketing_lead_activities_lead; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_lead_activities
+    ADD CONSTRAINT fk_marketing_lead_activities_lead FOREIGN KEY (lead_id) REFERENCES public.marketing_leads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: marketing_lead_demos fk_marketing_lead_demos_lead; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_lead_demos
+    ADD CONSTRAINT fk_marketing_lead_demos_lead FOREIGN KEY (lead_id) REFERENCES public.marketing_leads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: marketing_lead_notes fk_marketing_lead_notes_lead; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.marketing_lead_notes
+    ADD CONSTRAINT fk_marketing_lead_notes_lead FOREIGN KEY (lead_id) REFERENCES public.marketing_leads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_attempts fk_payment_attempts_checkout; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_attempts
+    ADD CONSTRAINT fk_payment_attempts_checkout FOREIGN KEY (checkout_session_id) REFERENCES public.checkout_sessions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_attempts fk_payment_attempts_transaction; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_attempts
+    ADD CONSTRAINT fk_payment_attempts_transaction FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: payment_transactions fk_payment_transactions_checkout; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT fk_payment_transactions_checkout FOREIGN KEY (checkout_session_id) REFERENCES public.checkout_sessions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: payment_transactions fk_payment_transactions_invoice; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT fk_payment_transactions_invoice FOREIGN KEY (invoice_id) REFERENCES public.invoices(id) ON DELETE SET NULL;
+
+
+--
+-- Name: payment_transactions fk_payment_transactions_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT fk_payment_transactions_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: payment_transactions fk_payment_transactions_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT fk_payment_transactions_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payments fk_payments_sale; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payments
+    ADD CONSTRAINT fk_payments_sale FOREIGN KEY (sale_id) REFERENCES public.sales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payouts fk_payouts_reseller; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.payouts
+    ADD CONSTRAINT fk_payouts_reseller FOREIGN KEY (reseller_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: plan_feature_flags fk_plan_feature_flags_flag; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.plan_feature_flags
+    ADD CONSTRAINT fk_plan_feature_flags_flag FOREIGN KEY (feature_flag_id) REFERENCES public.feature_flags(id) ON DELETE CASCADE;
+
+
+--
+-- Name: plan_feature_flags fk_plan_feature_flags_plan; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.plan_feature_flags
+    ADD CONSTRAINT fk_plan_feature_flags_plan FOREIGN KEY (subscription_plan_id) REFERENCES public.subscription_plans(id) ON DELETE CASCADE;
+
+
+--
+-- Name: plan_prices fk_plan_prices_plan; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.plan_prices
+    ADD CONSTRAINT fk_plan_prices_plan FOREIGN KEY (subscription_plan_id) REFERENCES public.subscription_plans(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portal_sessions fk_portal_sessions_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT fk_portal_sessions_customer FOREIGN KEY (customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portal_sessions fk_portal_sessions_reseller; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT fk_portal_sessions_reseller FOREIGN KEY (reseller_account_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portal_sessions fk_portal_sessions_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.portal_sessions
+    ADD CONSTRAINT fk_portal_sessions_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: product_barcodes fk_product_barcodes_product; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.product_barcodes
+    ADD CONSTRAINT fk_product_barcodes_product FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+
+
+--
+-- Name: product_variants fk_product_variants_product; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.product_variants
+    ADD CONSTRAINT fk_product_variants_product FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+
+
+--
+-- Name: product_variants fk_product_variants_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.product_variants
+    ADD CONSTRAINT fk_product_variants_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: products fk_products_category; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.products
+    ADD CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES public.categories(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reseller_codes fk_reseller_codes_account; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_codes
+    ADD CONSTRAINT fk_reseller_codes_account FOREIGN KEY (reseller_account_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_commission_events fk_reseller_commission_events_account; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_commission_events
+    ADD CONSTRAINT fk_reseller_commission_events_account FOREIGN KEY (reseller_account_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_commission_events fk_reseller_commission_events_invoice; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_commission_events
+    ADD CONSTRAINT fk_reseller_commission_events_invoice FOREIGN KEY (invoice_id) REFERENCES public.invoices(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reseller_commission_events fk_reseller_commission_events_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_commission_events
+    ADD CONSTRAINT fk_reseller_commission_events_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reseller_commission_events fk_reseller_commission_events_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_commission_events
+    ADD CONSTRAINT fk_reseller_commission_events_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_customer_links fk_reseller_customer_links_account; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customer_links
+    ADD CONSTRAINT fk_reseller_customer_links_account FOREIGN KEY (reseller_account_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_customer_links fk_reseller_customer_links_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customer_links
+    ADD CONSTRAINT fk_reseller_customer_links_customer FOREIGN KEY (customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reseller_customer_links fk_reseller_customer_links_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customer_links
+    ADD CONSTRAINT fk_reseller_customer_links_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: reseller_customer_links fk_reseller_customer_links_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customer_links
+    ADD CONSTRAINT fk_reseller_customer_links_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_customers fk_reseller_customers_reseller; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customers
+    ADD CONSTRAINT fk_reseller_customers_reseller FOREIGN KEY (reseller_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_customers fk_reseller_customers_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_customers
+    ADD CONSTRAINT fk_reseller_customers_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_referrals fk_reseller_referrals_account; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_referrals
+    ADD CONSTRAINT fk_reseller_referrals_account FOREIGN KEY (reseller_account_id) REFERENCES public.reseller_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_referrals fk_reseller_referrals_checkout; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_referrals
+    ADD CONSTRAINT fk_reseller_referrals_checkout FOREIGN KEY (checkout_session_id) REFERENCES public.checkout_sessions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reseller_referrals fk_reseller_referrals_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.reseller_referrals
+    ADD CONSTRAINT fk_reseller_referrals_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: restore_validation_runs fk_restore_validation_runs_backup; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.restore_validation_runs
+    ADD CONSTRAINT fk_restore_validation_runs_backup FOREIGN KEY (backup_run_id) REFERENCES public.backup_runs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: roles fk_roles_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT fk_roles_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: sale_lines fk_sale_lines_sale; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.sale_lines
+    ADD CONSTRAINT fk_sale_lines_sale FOREIGN KEY (sale_id) REFERENCES public.sales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: subscription_payments fk_sub_payments_invoice; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.subscription_payments
+    ADD CONSTRAINT fk_sub_payments_invoice FOREIGN KEY (invoice_id) REFERENCES public.invoices(id) ON DELETE CASCADE;
+
+
+--
+-- Name: subscription_payments fk_sub_payments_subscription; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.subscription_payments
+    ADD CONSTRAINT fk_sub_payments_subscription FOREIGN KEY (subscription_id) REFERENCES public.subscriptions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: subscription_payments fk_sub_payments_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.subscription_payments
+    ADD CONSTRAINT fk_sub_payments_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: subscriptions fk_subscriptions_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.subscriptions
+    ADD CONSTRAINT fk_subscriptions_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_access_sessions fk_support_access_sessions_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_access_sessions
+    ADD CONSTRAINT fk_support_access_sessions_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_access_sessions fk_support_access_sessions_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_access_sessions
+    ADD CONSTRAINT fk_support_access_sessions_user FOREIGN KEY (internal_user_id) REFERENCES public.internal_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_case_links fk_support_case_links_case; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_links
+    ADD CONSTRAINT fk_support_case_links_case FOREIGN KEY (support_case_id) REFERENCES public.support_cases(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_case_messages fk_support_case_messages_case; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_messages
+    ADD CONSTRAINT fk_support_case_messages_case FOREIGN KEY (support_case_id) REFERENCES public.support_cases(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_case_messages fk_support_case_messages_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_messages
+    ADD CONSTRAINT fk_support_case_messages_customer FOREIGN KEY (author_customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: support_case_messages fk_support_case_messages_internal_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_messages
+    ADD CONSTRAINT fk_support_case_messages_internal_user FOREIGN KEY (author_internal_user_id) REFERENCES public.internal_users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: support_case_notes fk_support_case_notes_case; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_notes
+    ADD CONSTRAINT fk_support_case_notes_case FOREIGN KEY (support_case_id) REFERENCES public.support_cases(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_case_notes fk_support_case_notes_internal_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_case_notes
+    ADD CONSTRAINT fk_support_case_notes_internal_user FOREIGN KEY (internal_user_id) REFERENCES public.internal_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: support_cases fk_support_cases_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_cases
+    ADD CONSTRAINT fk_support_cases_customer FOREIGN KEY (customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: support_cases fk_support_cases_reseller; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_cases
+    ADD CONSTRAINT fk_support_cases_reseller FOREIGN KEY (reseller_account_id) REFERENCES public.reseller_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: support_cases fk_support_cases_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.support_cases
+    ADD CONSTRAINT fk_support_cases_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tenant_users fk_tenant_users_customer; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.tenant_users
+    ADD CONSTRAINT fk_tenant_users_customer FOREIGN KEY (customer_account_id) REFERENCES public.customer_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: tenant_users fk_tenant_users_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.tenant_users
+    ADD CONSTRAINT fk_tenant_users_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_roles fk_user_roles_role; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT fk_user_roles_role FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_roles fk_user_roles_user; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users fk_users_branch; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT fk_users_branch FOREIGN KEY (branch_id) REFERENCES public.branches(id) ON DELETE SET NULL;
+
+
+--
+-- Name: users fk_users_tenant; Type: FK CONSTRAINT; Schema: public; Owner: loomapos
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT fk_users_tenant FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict nqhNxurfoeiOGGtcnD62WQ2G1aUtPEyqI9HLyp9loPMZKuqqbnNMiZDBxCUmFf9
+

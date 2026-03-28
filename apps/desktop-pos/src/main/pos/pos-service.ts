@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { getDatabase } from "../storage/local-db.js";
-import { appendLocalAuditLog } from "../storage/local-state-repository.js";
+import { appendLocalAuditLog, clearCartDraft } from "../storage/local-state-repository.js";
 import { appendOutboxEvent } from "../sync/outbox-repository.js";
 import {
   applyStockLedgerEffect,
@@ -649,6 +649,8 @@ export const createSale = (input: CreateSaleInput, receiptTextFactory: (sale: Re
     });
   });
   transaction();
+
+  clearCartDraft(input.tenantId, input.branchId, input.deviceId);
 
   const receiptText = receiptTextFactory({
     saleId,

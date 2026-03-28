@@ -1,0 +1,12 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/audit/page": "/audit",
+  "/page": "/",
+  "/devices/page": "/devices",
+  "/support/page": "/support",
+  "/sync/page": "/sync",
+  "/subscriptions/page": "/subscriptions",
+  "/tenants/[id]/page": "/tenants/[id]",
+  "/dashboard/page": "/dashboard",
+  "/tenants/page": "/tenants"
+}

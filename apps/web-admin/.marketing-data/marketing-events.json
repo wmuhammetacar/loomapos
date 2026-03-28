@@ -1,0 +1,524 @@
+[
+  {
+    "id": "evt_c1e1871f",
+    "type": "page_view",
+    "path": "/reseller/portal/licenses",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:34.608Z"
+  },
+  {
+    "id": "evt_342353b9",
+    "type": "page_view",
+    "path": "/reseller/portal/payouts",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:33.596Z"
+  },
+  {
+    "id": "evt_6b2dba72",
+    "type": "page_view",
+    "path": "/reseller/portal/referrals",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:32.351Z"
+  },
+  {
+    "id": "evt_c4430ba3",
+    "type": "page_view",
+    "path": "/reseller/portal/leads",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:30.881Z"
+  },
+  {
+    "id": "evt_56b63d60",
+    "type": "page_view",
+    "path": "/reseller/portal/customers",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:29.878Z"
+  },
+  {
+    "id": "evt_da163b2f",
+    "type": "page_view",
+    "path": "/reseller/portal",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:28.447Z"
+  },
+  {
+    "id": "evt_ca43913b",
+    "type": "page_view",
+    "path": "/reseller/portal/onboarding",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:25.669Z"
+  },
+  {
+    "id": "evt_463c5a79",
+    "type": "page_view",
+    "path": "/reseller/portal/analytics",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:24.353Z"
+  },
+  {
+    "id": "evt_58cdd701",
+    "type": "page_view",
+    "path": "/reseller/portal/settings",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:22.149Z"
+  },
+  {
+    "id": "evt_bd05bdab",
+    "type": "page_view",
+    "path": "/reseller/portal/support",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:20.884Z"
+  },
+  {
+    "id": "evt_d4fc54fa",
+    "type": "page_view",
+    "path": "/reseller/portal/training",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:19.558Z"
+  },
+  {
+    "id": "evt_da8a3b02",
+    "type": "page_view",
+    "path": "/reseller/portal/licenses",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:18.392Z"
+  },
+  {
+    "id": "evt_7219a38b",
+    "type": "page_view",
+    "path": "/reseller/portal/payouts",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:17.123Z"
+  },
+  {
+    "id": "evt_ed9b3904",
+    "type": "page_view",
+    "path": "/reseller/portal/commissions",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:15.937Z"
+  },
+  {
+    "id": "evt_33653e0b",
+    "type": "page_view",
+    "path": "/reseller/portal/onboarding",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:14.421Z"
+  },
+  {
+    "id": "evt_fb28e922",
+    "type": "page_view",
+    "path": "/reseller/portal/analytics",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:21:06.578Z"
+  },
+  {
+    "id": "evt_6435e64e",
+    "type": "page_view",
+    "path": "/reseller/portal/onboarding",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/reseller/login",
+    "createdAt": "2026-03-25T19:20:42.135Z"
+  },
+  {
+    "id": "evt_c5df9126",
+    "type": "page_view",
+    "path": "/admin/resellers",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:20:13.906Z"
+  },
+  {
+    "id": "evt_26d6094e",
+    "type": "page_view",
+    "path": "/admin/payments",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:20:09.481Z"
+  },
+  {
+    "id": "evt_4a4abdb5",
+    "type": "page_view",
+    "path": "/admin/subscriptions",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:20:04.508Z"
+  },
+  {
+    "id": "evt_55837924",
+    "type": "page_view",
+    "path": "/admin/invoices",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:20:01.476Z"
+  },
+  {
+    "id": "evt_54734471",
+    "type": "page_view",
+    "path": "/admin/analytics",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:19:45.966Z"
+  },
+  {
+    "id": "evt_a5fc2ba7",
+    "type": "page_view",
+    "path": "/admin",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:19:36.144Z"
+  },
+  {
+    "id": "evt_80bfb9a4",
+    "type": "page_view",
+    "path": "/admin/login",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:19:33.419Z"
+  },
+  {
+    "id": "evt_09d4b40f",
+    "type": "page_view",
+    "path": "/admin",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:19:18.356Z"
+  },
+  {
+    "id": "evt_f3a5ba0c",
+    "type": "page_view",
+    "path": "/pricing",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/portal/analytics",
+    "createdAt": "2026-03-25T19:18:42.965Z"
+  },
+  {
+    "id": "evt_09d24d02",
+    "type": "cta_click",
+    "path": "/features",
+    "label": "Fiyatlar",
+    "href": "/pricing",
+    "context": "header_nav",
+    "createdAt": "2026-03-25T19:18:41.412Z"
+  },
+  {
+    "id": "evt_96b07a96",
+    "type": "page_view",
+    "path": "/features",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/portal/analytics",
+    "createdAt": "2026-03-25T19:18:41.069Z"
+  },
+  {
+    "id": "evt_8e71aaf1",
+    "type": "cta_click",
+    "path": "/login",
+    "label": "Ozellikler",
+    "href": "/features",
+    "context": "header_nav",
+    "createdAt": "2026-03-25T19:18:39.780Z"
+  },
+  {
+    "id": "evt_90e75832",
+    "type": "page_view",
+    "path": "/login?return_to=%2Fportal%2Fanalytics",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/portal/analytics",
+    "createdAt": "2026-03-25T19:18:29.286Z"
+  },
+  {
+    "id": "evt_49ce927c",
+    "type": "page_view",
+    "path": "/portal/analytics",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login?return_to=%2Fportal",
+    "createdAt": "2026-03-25T19:18:28.271Z"
+  },
+  {
+    "id": "evt_20b0dd32",
+    "type": "page_view",
+    "path": "/portal",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login?return_to=%2Fportal",
+    "createdAt": "2026-03-25T19:18:26.218Z"
+  },
+  {
+    "id": "evt_9e4ac244",
+    "type": "page_view",
+    "path": "/login?return_to=%2Fportal",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/portal",
+    "createdAt": "2026-03-25T19:18:03.549Z"
+  },
+  {
+    "id": "evt_78fe4f3f",
+    "type": "page_view",
+    "path": "/portal",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-25T19:18:02.658Z"
+  },
+  {
+    "id": "evt_423a7890",
+    "type": "page_view",
+    "path": "/login?return_to=%2Fportal",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/portal",
+    "createdAt": "2026-03-25T19:17:58.942Z"
+  },
+  {
+    "id": "evt_18611086",
+    "type": "page_view",
+    "path": "/portal",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-25T19:17:57.756Z"
+  },
+  {
+    "id": "evt_1cf8e146",
+    "type": "page_view",
+    "path": "/portal/onboarding",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-25T19:17:44.321Z"
+  },
+  {
+    "id": "evt_c1f23a92",
+    "type": "page_view",
+    "path": "/reseller/login",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:16:29.312Z"
+  },
+  {
+    "id": "evt_0a6a32a2",
+    "type": "page_view",
+    "path": "/admin/login",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:16:15.203Z"
+  },
+  {
+    "id": "evt_b26a7ec9",
+    "type": "page_view",
+    "path": "/login",
+    "context": "page_view",
+    "createdAt": "2026-03-25T19:15:58.373Z"
+  },
+  {
+    "id": "evt_c9c092a6",
+    "type": "page_view",
+    "path": "/admin/login",
+    "context": "page_view",
+    "createdAt": "2026-03-25T13:45:18.622Z"
+  },
+  {
+    "id": "evt_2f3246a9",
+    "type": "page_view",
+    "path": "/admin",
+    "context": "page_view",
+    "createdAt": "2026-03-25T13:45:14.040Z"
+  },
+  {
+    "id": "evt_9f19b62e",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-25T13:45:03.982Z"
+  },
+  {
+    "id": "evt_2191bc0f",
+    "type": "page_view",
+    "path": "/features",
+    "context": "page_view",
+    "createdAt": "2026-03-25T12:54:55.214Z"
+  },
+  {
+    "id": "evt_79b18c2c",
+    "type": "cta_click",
+    "path": "/",
+    "label": "Ozellikler",
+    "href": "/features",
+    "context": "header_nav",
+    "createdAt": "2026-03-25T12:54:54.365Z"
+  },
+  {
+    "id": "evt_beeb7666",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-25T12:54:01.824Z"
+  },
+  {
+    "id": "evt_43e6dafa",
+    "type": "page_view",
+    "path": "/pricing",
+    "context": "page_view",
+    "createdAt": "2026-03-19T14:06:19.712Z"
+  },
+  {
+    "id": "evt_13235b45",
+    "type": "cta_click",
+    "path": "/demo",
+    "label": "Fiyatlar",
+    "href": "/pricing",
+    "context": "header_nav",
+    "createdAt": "2026-03-19T14:06:18.990Z"
+  },
+  {
+    "id": "evt_062d4cac",
+    "type": "page_view",
+    "path": "/demo",
+    "context": "page_view",
+    "createdAt": "2026-03-19T14:06:13.367Z"
+  },
+  {
+    "id": "evt_f3c9759e",
+    "type": "cta_click",
+    "path": "/features",
+    "label": "Request Demo",
+    "href": "/demo",
+    "context": "features_master_hub_bottom",
+    "createdAt": "2026-03-19T14:06:12.048Z"
+  },
+  {
+    "id": "evt_3a5fc39b",
+    "type": "page_view",
+    "path": "/features",
+    "context": "page_view",
+    "createdAt": "2026-03-19T14:06:01.745Z"
+  },
+  {
+    "id": "evt_71492fbf",
+    "type": "cta_click",
+    "path": "/",
+    "label": "Ozellikler",
+    "href": "/features",
+    "context": "header_nav",
+    "createdAt": "2026-03-19T14:06:00.941Z"
+  },
+  {
+    "id": "evt_12766dff",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-19T14:05:35.681Z"
+  },
+  {
+    "id": "evt_d061c8b9",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-18T22:24:52.524Z"
+  },
+  {
+    "id": "evt_4dc73588",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-18T22:20:16.878Z"
+  },
+  {
+    "id": "evt_8d209ddd",
+    "type": "page_view",
+    "path": "/download",
+    "context": "page_view",
+    "createdAt": "2026-03-18T21:37:36.312Z"
+  },
+  {
+    "id": "evt_a8658aae",
+    "type": "cta_click",
+    "path": "/integrations",
+    "label": "Download",
+    "href": "/download",
+    "context": "header_nav",
+    "createdAt": "2026-03-18T21:37:33.989Z"
+  },
+  {
+    "id": "evt_19065dd1",
+    "type": "page_view",
+    "path": "/integrations",
+    "context": "page_view",
+    "createdAt": "2026-03-18T21:37:28.628Z"
+  },
+  {
+    "id": "evt_c97c7e45",
+    "type": "cta_click",
+    "path": "/features",
+    "label": "Integrations",
+    "href": "/integrations",
+    "context": "header_nav",
+    "createdAt": "2026-03-18T21:37:27.775Z"
+  },
+  {
+    "id": "evt_a9509ba5",
+    "type": "page_view",
+    "path": "/features",
+    "context": "page_view",
+    "createdAt": "2026-03-18T21:37:20.459Z"
+  },
+  {
+    "id": "evt_7d7a154d",
+    "type": "cta_click",
+    "path": "/pricing",
+    "label": "Features",
+    "href": "/features",
+    "context": "header_nav",
+    "createdAt": "2026-03-18T21:37:19.281Z"
+  },
+  {
+    "id": "evt_9f836394",
+    "type": "page_view",
+    "path": "/pricing",
+    "context": "page_view",
+    "createdAt": "2026-03-18T21:36:58.713Z"
+  },
+  {
+    "id": "evt_6b442eb1",
+    "type": "cta_click",
+    "path": "/",
+    "label": "Pricing",
+    "href": "/pricing",
+    "context": "header_nav",
+    "createdAt": "2026-03-18T21:36:57.450Z"
+  },
+  {
+    "id": "evt_661fc9e2",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-18T21:36:40.937Z"
+  }
+]

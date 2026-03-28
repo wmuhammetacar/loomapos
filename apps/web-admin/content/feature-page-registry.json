@@ -1,0 +1,1288 @@
+{
+  "version": 1,
+  "settings": {
+    "title_h1_similarity_threshold": 0.6,
+    "semantic_overlap_threshold": 0.78,
+    "differentiation_similarity_threshold": 0.75,
+    "max_repeated_sentence_ratio": 0.18,
+    "max_repeated_sentence_ratio_first_block": 0.1,
+    "max_total_internal_links": 14,
+    "max_links_per_section": {
+      "hero": 2,
+      "problem": 1,
+      "solution": 1,
+      "how_it_works": 1,
+      "benefits": 1,
+      "product_context": 1,
+      "integrations": 3,
+      "visual_proof": 1,
+      "faq": 2,
+      "differentiation": 1,
+      "cta": 2,
+      "related_features": 3,
+      "related_solutions": 3
+    },
+    "min_related_features": 2,
+    "max_related_features": 3
+  },
+  "features": [
+    {
+      "route": "/features/sales/sales",
+      "cluster": "sales",
+      "feature_slug": "sales",
+      "primary_keyword": "satis yonetimi",
+      "secondary_keywords": [
+        "hizli satis",
+        "kasa akis",
+        "barkodlu satis"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "webhook payload",
+        "erp connector schema"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Kasada yavaslayan akış, barkod hataları ve dağınık ödeme adımları satış kapasitesini düşürür.",
+      "solution": "Satis modulu, barkoddan sepet tamamlamaya kadar hizli ve tutarlı bir işlem hattı sunar.",
+      "how_it_works": [
+        "Urun barkodla veya aramayla eklenir.",
+        "Indirim ve toplamlar anlik hesaplanir.",
+        "Odeme secimiyle islem tamamlanir.",
+        "Sonuc raporlama akisina otomatik duser."
+      ],
+      "web_scope": "Website bu akışı satmaz; sadece tanıtır ve trial/pricing adımına taşır.",
+      "integration_notes": [
+        "Barkod cihazlari",
+        "Fis yazicilar",
+        "Odeme terminalleri"
+      ],
+      "faq": [
+        "Satis akisi webde mi calisiyor? Hayir, Desktop ve Mobile uygulamada.",
+        "Barkod donanimi destekleniyor mu? Evet, uyumlu cihaz listesiyle.",
+        "Kurulum zor mu? Onboarding adimlariyla yonlendirilir."
+      ],
+      "differentiation": {
+        "unique_claim": "Yuksek trafik saatlerinde kasiyer akisini donanimla birlikte istikrarda tutar.",
+        "specific_advantage": "speed",
+        "supporting_explanation": "Barkod, fis ve odeme adimlari tek operasyon hattinda calistigi icin islem suresi kisalir ve kasa kuyrugu azalir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/barkod-ve-tartim",
+          "/integrations/yazarkasa-ve-fiscal"
+        ],
+        "related_features": [
+          "/features/inventory/inventory",
+          "/features/reporting/reports",
+          "/features/integrations/cash-register-integrations"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/market",
+          "/solutions/restaurant"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Hizli Kasa ve Satis Akisi | LoomaPOS",
+      "h1": "Hizli Kasa Satis Akisi",
+      "benefits": [
+        "Kasa islemlerinde bekleme suresini azaltir.",
+        "Barkod ve odeme akisini daha tutarli hale getirir.",
+        "Ilk satisa gecis suresini kisaltir."
+      ],
+      "visual_proof": [
+        "Desktop satis ekrani",
+        "Mobile destek ekrani"
+      ],
+      "cluster_slug": "sales",
+      "legacy_slugs": [
+        "sales"
+      ],
+      "summary": "Hizli satis, barkod ve odeme akisini Desktop ve Mobile uygulamalarda yonetmenizi saglayan satis ozelligi.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Desktop satis ekrani",
+          "description": "Desktop satis ekrani goruntusu",
+          "platform": "desktop"
+        },
+        {
+          "title": "Mobile destek ekrani",
+          "description": "Mobile destek ekrani goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/sales",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/inventory/inventory",
+      "cluster": "inventory",
+      "feature_slug": "inventory",
+      "primary_keyword": "stok yonetimi",
+      "secondary_keywords": [
+        "stok takip",
+        "kritik stok",
+        "depo gorunurlugu"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "online tahsilat",
+        "webhook mapping"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Stok gorunurlugu eksik oldugunda satilabilir urun bulunurlugu duser ve siparis planlari hatali olur.",
+      "solution": "Stok modulu urun hareketlerini izleyip kritik seviyeleri netlestirerek kayip satisi azaltir.",
+      "how_it_works": [
+        "Urun kartlari ve esik seviyeleri tanimlanir.",
+        "Satis ve sayim verileri stok durumuna yansir.",
+        "Kritik stok uyarilari listelenir.",
+        "Ekip siparis ve replenishment kararini hizlandirir."
+      ],
+      "web_scope": "Web bu modulu aciklar; canli stok operasyonu uygulama yuzeylerinde yurur.",
+      "integration_notes": [
+        "Barkod okuyucu",
+        "Depo sayim ciktilari",
+        "Rapor modulu"
+      ],
+      "faq": [
+        "Stok webden mi yonetiliyor? Hayir, uygulama katmaninda.",
+        "Sube bazli stok izlenebilir mi? Evet.",
+        "Kritik stok uyarisi var mi? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Kritik stok riskini sadece raporlamaz, aksiyon listesine cevirir.",
+        "specific_advantage": "control",
+        "supporting_explanation": "Sayim ve satis verileri ayni modelde birlestigi icin hangi urune ne zaman mudahale edilecegi netlesir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/barkod-ve-tartim"
+        ],
+        "related_features": [
+          "/features/inventory/product-variants",
+          "/features/reporting/reports",
+          "/features/multi-branch/branch-management"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/market",
+          "/solutions/boutique"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Kritik Stok ve Envanter Kontrolu | LoomaPOS",
+      "h1": "Kritik Stok Kontrolu",
+      "benefits": [
+        "Kritik stok riskini erken gorunur yapar.",
+        "Sayim ve stok takibini tek akisa toplar.",
+        "Stok kaynakli satis kaybini azaltir."
+      ],
+      "visual_proof": [
+        "Desktop stok kartlari",
+        "Mobile sayim goruntusu"
+      ],
+      "cluster_slug": "inventory",
+      "legacy_slugs": [
+        "inventory"
+      ],
+      "summary": "Stok gorunurlugu, kritik seviye takibi ve sayim surecini uygulama katmaninda duzenleyen stok modulu.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Desktop stok kartlari",
+          "description": "Desktop stok kartlari goruntusu",
+          "platform": "desktop"
+        },
+        {
+          "title": "Mobile sayim goruntusu",
+          "description": "Mobile sayim goruntusu goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/inventory",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/reporting/reports",
+      "cluster": "reporting",
+      "feature_slug": "reports",
+      "primary_keyword": "raporlama",
+      "secondary_keywords": [
+        "satis raporu",
+        "kar zarar",
+        "performans analizi"
+      ],
+      "primary_intent": "informational",
+      "forbidden_topics": [
+        "cashier checkout",
+        "catalog editing"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Raporlama daginik oldugunda hangi subenin kar getirdigi ve hangi urunun riskli oldugu gec fark edilir.",
+      "solution": "Raporlar modulu gunluk performansi, marj gorunumunu ve trendleri karar alinabilir hale getirir.",
+      "how_it_works": [
+        "Rapor periyodu secilir.",
+        "Sube ve kategori karsilastirmasi yapilir.",
+        "Anomali ve dusuk performans alanlari isaretlenir.",
+        "Kararlar fiyat, stok ve ekip planina yansitilir."
+      ],
+      "web_scope": "Webde rapor calistirilmaz; rapor degeri ve kullanim senaryosu anlatilir.",
+      "integration_notes": [
+        "Satis verisi",
+        "Stok verisi",
+        "Sube segmentleri"
+      ],
+      "faq": [
+        "Raporlar hangi yuzeyde gorulur? Uygulama ve ilgili yonetim ekranlarinda.",
+        "Anlik KPI takibi var mi? Evet.",
+        "Raporlar pricing kararlarini destekler mi? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Sadece gecmis veriyi gostermek yerine aksiyonlanabilir performans sinyali uretir.",
+        "specific_advantage": "control",
+        "supporting_explanation": "Sube ve kategori karsilastirmalarini ayni akista sundugu icin yonetim ekibi hangi adimi atacagini hizla belirler."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/odeme-kuruluslari"
+        ],
+        "related_features": [
+          "/features/sales/sales",
+          "/features/inventory/inventory",
+          "/features/pricing-control/pricing-management"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/restaurant",
+          "/solutions/cafe"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Raporlama ve Karar Destek Analizi | LoomaPOS",
+      "h1": "Raporlama ve Karar Destek Analizi",
+      "benefits": [
+        "Sube performansini hizli karsilastirma imkani verir.",
+        "Karar alma suresini kisaltir.",
+        "Kar ve zarar takibini sadeleştirir."
+      ],
+      "visual_proof": [
+        "Dashboard KPI goruntusu",
+        "Mobile ozet rapor"
+      ],
+      "cluster_slug": "reporting",
+      "legacy_slugs": [
+        "reporting"
+      ],
+      "summary": "Satis, marj ve sube performansini karar alinabilir raporlarla izlemeyi saglayan raporlama ozelligi.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Dashboard KPI goruntusu",
+          "description": "Dashboard KPI goruntusu goruntusu",
+          "platform": "dashboard"
+        },
+        {
+          "title": "Mobile ozet rapor",
+          "description": "Mobile ozet rapor goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/reports",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/staff/staff-management",
+      "cluster": "staff",
+      "feature_slug": "staff-management",
+      "primary_keyword": "personel yonetimi",
+      "secondary_keywords": [
+        "yetki sistemi",
+        "vardiya",
+        "rol yonetimi"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "global audit log ownership",
+        "erp connector"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Rol ve yetki sinirlari net olmazsa hata, suistimal ve operasyon gecikmesi artar.",
+      "solution": "Personel yonetimi modulu role dayali erisim ve vardiya hazirligiyla ekip calismasini standartlastirir.",
+      "how_it_works": [
+        "Roller tanimlanir.",
+        "Yetkiler role baglanir.",
+        "Sube ve cihaz yetkileri uygulanir.",
+        "Vardiya bazli gorev dagilimi ile operasyon baslar."
+      ],
+      "web_scope": "Webde personel operasyonu yapilmaz; rol modelinin ticari etkisi anlatilir.",
+      "integration_notes": [
+        "Lisans cihaz limitleri",
+        "Sube yetkilendirme",
+        "Guvenlik politikasi"
+      ],
+      "faq": [
+        "Kasiyer ve yonetici yetkileri ayrilir mi? Evet.",
+        "Sube bazli erisim var mi? Evet.",
+        "Kurulumda destek var mi? Evet, onboarding ve support ile."
+      ],
+      "differentiation": {
+        "unique_claim": "Rol modelini teknik bir ayar olarak degil operasyon hizi ve risk kontrolu araci olarak konumlar.",
+        "specific_advantage": "simplicity",
+        "supporting_explanation": "Yetki kararlarini ekip rolune gore sade bir yapida sundugu icin yeni personel onboarding suresi kisalir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/docs/getting-started"
+        ],
+        "related_features": [
+          "/features/multi-branch/branch-management",
+          "/features/reporting/reports",
+          "/features/sales/sales"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/market"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Personel ve Yetki Yonetimi Ozelligi | LoomaPOS",
+      "h1": "Personel ve Yetki Yonetimi Ozelligi",
+      "benefits": [
+        "Rol bazli erisimle hatali islemleri azaltir.",
+        "Yeni ekip onboarding suresini kisaltir.",
+        "Operasyon guvenligini guclendirir."
+      ],
+      "visual_proof": [
+        "Rol/yetki matrisi",
+        "Mobile gorev gorunumu"
+      ],
+      "cluster_slug": "staff",
+      "legacy_slugs": [
+        "staff"
+      ],
+      "summary": "Rol bazli erisim, yetki sinirlari ve vardiya hazirligini sade bir akisla yoneten personel modulu.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Rol/yetki matrisi",
+          "description": "Rol/yetki matrisi goruntusu",
+          "platform": "desktop"
+        },
+        {
+          "title": "Mobile gorev gorunumu",
+          "description": "Mobile gorev gorunumu goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/staff-management",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/multi-branch/branch-management",
+      "cluster": "multi_branch",
+      "feature_slug": "branch-management",
+      "primary_keyword": "sube yonetimi",
+      "secondary_keywords": [
+        "merkezi kontrol",
+        "cok sube",
+        "rollout"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "global security governance",
+        "audit policy"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Cok subeli yapida lisans, cihaz ve operasyon dagitimi senkron degilse rollout gecikir.",
+      "solution": "Sube yonetimi modulu merkezi planlama ile lokasyon bazli uygulamayi ayni cizgide tutar.",
+      "how_it_works": [
+        "Subeler ve rollout sirasi belirlenir.",
+        "Lisans ve cihaz dagilimi planlanir.",
+        "Aktivasyon adimlari sube bazinda izlenir.",
+        "Merkez ekip gecikmeleri hizla giderir."
+      ],
+      "web_scope": "Website sube operasyonunu calistirmaz; rollout kararlarini netlestirir.",
+      "integration_notes": [
+        "Lisans/cihaz esleme",
+        "Sube raporlama",
+        "Yerel ekip onboarding"
+      ],
+      "faq": [
+        "Sube bazli cihaz limiti yonetilir mi? Evet.",
+        "Merkezden rollout gorunurlugu var mi? Evet.",
+        "Reseller rollout senaryosu desteklenir mi? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Cok subeli genislemeyi teknik kurulumdan ayirip yonetilebilir bir rollout modeline cevirir.",
+        "specific_advantage": "control",
+        "supporting_explanation": "Sube, lisans ve cihaz kararlarini ayni planlama akisinda topladigi icin daginik kurulum riskini azaltir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/yazarkasa-ve-fiscal"
+        ],
+        "related_features": [
+          "/features/staff/staff-management",
+          "/features/reporting/reports",
+          "/features/inventory/inventory"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/market",
+          "/solutions/restaurant"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Cok Sube Rollout ve Merkezi Planlama | LoomaPOS",
+      "h1": "Cok Sube Rollout Yonetimi",
+      "benefits": [
+        "Cok subeli rollout planini netlestirir.",
+        "Lisans ve cihaz dagitimini hizlandirir.",
+        "Merkezi kontrolu iyilestirir."
+      ],
+      "visual_proof": [
+        "Sube rollout paneli",
+        "Bolgesel durum gorunumu"
+      ],
+      "cluster_slug": "multi-branch",
+      "legacy_slugs": [
+        "branches"
+      ],
+      "summary": "Cok subeli yapida lisans, cihaz ve rollout planini merkezi olarak yonetmenizi saglayan sube modulu.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Sube rollout paneli",
+          "description": "Sube rollout paneli goruntusu",
+          "platform": "dashboard"
+        },
+        {
+          "title": "Bolgesel durum gorunumu",
+          "description": "Bolgesel durum gorunumu goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/branch-management",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/payments/online-payments",
+      "cluster": "payments",
+      "feature_slug": "online-payments",
+      "primary_keyword": "online odeme",
+      "secondary_keywords": [
+        "uzaktan tahsilat",
+        "odeme linki",
+        "tahsilat takibi"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "webhook payload mappings",
+        "erp connector schema",
+        "api handshake"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Tahsilat sureci daginik oldugunda geciken odemeler ve operasyonel belirsizlik artar.",
+      "solution": "Online odeme ozelligi tahsilat gorunurlugunu tek akisla toparlayip ekiplerin takip yukunu azaltir.",
+      "how_it_works": [
+        "Tahsilat senaryosu tanimlanir.",
+        "Odeme durumu takip edilir.",
+        "Ekipler gecikmeleri aksiyona cevirir.",
+        "Raporlama ile nakit akisi izlenir."
+      ],
+      "web_scope": "Webde canli odeme terminali yoktur; ozellik degeri ve kurulum adimlari anlatilir.",
+      "integration_notes": [
+        "Odeme kuruluslari",
+        "Tahsilat durum akisi",
+        "Raporlama baglantisi"
+      ],
+      "faq": [
+        "Online tahsilat nerede yonetilir? Uygulama ve ilgili operasyon katmaninda.",
+        "Web sitesi odeme ekrani mi? Hayir.",
+        "Tahsilatlar raporlarla takip edilir mi? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Tahsilat gorunurlugunu satis ve raporlama baglamina baglayarak gecikmeleri erken yakalar.",
+        "specific_advantage": "integration",
+        "supporting_explanation": "Odeme durumunu tek yerde topladigi icin ekipler manuel takip yerine aksiyon odakli calisir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/odeme-kuruluslari"
+        ],
+        "related_features": [
+          "/features/sales/sales",
+          "/features/reporting/reports",
+          "/features/integrations/cash-register-integrations"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/cafe"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Online Odeme ve Tahsilat Ozelligi | LoomaPOS",
+      "h1": "Online Odeme ve Tahsilat Ozelligi",
+      "benefits": [
+        "Tahsilat durumunu tek yerden izlemeyi kolaylastirir.",
+        "Geciken odemeleri erken yakalamayi saglar.",
+        "Nakit akisi takibini iyilestirir."
+      ],
+      "visual_proof": [
+        "Tahsilat durum paneli",
+        "Mobile takip gorunumu"
+      ],
+      "cluster_slug": "payments",
+      "legacy_slugs": [
+        "collections"
+      ],
+      "summary": "Uzaktan tahsilat durumunu takip ederek geciken odemeleri daha hizli aksiyona donusturen odeme ozelligi.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Tahsilat durum paneli",
+          "description": "Tahsilat durum paneli goruntusu",
+          "platform": "desktop"
+        },
+        {
+          "title": "Mobile takip gorunumu",
+          "description": "Mobile takip gorunumu goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/online-payments",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/inventory/product-variants",
+      "cluster": "inventory",
+      "feature_slug": "product-variants",
+      "primary_keyword": "urun varyantlari",
+      "secondary_keywords": [
+        "beden renk",
+        "sku varyant",
+        "varyantli urun"
+      ],
+      "primary_intent": "informational",
+      "forbidden_topics": [
+        "online tahsilat",
+        "provider webhook"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Varyantli urunlerde arama ve stok takibi daginiksa satis hizi ve dogrulugu duser.",
+      "solution": "Varyant yonetimi urun seceneklerini tutarli bir katalog modelinde birlestirir.",
+      "how_it_works": [
+        "Varyant nitelikleri tanimlanir.",
+        "SKU seviyesinde stok baglantisi kurulur.",
+        "Satis ve stok gorunurlugu varyant bazinda izlenir.",
+        "Raporlar varyant performansini gosterir."
+      ],
+      "web_scope": "Website varyant operasyonu yapmaz; urun karmasikligini nasil cozdgunu aciklar.",
+      "integration_notes": [
+        "Stok modulu",
+        "Rapor modulu",
+        "Sube katalog dagitimi"
+      ],
+      "faq": [
+        "Beden renk ayrimi destekleniyor mu? Evet.",
+        "Varyant stoklari ayri izlenebilir mi? Evet.",
+        "Butik senaryolari icin uygun mu? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Varyant karmasasini satis ve stok akisindan koparmadan yonetilebilir hale getirir.",
+        "specific_advantage": "simplicity",
+        "supporting_explanation": "Beden, renk ve SKU seviyesini ayni modelde tuttugu icin ekipler urun bulma ve stok kararini hizla verir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/barkod-ve-tartim"
+        ],
+        "related_features": [
+          "/features/inventory/inventory",
+          "/features/pricing-control/pricing-management",
+          "/features/reporting/reports"
+        ],
+        "related_solutions": [
+          "/solutions/boutique",
+          "/solutions/retail"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Urun Varyant Yonetimi Ozelligi | LoomaPOS",
+      "h1": "Urun Varyant Yonetimi Ozelligi",
+      "benefits": [
+        "Varyant karmasasini azaltir.",
+        "SKU bazli kontrolu artirir.",
+        "Urun bulma hizini artirir."
+      ],
+      "visual_proof": [
+        "Varyant katalog gorunumu",
+        "Mobile varyant arama"
+      ],
+      "cluster_slug": "inventory",
+      "legacy_slugs": [
+        "variants"
+      ],
+      "summary": "Beden, renk ve SKU seviyesindeki varyant karmasasini stok ve satis akisiyla birlikte yoneten ozellik.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Varyant katalog gorunumu",
+          "description": "Varyant katalog gorunumu goruntusu",
+          "platform": "desktop"
+        },
+        {
+          "title": "Mobile varyant arama",
+          "description": "Mobile varyant arama goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/product-variants",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/e-invoice/e-invoice",
+      "cluster": "e_invoice",
+      "feature_slug": "e-invoice",
+      "primary_keyword": "e-fatura entegrasyonu",
+      "secondary_keywords": [
+        "e-arsiv",
+        "belge uyumlulugu",
+        "fatura akis"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "checkout cashier step",
+        "online collection operations"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Belge uyumlulugu belirsiz oldugunda satin alma karari gecikir ve rollout riski artar.",
+      "solution": "E-fatura/e-arsiv ozelligi uyumluluk beklentisini acik senaryolarla netlestirir.",
+      "how_it_works": [
+        "Uyumluluk gereksinimi belirlenir.",
+        "Aktivasyon adimlari planlanir.",
+        "Belge durum gorunurlugu izlenir.",
+        "Operasyon ekibi uygulamada sureci yurutur."
+      ],
+      "web_scope": "Web yasal belge operasyonu yapmaz; uygunluk ve aktivasyon beklentisini anlatir.",
+      "integration_notes": [
+        "Belge servis baglantisi",
+        "Aktivasyon docs",
+        "Uyumluluk izleme"
+      ],
+      "faq": [
+        "E-fatura islemi webde mi yapilir? Hayir.",
+        "Uyumluluk adimlari dokumante mi? Evet.",
+        "Kurulum destegi var mi? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Uyumluluk konusunu teknik jargon yerine uygulanabilir onboarding adimlarina cevirir.",
+        "specific_advantage": "control",
+        "supporting_explanation": "Belge gereksinimlerini net rollout adimlariyla anlattigi icin satin alma oncesi risk algisini dusurur."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/e-fatura"
+        ],
+        "related_features": [
+          "/features/integrations/cash-register-integrations",
+          "/features/reporting/reports",
+          "/features/sales/sales"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/restaurant",
+          "/solutions/market"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "E-Fatura ve E-Arsiv Ozelligi | LoomaPOS",
+      "h1": "E-Fatura ve E-Arsiv Ozelligi",
+      "benefits": [
+        "Uyumluluk surecini daha net hale getirir.",
+        "Aktivasyon risklerini azaltir.",
+        "Satin alma oncesi belirsizligi dusurur."
+      ],
+      "visual_proof": [
+        "Belge durum paneli",
+        "Mobile belge ozeti"
+      ],
+      "cluster_slug": "e-invoice",
+      "legacy_slugs": [
+        "einvoice"
+      ],
+      "summary": "E-fatura uyumluluk sureci ve aktivasyon beklentilerini netlestiren e-belge ozelligi.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Belge durum paneli",
+          "description": "Belge durum paneli goruntusu",
+          "platform": "dashboard"
+        },
+        {
+          "title": "Mobile belge ozeti",
+          "description": "Mobile belge ozeti goruntusu",
+          "platform": "mobile"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/e-invoice",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/integrations/cash-register-integrations",
+      "cluster": "integrations",
+      "feature_slug": "cash-register-integrations",
+      "primary_keyword": "yazarkasa entegrasyonlari",
+      "secondary_keywords": [
+        "fiscal cihaz",
+        "yazarkasa uyumluluk",
+        "donanim entegrasyonu"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "online collection operations",
+        "subscription billing policy"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Donanim uyumlulugu belirsiz oldugunda degerlendirme sureci uzar ve satis ekibi teknik itirazlarla kilitlenir.",
+      "solution": "Yazarkasa entegrasyonlari ozelligi desteklenen senaryolari netlestirerek rollout kararini hizlandirir.",
+      "how_it_works": [
+        "Desteklenen cihaz senaryosu secilir.",
+        "Rollout onkosullari kontrol edilir.",
+        "Aktivasyon plani olusturulur.",
+        "Operasyon uygulamada canliya alinır."
+      ],
+      "web_scope": "Web baglanti uyumlulugunu anlatir; fiscal operasyonu uygulama katmaninda kalir.",
+      "integration_notes": [
+        "Yazarkasa/fiscal cihaz",
+        "Kurulum beklentisi",
+        "Teknik rollout adimlari"
+      ],
+      "faq": [
+        "Destekli cihaz listesi var mi? Evet.",
+        "Fiscal operasyon browserda mi? Hayir.",
+        "Rolloutta teknik destek var mi? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Cihaz uyumlulugunu satista gec aciklanan bir not yerine erken karar kriterine donusturur.",
+        "specific_advantage": "integration",
+        "supporting_explanation": "Destek kapsamini onboarding adimlariyla birlikte verdigi icin teknik belirsizlikten dogan kaybi azaltir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/integrations/yazarkasa-ve-fiscal",
+          "/integrations/barkod-ve-tartim"
+        ],
+        "related_features": [
+          "/features/sales/sales",
+          "/features/e-invoice/e-invoice",
+          "/features/multi-branch/branch-management"
+        ],
+        "related_solutions": [
+          "/solutions/market",
+          "/solutions/retail",
+          "/solutions/restaurant"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Yazarkasa Entegrasyon Ozelligi | LoomaPOS",
+      "h1": "Yazarkasa Entegrasyon Ozelligi",
+      "benefits": [
+        "Donanim uyumlulugunu erken netlestirir.",
+        "Teknik riskleri onboarding oncesinde azaltir.",
+        "Rollout surecini daha ongorulebilir yapar."
+      ],
+      "visual_proof": [
+        "Uyumluluk listesi",
+        "Desktop cihaz akis goruntusu"
+      ],
+      "cluster_slug": "integrations",
+      "legacy_slugs": [
+        "fiscal"
+      ],
+      "summary": "Fiscal cihaz uyumlulugu ve rollout gereksinimlerini erken asamada netlestiren entegrasyon ozelligi.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Uyumluluk listesi",
+          "description": "Uyumluluk listesi goruntusu",
+          "platform": "dashboard"
+        },
+        {
+          "title": "Desktop cihaz akis goruntusu",
+          "description": "Desktop cihaz akis goruntusu goruntusu",
+          "platform": "desktop"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/cash-register-integrations",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/pricing-control/pricing-management",
+      "cluster": "pricing_control",
+      "feature_slug": "pricing-management",
+      "primary_keyword": "fiyat yonetimi",
+      "secondary_keywords": [
+        "kampanya yonetimi",
+        "fiyat listesi",
+        "fiyat kurali"
+      ],
+      "primary_intent": "commercial",
+      "forbidden_topics": [
+        "subscription plan pricing",
+        "checkout routing",
+        "provider webhook"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Fiyat degisimi ve kampanya dagitimi daginik oldugunda marj kaybi ve sube tutarsizligi artar.",
+      "solution": "Fiyat yonetimi ozelligi listeleri ve kampanya zamanlamasini kontrollu bir akisla birlestirir.",
+      "how_it_works": [
+        "Fiyat listesi ve kampanya kurallari tanimlanir.",
+        "Sube bazli yayilim plani olusturulur.",
+        "Degisim etkisi raporlanir.",
+        "Ekipler uygulama katmaninda canli fiyatla calisir."
+      ],
+      "web_scope": "Website fiyat operasyonu yapmaz; kontrol modelini ve ticari etkisini aciklar.",
+      "integration_notes": [
+        "Sube rollout",
+        "Raporlama geri bildirimi",
+        "Kampanya planlama"
+      ],
+      "faq": [
+        "Kampanya kurallari merkezi mi? Evet.",
+        "Sube fiyat uyumu izlenir mi? Evet.",
+        "Abonelik plani fiyatiyla ayni sey mi? Hayir."
+      ],
+      "differentiation": {
+        "unique_claim": "Sik fiyat degisimini operasyon riski olmadan yonetilebilir bir ritme sokar.",
+        "specific_advantage": "control",
+        "supporting_explanation": "Liste, kampanya ve sube yayilimini ayni modelde takip ettigi icin fiyat tutarsizligi kaynakli kayiplari azaltir."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/docs/installation"
+        ],
+        "related_features": [
+          "/features/inventory/inventory",
+          "/features/reporting/reports",
+          "/features/multi-branch/branch-management"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/market",
+          "/solutions/boutique"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "meta_title": "Fiyat ve Kampanya Yonetimi Ozelligi | LoomaPOS",
+      "h1": "Fiyat ve Kampanya Yonetimi Ozelligi",
+      "benefits": [
+        "Kampanya ve fiyat dagitimini hizlandirir.",
+        "Sube fiyat tutarsizligini azaltir.",
+        "Marj kontrolunu guclendirir."
+      ],
+      "visual_proof": [
+        "Fiyat listesi paneli",
+        "Sube fiyat rollout gorunumu"
+      ],
+      "cluster_slug": "pricing-control",
+      "legacy_slugs": [
+        "pricing-management"
+      ],
+      "summary": "Fiyat listesi ve kampanya dagitimini sube bazli tutarlilikla yonetmenizi saglayan fiyat kontrol ozelligi.",
+      "locale": "tr",
+      "screenshots": [
+        {
+          "title": "Fiyat listesi paneli",
+          "description": "Fiyat listesi paneli goruntusu",
+          "platform": "desktop"
+        },
+        {
+          "title": "Sube fiyat rollout gorunumu",
+          "description": "Sube fiyat rollout gorunumu goruntusu",
+          "platform": "dashboard"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/pricing-management",
+        "/pricing"
+      ]
+    },
+    {
+      "route": "/features/admin/admin-control",
+      "cluster": "admin",
+      "cluster_slug": "admin",
+      "feature_slug": "admin-control",
+      "legacy_slugs": [
+        "dashboard"
+      ],
+      "locale": "tr",
+      "primary_keyword": "yonetim paneli",
+      "secondary_keywords": [
+        "merkezi yonetim",
+        "guvenlik ayarlari",
+        "audit log"
+      ],
+      "primary_intent": "commercial",
+      "meta_title": "Yonetim ve Denetim Paneli Ozelligi | LoomaPOS",
+      "h1": "Yonetim ve Denetim Paneli Ozelligi",
+      "summary": "Merkezi ayar, guvenlik ve denetim gorunurlugu ile cok subeli operasyonu kontrol eden yonetim paneli ozelligi.",
+      "forbidden_topics": [
+        "cashier checkout",
+        "online tahsilat akisi",
+        "sube ici stok operasyonu"
+      ],
+      "required_links": [
+        "/register",
+        "/pricing"
+      ],
+      "required_sections": [
+        "hero",
+        "problem",
+        "solution",
+        "how_it_works",
+        "benefits",
+        "product_context",
+        "integrations",
+        "visual_proof",
+        "faq",
+        "differentiation",
+        "cta"
+      ],
+      "problem": "Cok subeli yapida ayar, guvenlik ve denetim merkezi gorunmezse rol karmasasi ve operasyon riski buyur.",
+      "solution": "Yonetim paneli ozelligi global ayar, audit izleri ve guvenlik kontrollerini tek karar katmaninda toplar.",
+      "how_it_works": [
+        "Tenant ve sube kapsami secilir.",
+        "Yetki ve guvenlik politikasi merkezi panelde tanimlanir.",
+        "Audit kayitlari ve degisiklik etkileri izlenir.",
+        "Ekipler rollout oncesi riskleri giderip operasyonu guvenle surdurur."
+      ],
+      "web_scope": "Web bu ozelligin degerini aciklar; canli operasyon islemleri Desktop ve Mobile uygulamada kalir.",
+      "integration_notes": [
+        "Guvenlik politikasi",
+        "Audit log akisi",
+        "Tenant ayar yonetimi"
+      ],
+      "faq": [
+        "Yonetim paneli webden canli kasa islemi yapar mi? Hayir.",
+        "Global yetki ve guvenlik ayarlari merkezi yonetilir mi? Evet.",
+        "Audit gecmisi denetlenebilir mi? Evet.",
+        "Cok subeli rolloutta kullanilir mi? Evet."
+      ],
+      "differentiation": {
+        "unique_claim": "Operasyon katmanina dokunmadan merkezi ayar ve denetim gorunurlugunu tek panelde birlestirir.",
+        "specific_advantage": "control",
+        "supporting_explanation": "Global ayarlar, rol sinirlari ve audit izlerini ayni karar ekraninda sundugu icin ekipler daginik guvenlik yonetimi yerine standart bir yonetim ritmi kurar."
+      },
+      "section_links": {
+        "hero": [
+          "/register",
+          "/pricing"
+        ],
+        "integrations": [
+          "/security",
+          "/docs/getting-started"
+        ],
+        "related_features": [
+          "/features/staff/staff-management",
+          "/features/multi-branch/branch-management",
+          "/features/reporting/reports"
+        ],
+        "related_solutions": [
+          "/solutions/retail",
+          "/solutions/market",
+          "/solutions/restaurant"
+        ],
+        "cta": [
+          "/register",
+          "/pricing"
+        ]
+      },
+      "benefits": [
+        "Merkezi ayar ve denetim gorunurlugu saglar.",
+        "Guvenlik ve rol karmasasini azaltir.",
+        "Rollout oncesi riskleri erken yakalar."
+      ],
+      "visual_proof": [
+        "Yonetim paneli genel gorunumu",
+        "Audit kayit zaman cizgisi"
+      ],
+      "screenshots": [
+        {
+          "title": "Yonetim paneli genel gorunumu",
+          "description": "Merkezi ayar ve tenant kontrol panosu goruntusu",
+          "platform": "dashboard"
+        },
+        {
+          "title": "Audit kayit zaman cizgisi",
+          "description": "Degisiklik ve denetim kayitlari goruntusu",
+          "platform": "desktop"
+        }
+      ],
+      "comparison_links": [
+        "/alternatives",
+        "/compare/admin-control",
+        "/pricing"
+      ]
+    }
+  ]
+}
