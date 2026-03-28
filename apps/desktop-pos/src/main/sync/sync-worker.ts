@@ -13,6 +13,7 @@ import {
   markAsSending,
   markAsSent,
   OutboxEvent,
+  recoverStaleSendingEvents,
   resetDeadLetterEvents
 } from "./outbox-repository.js";
 import {
@@ -24,6 +25,7 @@ import {
   updateLocalSessionRoles,
   upsertLocalBranch
 } from "../storage/local-state-repository.js";
+import { deriveSyncDiagnostics, type SyncDiagnosticsSnapshot } from "./sync-diagnostics.js";
 
 const SYNC_INTERVAL_MS = 5000;
 const PULL_SYNC_INTERVAL_MS = 30000;
@@ -31,6 +33,7 @@ const HEARTBEAT_INTERVAL_MS = 60000;
 const BASE_RETRY_DELAY_MS = 3000;
 const MAX_RETRY_DELAY_MS = 5 * 60 * 1000;
 const MAX_RETRY_COUNT = 8;
+const STALE_SENDING_THRESHOLD_MS = 90_000;
 
 export interface SyncStatus {
   isRunning: boolean;
@@ -38,6 +41,13 @@ export interface SyncStatus {
   failed: number;
   sent: number;
   deadLetter: number;
+  oldestFailedAt: string | null;
+  failedReasons: Array<{
+    errorCode: string;
+    count: number;
+    sampleMessage: string | null;
+    latestAt: string | null;
+  }>;
   lastRunAt: string | null;
   lastSuccessAt: string | null;
   lastPullAt: string | null;
@@ -50,7 +60,7 @@ export interface SyncStatus {
 
 interface SyncAckItem {
   eventId: string;
-  status: "accepted" | "duplicate" | "rejected" | "retry_later" | "device_invalid" | "license_invalid";
+  status: "accepted" | "duplicate" | "rejected" | "retry_later" | "device_invalid" | "license_invalid" | "subscription_state_blocked";
   alreadyProcessed: boolean;
   message: string;
   errorCode?: string | null;
@@ -94,6 +104,8 @@ const syncStatus: SyncStatus = {
   failed: 0,
   sent: 0,
   deadLetter: 0,
+  oldestFailedAt: null,
+  failedReasons: [],
   lastRunAt: null,
   lastSuccessAt: null,
   lastPullAt: null,
@@ -146,6 +158,8 @@ const updateSummaryFromDb = () => {
   syncStatus.failed = outboxSummary.failed + fiscalSummary.failed;
   syncStatus.sent = outboxSummary.sent + fiscalSummary.sent;
   syncStatus.deadLetter = outboxSummary.deadLetter;
+  syncStatus.oldestFailedAt = outboxSummary.oldestFailedAt;
+  syncStatus.failedReasons = outboxSummary.failedReasons;
   syncStatus.lastTryAt = pickLatestIso(outboxSummary.lastTryAt, fiscalSummary.lastTryAt);
   syncStatus.lastError = outboxSummary.lastError ?? fiscalSummary.lastError ?? null;
 
@@ -176,19 +190,33 @@ const handleAck = (event: OutboxEvent, ack: SyncAckItem) => {
       return;
 
     case "device_invalid":
-    case "license_invalid": {
+    case "license_invalid":
+    case "subscription_state_blocked": {
       markAsDeadLetter({
         eventId: event.eventId,
         errorCode: ack.errorCode ?? ack.status,
         errorMessage: ack.message
       });
+
       const current = getLicenseRuntimeStatus();
+      const lifecycleMatch = ack.message?.match(/state\s+([a-z_]+)/i);
+      const lifecycleState = lifecycleMatch?.[1]?.toLowerCase() ?? null;
+      const writeBlockedState = lifecycleState === "trial_expired";
+
       setLicenseRuntimeStatus({
         ...current,
-        status: "LOCKED",
+        status: writeBlockedState ? "READ_ONLY" : "LOCKED",
+        lifecycleState: lifecycleState ?? current.lifecycleState ?? "suspended_blocked",
+        canCheckout: false,
+        canWrite: false,
+        canSync: false,
+        canView: true,
+        requiresUpgradeAction: true,
+        requiresBlock: !writeBlockedState,
         message: ack.message,
         lastCheckedAt: new Date().toISOString()
       });
+
       syncStatus.blockedReason = ack.message;
       return;
     }
@@ -448,6 +476,17 @@ const runSyncLoop = async () => {
 };
 
 export const startSyncWorker = () => {
+  const recovery = recoverStaleSendingEvents({
+    staleThresholdMs: STALE_SENDING_THRESHOLD_MS,
+    maxRetryCount: MAX_RETRY_COUNT,
+    baseRetryDelayMs: BASE_RETRY_DELAY_MS,
+    maxRetryDelayMs: MAX_RETRY_DELAY_MS
+  });
+
+  if (recovery.recoveredToFailed > 0 || recovery.movedToDeadLetter > 0) {
+    syncStatus.lastError = 'Recovered ' + recovery.recoveredToFailed + ' stale sending events and moved ' + recovery.movedToDeadLetter + ' to dead-letter.';
+  }
+
   updateSummaryFromDb();
   void runSyncLoop();
 
@@ -463,6 +502,11 @@ export const triggerSyncNow = async () => {
 export const retryDeadLetterSync = async () => {
   resetDeadLetterEvents();
   await runSyncLoop();
+};
+
+export const getSyncDiagnostics = (): SyncDiagnosticsSnapshot => {
+  updateSummaryFromDb();
+  return deriveSyncDiagnostics(syncStatus);
 };
 
 export const getSyncStatus = (): SyncStatus => {

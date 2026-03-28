@@ -8,6 +8,7 @@ import type {
   DesktopRefundCandidateSale,
   DesktopRefundPaymentMode,
   DesktopShiftSummary,
+  DesktopSyncDiagnostics,
   DesktopSyncStatus,
   DesktopXReportSummary,
   DesktopZReportPreview
@@ -100,7 +101,16 @@ const getInitialAppInfo = (): AppInfoState => ({
     maxDevices: null,
     activeDevices: null,
     message: null,
-    lastCheckedAt: null
+    lastCheckedAt: null,
+    lifecycleState: null,
+    allowedActions: [],
+    blockedActions: [],
+    canCheckout: false,
+    canWrite: false,
+    canSync: false,
+    canView: true,
+    requiresUpgradeAction: false,
+    requiresBlock: false
   },
   shift: null
 });
@@ -113,6 +123,113 @@ const parseAmountInput = (value: string) => {
     return 0;
   }
   return Math.max(0, parsed);
+};
+
+type TrialLifecycleState =
+  | "trial_active"
+  | "trial_expiring"
+  | "trial_expired"
+  | "subscription_active"
+  | "subscription_past_due"
+  | "subscription_canceled"
+  | "suspended_blocked";
+
+interface TrialLifecycleDescriptor {
+  state: TrialLifecycleState;
+  label: string;
+  message: string;
+  nextAction: string;
+  allowedActions: string[];
+  blockedActions: string[];
+  daysRemaining: number | null;
+}
+
+const getDaysRemaining = (expiresAt: string | null) => {
+  if (!expiresAt) {
+    return null;
+  }
+  const end = new Date(expiresAt).getTime();
+  if (Number.isFinite(end) === false) {
+    return null;
+  }
+  return Math.max(0, Math.ceil((end - Date.now()) / (24 * 60 * 60 * 1000)));
+};
+
+const normalizeLifecycleState = (rawState: string | null | undefined): TrialLifecycleState => {
+  const normalized = (rawState ?? "").trim().toLowerCase();
+  if (normalized === "trial_active") {
+    return "trial_active";
+  }
+  if (normalized === "trial_expiring" || normalized === "trial_expiring_soon") {
+    return "trial_expiring";
+  }
+  if (normalized === "trial_expired" || normalized === "trial_expired_read_only") {
+    return "trial_expired";
+  }
+  if (normalized === "subscription_past_due" || normalized === "past_due" || normalized === "past-due") {
+    return "subscription_past_due";
+  }
+  if (normalized === "subscription_canceled" || normalized === "canceled" || normalized === "cancelled") {
+    return "subscription_canceled";
+  }
+  if (normalized === "suspended_blocked" || normalized === "suspended" || normalized === "blocked" || normalized === "revoked") {
+    return "suspended_blocked";
+  }
+  return "subscription_active";
+};
+
+const lifecycleTextByState: Record<TrialLifecycleState, Pick<TrialLifecycleDescriptor, "label" | "message" | "nextAction">> = {
+  trial_active: {
+    label: "Deneme aktif",
+    message: "Deneme suresi aktif. Operasyon yazma islemleri acik.",
+    nextAction: "Bitmeden once uygun plani secin"
+  },
+  trial_expiring: {
+    label: "Deneme bitmek uzere",
+    message: "Deneme suresi kritik seviyede. Kesinti olmamasi icin plan secimi yapin.",
+    nextAction: "Kesinti olmamasi icin plani netlestirin"
+  },
+  trial_expired: {
+    label: "Deneme bitti / salt-okunur",
+    message: "Deneme suresi doldu. Yazma islemleri kapali, goruntuleme acik.",
+    nextAction: "Devam etmek icin ucretli plana gecin"
+  },
+  subscription_active: {
+    label: "Abonelik aktif",
+    message: "Abonelik aktif. Tum izinli operasyon akislari acik.",
+    nextAction: "Normal operasyona devam"
+  },
+  subscription_past_due: {
+    label: "Odeme gecikmis",
+    message: "Abonelik odemesi gecikmis. Operasyon acik, yeni cihaz aktivasyonu kisitli olabilir.",
+    nextAction: "Odeme durumunu portalden guncelleyin"
+  },
+  subscription_canceled: {
+    label: "Abonelik iptal",
+    message: "Abonelik iptal isaretli. Donem sonuna kadar operasyon acik olabilir.",
+    nextAction: "Devam etmek icin aboneligi yeniden etkinlestirin"
+  },
+  suspended_blocked: {
+    label: "Askida / bloklu",
+    message: "Hesap bloklu oldugu icin operasyon yazma akisleri kapali.",
+    nextAction: "Portalden durum kontrolu yapin veya destekle iletisime gecin"
+  }
+};
+
+const resolveDesktopTrialLifecycle = (license: DesktopLicenseStatus): TrialLifecycleDescriptor => {
+  const state = normalizeLifecycleState(license.lifecycleState);
+  const copy = lifecycleTextByState[state];
+  const daysRemaining = getDaysRemaining(license.expiresAt);
+
+  return {
+    state,
+    label: copy.label,
+    message: copy.message,
+    nextAction: copy.nextAction,
+    allowedActions: license.allowedActions.length > 0 ? license.allowedActions : ["-"],
+    blockedActions: license.blockedActions.length > 0 ? license.blockedActions : ["-"],
+    daysRemaining
+  };
 };
 
 const calcLineTotal = (qty: number, unitPrice: number, discount: number, taxRate: number) => {
@@ -157,6 +274,7 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   const [showSaleCompleted, setShowSaleCompleted] = useState(false);
 
   const [syncStatus, setSyncStatus] = useState<DesktopSyncStatus | null>(null);
+  const [syncDiagnostics, setSyncDiagnostics] = useState<DesktopSyncDiagnostics | null>(null);
   const [shiftSummary, setShiftSummary] = useState<DesktopShiftSummary | null>(null);
   const [openingShiftCash, setOpeningShiftCash] = useState("0.00");
   const [cashAdjustmentType, setCashAdjustmentType] = useState<"cash_in" | "cash_out" | "correction">("cash_out");
@@ -203,6 +321,17 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
       total: round2(Math.max(0, subtotal - discount + tax))
     };
   }, [cart, headerDiscount]);
+
+  const lifecycle = useMemo(() => resolveDesktopTrialLifecycle(appInfo.license), [appInfo.license]);
+  const writeLocked = appInfo.license.canWrite === false;
+
+  const ensureOperationalWriteAllowed = () => {
+    if (writeLocked) {
+      pushToast("warning", lifecycle.label + ": " + lifecycle.message);
+      return false;
+    }
+    return true;
+  };
 
   const selectedReceiptRefundLines = useMemo(() => {
     if (!refundCandidate) {
@@ -258,8 +387,15 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
     return round2(selectedDirectRefundLines.reduce((sum, item) => sum + item.lineTotal, 0));
   }, [refundMode, selectedDirectRefundLines, selectedReceiptRefundLines]);
 
-  const pendingSyncCount = (syncStatus?.pending ?? 0) + (syncStatus?.failed ?? 0) + (syncStatus?.deadLetter ?? 0);
-  const syncWarningText = pendingSyncCount > 0 ? `${pendingSyncCount} islem senkron bekliyor` : "Senkron normal";
+  const pendingSyncCount = syncDiagnostics?.pendingCount ?? (syncStatus?.pending ?? 0);
+  const failedSyncCount = syncDiagnostics?.failedCount ?? ((syncStatus?.failed ?? 0) + (syncStatus?.deadLetter ?? 0));
+  const syncHealth = syncDiagnostics?.health ?? "delayed";
+  const syncHealthLabel = syncHealth === "healthy" ? "healthy" : syncHealth === "failed" ? "failed" : "delayed";
+  const syncWarningText = failedSyncCount > 0
+    ? `${failedSyncCount} sync hatasi var`
+    : pendingSyncCount > 0
+      ? `${pendingSyncCount} islem senkron bekliyor`
+      : "Senkron normal";
   const cloudOnline = isOnline && (syncStatus?.connectionQuality ?? "online") !== "offline";
   const hasDraft = cart.length > 0 || headerDiscount > 0 || customerName.trim().length > 0;
   const activeShift = shiftSummary?.activeSession ?? null;
@@ -335,13 +471,18 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
         payloadJson: JSON.stringify({
           cart,
           headerDiscount,
-          customerName
+          customerName,
+          paymentDraft: {
+            method: paymentMethod,
+            cashReceived: Number.isFinite(Number(cashReceived)) ? parseAmountInput(cashReceived) : null
+          },
+          updatedAt: new Date().toISOString()
         })
       });
     }, 180);
 
     return () => window.clearTimeout(timer);
-  }, [appInfo.tenantId, cart, customerName, hasDraft, headerDiscount]);
+  }, [appInfo.tenantId, cart, cashReceived, customerName, hasDraft, headerDiscount, paymentMethod]);
 
   useEffect(() => {
     if (activeModal !== "DAY_END") {
@@ -449,23 +590,25 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
       shift: info.shift ?? null
     });
     setSyncStatus(info.sync);
+    setSyncDiagnostics(await window.posApi.getSyncDiagnostics());
     setShiftSummary(info.shift ?? null);
 
-    const draft = await window.posApi.getCartDraft();
-    if (draft?.payloadJson) {
-      try {
-        const parsed = JSON.parse(draft.payloadJson) as {
-          cart?: CartLine[];
-          headerDiscount?: number;
-          customerName?: string;
-        };
-        setCart(Array.isArray(parsed.cart) ? parsed.cart : []);
-        setHeaderDiscount(Number(parsed.headerDiscount ?? 0));
-        setDiscountDraft(Number(parsed.headerDiscount ?? 0).toFixed(2));
-        setCustomerName(parsed.customerName ?? "");
-      } catch {
-        // Ignore corrupted draft and continue with empty cart.
+    const recoveredDraft = await window.posApi.restoreCartDraft();
+    if (recoveredDraft.restored && recoveredDraft.draft) {
+      setCart(recoveredDraft.draft.cart);
+      setHeaderDiscount(recoveredDraft.draft.headerDiscount);
+      setDiscountDraft(recoveredDraft.draft.headerDiscount.toFixed(2));
+      setCustomerName(recoveredDraft.draft.customerName);
+      setPaymentMethod(recoveredDraft.draft.paymentDraft.method);
+      setCashReceived((recoveredDraft.draft.paymentDraft.cashReceived ?? 0).toFixed(2));
+
+      if (recoveredDraft.warningCode === "missing_products" && recoveredDraft.skippedProductCount > 0) {
+        pushToast("warning", recoveredDraft.skippedProductCount + " urun taslagi atlandi.");
       }
+    } else if (recoveredDraft.warningCode === "stale") {
+      pushToast("warning", "Kayitli sepet taslagi eski oldugu icin yuklenmedi.");
+    } else if (recoveredDraft.warningCode === "invalid") {
+      pushToast("warning", "Kayitli sepet taslagi bozuk oldugu icin temizlendi.");
     }
 
     await Promise.all([searchProducts(), refreshSync(), refreshShiftStatus(), refreshSummary(reportDate)]);
@@ -481,8 +624,12 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   }
 
   async function refreshSync() {
-    const status = await window.posApi.getSyncStatus();
+    const [status, diagnostics] = await Promise.all([
+      window.posApi.getSyncStatus(),
+      window.posApi.getSyncDiagnostics()
+    ]);
     setSyncStatus(status);
+    setSyncDiagnostics(diagnostics);
   }
 
   async function refreshShiftStatus() {
@@ -601,6 +748,15 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   }
 
   function openPaymentModal(method: PaymentMethod) {
+    if (ensureOperationalWriteAllowed() === false) {
+      return;
+    }
+
+    if (appInfo.license.canCheckout === false) {
+      pushToast("warning", "Bu abonelik durumunda checkout kapali.");
+      return;
+    }
+
     if (cart.length === 0) {
       pushToast("warning", "Sepet bos.");
       return;
@@ -629,6 +785,15 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   }
 
   async function completeSale(method: PaymentMethod) {
+    if (ensureOperationalWriteAllowed() === false) {
+      return;
+    }
+
+    if (appInfo.license.canCheckout === false) {
+      pushToast("warning", "Bu abonelik durumunda checkout kapali.");
+      return;
+    }
+
     if (cart.length === 0) {
       pushToast("warning", "Sepette urun yok.");
       return;
@@ -711,6 +876,7 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
     try {
       const next = await window.posApi.syncNow();
       setSyncStatus(next);
+      setSyncDiagnostics(await window.posApi.getSyncDiagnostics());
       await refreshShiftStatus();
       if (next.failed > 0) {
         pushToast("warning", "Sync sorunlu, tekrar denenecek.");
@@ -725,6 +891,7 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
     try {
       const next = await window.posApi.retryDeadLetterSync();
       setSyncStatus(next);
+      setSyncDiagnostics(await window.posApi.getSyncDiagnostics());
       pushToast("success", "Dead-letter olaylari tekrar kuyruga alindi.");
     } catch (error) {
       pushToast("danger", error instanceof Error ? error.message : "Dead-letter retry basarisiz.");
@@ -734,6 +901,10 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   }
 
   async function openShiftFlow() {
+    if (ensureOperationalWriteAllowed() === false) {
+      return;
+    }
+
     setIsSubmittingShift(true);
     try {
       await window.posApi.openShift({
@@ -750,6 +921,10 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   }
 
   async function recordCashAdjustmentFlow() {
+    if (ensureOperationalWriteAllowed() === false) {
+      return;
+    }
+
     setIsRecordingCashAdjustment(true);
     try {
       await window.posApi.recordCashAdjustment({
@@ -770,6 +945,10 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   }
 
   function openRefundModal() {
+    if (ensureOperationalWriteAllowed() === false) {
+      return;
+    }
+
     setRefundMode("RECEIPT");
     setRefundSearchValue("");
     setRefundCandidate(null);
@@ -881,6 +1060,10 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
   }
 
   async function completeRefund() {
+    if (ensureOperationalWriteAllowed() === false) {
+      return;
+    }
+
     const lines =
       refundMode === "RECEIPT"
         ? selectedReceiptRefundLines.map((item) => ({
@@ -1155,10 +1338,10 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
           </section>
 
           <section className="payment-actions">
-            <button className="cta-button cash" disabled={isCompleting} onClick={() => openPaymentModal("CASH")}>
+            <button className="cta-button cash" disabled={isCompleting || writeLocked || appInfo.license.canCheckout === false} onClick={() => openPaymentModal("CASH")}>
               NAKIT (F9)
             </button>
-            <button className="cta-button card" disabled={isCompleting} onClick={() => openPaymentModal("CARD")}>
+            <button className="cta-button card" disabled={isCompleting || writeLocked || appInfo.license.canCheckout === false} onClick={() => openPaymentModal("CARD")}>
               KART (F10)
             </button>
             <small>Enter: varsayilan odeme ({paymentMethod === "CASH" ? "Nakit" : "Kart"})</small>
@@ -1167,7 +1350,7 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
           <section className="info-card">
             <div className="info-header">
               <h3>Vardiya</h3>
-              <button className="btn-secondary btn-small" onClick={() => setActiveModal("SHIFT")}>
+              <button className="btn-secondary btn-small" onClick={() => setActiveModal("SHIFT")} disabled={writeLocked}>
                 {activeShift ? "Yonet" : "Ac"}
               </button>
             </div>
@@ -1202,15 +1385,19 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
               {cloudOnline ? "Online ve senkron aktif" : "Baglanti sorunlu, kasa calismaya devam eder"}
             </p>
             <p className="muted-text">
-              Bekleyen: {syncStatus?.pending ?? 0} | Hatali: {syncStatus?.failed ?? 0} | Dead-letter: {syncStatus?.deadLetter ?? 0}
+              Pending: {pendingSyncCount} | Failed: {failedSyncCount}
             </p>
+            <p className="muted-text">
+              Last Sync: {syncDiagnostics?.lastSuccessfulSyncAt ? new Date(syncDiagnostics.lastSuccessfulSyncAt).toLocaleString("tr-TR") : "never"}
+            </p>
+            <p className={`sync-health sync-health-${syncHealth}`}>Health: {syncHealthLabel}</p>
             {syncStatus?.blockedReason ? <p className="status-warn">{syncStatus.blockedReason}</p> : null}
           </section>
 
           <section className="info-card">
             <div className="info-header">
               <h3>Kasa Hareketi</h3>
-              <button className="btn-secondary btn-small" onClick={() => setActiveModal("CASH_ADJUSTMENT")}>
+              <button className="btn-secondary btn-small" onClick={() => setActiveModal("CASH_ADJUSTMENT")} disabled={writeLocked}>
                 Ekle
               </button>
             </div>
@@ -1229,17 +1416,21 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
                 Yenile
               </button>
             </div>
-            <p className={appInfo.license.status === "ACTIVE" ? "status-ok" : appInfo.license.status === "READ_ONLY" ? "status-warn" : "status-warn"}>
-              Mod: {appInfo.license.status}
+            <p className={writeLocked ? "status-warn" : "status-ok"}>
+              Durum: {lifecycle.label}
             </p>
+            <p className="muted-text">{lifecycle.message}</p>
             <p className="muted-text">
               Plan: {(appInfo.license.planCode ?? "-").toUpperCase()} | Cihaz: {appInfo.license.activeDevices ?? 0}
-              {appInfo.license.maxDevices ? ` / ${appInfo.license.maxDevices}` : " / limitsiz"}
+              {appInfo.license.maxDevices ? " / " + appInfo.license.maxDevices : " / limitsiz"}
             </p>
             <p className="muted-text">
               Bitis: {appInfo.license.expiresAt ? new Date(appInfo.license.expiresAt).toLocaleDateString("tr-TR") : "-"}
+              {lifecycle.daysRemaining !== null ? " (" + lifecycle.daysRemaining + " gun)" : ""}
             </p>
-            {appInfo.license.message ? <p className="status-warn">{appInfo.license.message}</p> : null}
+            <p className="muted-text">Acik: {lifecycle.allowedActions.join(" • ")}</p>
+            <p className="muted-text">Kapali: {lifecycle.blockedActions.join(" • ")}</p>
+            <p className="status-warn">Sonraki adim: {lifecycle.nextAction}</p>
           </section>
 
           <section className="info-card">
@@ -1281,7 +1472,7 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
           <strong>F1</strong>
           <span>Yeni Satis</span>
         </button>
-        <button className="hotkey-button" onClick={openRefundModal}>
+        <button className="hotkey-button" onClick={openRefundModal} disabled={writeLocked}>
           <strong>F2</strong>
           <span>Iade</span>
         </button>
@@ -1293,11 +1484,11 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
           <strong>F4</strong>
           <span>Musteri</span>
         </button>
-        <button className="hotkey-button" onClick={() => setActiveModal("SHIFT")}>
+        <button className="hotkey-button" onClick={() => setActiveModal("SHIFT")} disabled={writeLocked}>
           <strong>F5</strong>
           <span>Vardiya</span>
         </button>
-        <button className="hotkey-button" onClick={() => setActiveModal("CASH_ADJUSTMENT")}>
+        <button className="hotkey-button" onClick={() => setActiveModal("CASH_ADJUSTMENT")} disabled={writeLocked}>
           <strong>F6</strong>
           <span>Kasa Hareketi</span>
         </button>
@@ -1341,7 +1532,7 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
                 </div>
                 <div className="modal-actions">
                   <button className="btn-secondary" onClick={closeModal}>Vazgec</button>
-                  <button className="btn-primary" onClick={() => void completeSale("CASH")} disabled={isCompleting}>
+                  <button className="btn-primary" onClick={() => void completeSale("CASH")} disabled={isCompleting || writeLocked || appInfo.license.canCheckout === false}>
                     {isCompleting ? "Tamamlaniyor..." : "Satisi Tamamla"}
                   </button>
                 </div>
@@ -1361,7 +1552,7 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
                 </label>
                 <div className="modal-actions">
                   <button className="btn-secondary" onClick={closeModal}>Vazgec</button>
-                  <button className="btn-primary" onClick={() => void completeSale("CARD")} disabled={isCompleting || !cardConfirmed}>
+                  <button className="btn-primary" onClick={() => void completeSale("CARD")} disabled={isCompleting || writeLocked || appInfo.license.canCheckout === false || !cardConfirmed}>
                     {isCompleting ? "Tamamlaniyor..." : "Satisi Tamamla"}
                   </button>
                 </div>
@@ -1646,15 +1837,27 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
                 <h2>SENKRON TANI PANELI</h2>
                 <div className="report-grid">
                   <span>Baglanti</span><strong>{syncStatus?.connectionQuality ?? "-"}</strong>
-                  <span>Bekleyen</span><strong>{syncStatus?.pending ?? 0}</strong>
-                  <span>Hatali</span><strong>{syncStatus?.failed ?? 0}</strong>
+                  <span>Health</span><strong>{syncHealthLabel}</strong>
+                  <span>Bekleyen</span><strong>{pendingSyncCount}</strong>
+                  <span>Hatali</span><strong>{failedSyncCount}</strong>
                   <span>Dead-letter</span><strong>{syncStatus?.deadLetter ?? 0}</strong>
-                  <span>Son push</span><strong>{syncStatus?.lastSuccessAt ? new Date(syncStatus.lastSuccessAt).toLocaleString("tr-TR") : "-"}</strong>
+                  <span>En eski hata</span><strong>{syncStatus?.oldestFailedAt ? new Date(syncStatus.oldestFailedAt).toLocaleString("tr-TR") : "-"}</strong>
+                  <span>Son push</span><strong>{syncDiagnostics?.lastSuccessfulSyncAt ? new Date(syncDiagnostics.lastSuccessfulSyncAt).toLocaleString("tr-TR") : "-"}</strong>
                   <span>Son pull</span><strong>{syncStatus?.lastPullAt ? new Date(syncStatus.lastPullAt).toLocaleString("tr-TR") : "-"}</strong>
                   <span>Heartbeat</span><strong>{syncStatus?.lastHeartbeatAt ? new Date(syncStatus.lastHeartbeatAt).toLocaleString("tr-TR") : "-"}</strong>
                 </div>
                 {syncStatus?.lastError ? <p className="status-warn">{syncStatus.lastError}</p> : null}
                 {syncStatus?.blockedReason ? <p className="status-warn">{syncStatus.blockedReason}</p> : null}
+                {syncStatus?.failedReasons?.length ? (
+                  <ul className="status-list">
+                    {syncStatus.failedReasons.map((reason) => (
+                      <li key={reason.errorCode}>
+                        <strong>{reason.errorCode}</strong> ({reason.count})
+                        {reason.sampleMessage ? ' - ' + reason.sampleMessage : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <div className="modal-actions">
                   <button className="btn-secondary" onClick={closeModal}>Kapat</button>
                   <button className="btn-secondary" onClick={() => void runSyncNow()} disabled={isSyncing}>

@@ -10,6 +10,15 @@ export interface LicenseRuntimeStatus {
   activeDevices: number | null;
   message: string | null;
   lastCheckedAt: string | null;
+  lifecycleState: string | null;
+  allowedActions: string[];
+  blockedActions: string[];
+  canCheckout: boolean;
+  canWrite: boolean;
+  canSync: boolean;
+  canView: boolean;
+  requiresUpgradeAction: boolean;
+  requiresBlock: boolean;
 }
 
 interface LicenseContext {
@@ -29,7 +38,16 @@ const runtimeStatus: LicenseRuntimeStatus = {
   maxDevices: null,
   activeDevices: null,
   message: null,
-  lastCheckedAt: null
+  lastCheckedAt: null,
+  lifecycleState: null,
+  allowedActions: [],
+  blockedActions: [],
+  canCheckout: false,
+  canWrite: false,
+  canSync: false,
+  canView: true,
+  requiresUpgradeAction: false,
+  requiresBlock: false
 };
 
 export const setLicenseRuntimeStatus = (next: LicenseRuntimeStatus) => {
@@ -41,6 +59,15 @@ export const setLicenseRuntimeStatus = (next: LicenseRuntimeStatus) => {
   runtimeStatus.activeDevices = next.activeDevices;
   runtimeStatus.message = next.message;
   runtimeStatus.lastCheckedAt = next.lastCheckedAt;
+  runtimeStatus.lifecycleState = next.lifecycleState;
+  runtimeStatus.allowedActions = next.allowedActions;
+  runtimeStatus.blockedActions = next.blockedActions;
+  runtimeStatus.canCheckout = next.canCheckout;
+  runtimeStatus.canWrite = next.canWrite;
+  runtimeStatus.canSync = next.canSync;
+  runtimeStatus.canView = next.canView;
+  runtimeStatus.requiresUpgradeAction = next.requiresUpgradeAction;
+  runtimeStatus.requiresBlock = next.requiresBlock;
 };
 
 interface LicenseCacheSnapshot {
@@ -103,6 +130,42 @@ const applyPayload = (payload: {
   runtimeStatus.activeDevices = payload.activeDevices ?? runtimeStatus.activeDevices;
   runtimeStatus.lastCheckedAt = new Date().toISOString();
   runtimeStatus.message = null;
+
+  if (mode === "READ_ONLY") {
+    runtimeStatus.lifecycleState = "trial_expired";
+    runtimeStatus.allowedActions = ["Rapor goruntuleme", "Durum izleme"];
+    runtimeStatus.blockedActions = ["Satis", "Stok mutasyonu", "Sync push", "Yeni cihaz aktivasyonu"];
+    runtimeStatus.canCheckout = false;
+    runtimeStatus.canWrite = false;
+    runtimeStatus.canSync = false;
+    runtimeStatus.canView = true;
+    runtimeStatus.requiresUpgradeAction = true;
+    runtimeStatus.requiresBlock = false;
+    return;
+  }
+
+  if (mode === "LOCKED") {
+    runtimeStatus.lifecycleState = "suspended_blocked";
+    runtimeStatus.allowedActions = ["Rapor goruntuleme", "Durum izleme"];
+    runtimeStatus.blockedActions = ["Satis", "Stok mutasyonu", "Sync push", "Cihaz aktivasyonu"];
+    runtimeStatus.canCheckout = false;
+    runtimeStatus.canWrite = false;
+    runtimeStatus.canSync = false;
+    runtimeStatus.canView = true;
+    runtimeStatus.requiresUpgradeAction = true;
+    runtimeStatus.requiresBlock = true;
+    return;
+  }
+
+  runtimeStatus.lifecycleState = "subscription_active";
+  runtimeStatus.allowedActions = ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"];
+  runtimeStatus.blockedActions = ["-"];
+  runtimeStatus.canCheckout = true;
+  runtimeStatus.canWrite = true;
+  runtimeStatus.canSync = true;
+  runtimeStatus.canView = true;
+  runtimeStatus.requiresUpgradeAction = false;
+  runtimeStatus.requiresBlock = false;
 };
 
 const getCacheFilePath = (context: LicenseContext) =>

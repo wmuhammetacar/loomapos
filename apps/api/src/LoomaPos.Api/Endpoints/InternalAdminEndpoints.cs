@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LoomaPos.Domain.Auditing;
 using LoomaPos.Domain.Internal;
+using LoomaPos.Api.Commerce;
 using LoomaPos.Api.Security;
 using LoomaPos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -16,18 +17,30 @@ public static class InternalAdminEndpoints
         group.MapGet("/overview", GetOverviewAsync);
         group.MapGet("/tenants", GetTenantsAsync);
         group.MapGet("/tenants/{tenantId:guid}", GetTenantDetailAsync);
-        group.MapPost("/tenants/{tenantId:guid}/suspend", SuspendTenantAsync);
-        group.MapPost("/tenants/{tenantId:guid}/unsuspend", UnsuspendTenantAsync);
-        group.MapPost("/tenants/{tenantId:guid}/billing-recheck", BillingRecheckAsync);
-        group.MapPost("/tenants/{tenantId:guid}/refresh-flags", RefreshFlagsAsync);
+        group.MapGet("/devices", GetDevicesAsync);
+        group.MapGet("/sync-issues", GetSyncIssuesAsync);
+        group.MapPost("/tenants/{tenantId:guid}/suspend", SuspendTenantAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/tenants/{tenantId:guid}/unsuspend", UnsuspendTenantAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/tenants/{tenantId:guid}/billing-recheck", BillingRecheckAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/tenants/{tenantId:guid}/refresh-flags", RefreshFlagsAsync)
+            .RequireRateLimiting("internal-mutation");
         group.MapGet("/support/cases", GetSupportCasesAsync);
         group.MapGet("/support/cases/{caseId:guid}", GetSupportCaseDetailAsync);
-        group.MapPost("/support/cases/{caseId:guid}/assign", AssignSupportCaseAsync);
-        group.MapPost("/support/cases/{caseId:guid}/status", ChangeSupportCaseStatusAsync);
-        group.MapPost("/support/cases/{caseId:guid}/messages", AddSupportCaseMessageAsync);
-        group.MapPost("/support/cases/{caseId:guid}/notes", AddSupportCaseNoteAsync);
-        group.MapPost("/support/cases/{caseId:guid}/links", AddSupportCaseLinkAsync);
-        group.MapPost("/support/cases/{caseId:guid}/escalate", EscalateSupportCaseAsync);
+        group.MapPost("/support/cases/{caseId:guid}/assign", AssignSupportCaseAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/support/cases/{caseId:guid}/status", ChangeSupportCaseStatusAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/support/cases/{caseId:guid}/messages", AddSupportCaseMessageAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/support/cases/{caseId:guid}/notes", AddSupportCaseNoteAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/support/cases/{caseId:guid}/links", AddSupportCaseLinkAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/support/cases/{caseId:guid}/escalate", EscalateSupportCaseAsync)
+            .RequireRateLimiting("internal-mutation");
         group.MapGet("/resellers", GetResellersAsync);
         group.MapGet("/resellers/{resellerId:guid}", GetResellerDetailAsync);
         group.MapGet("/dead-letter", GetDeadLetters);
@@ -37,8 +50,10 @@ public static class InternalAdminEndpoints
         group.MapGet("/notices", GetNotices);
         group.MapGet("/security", GetSecurityAsync);
         group.MapGet("/support-access/sessions", GetSupportAccessSessionsAsync);
-        group.MapPost("/support-access/sessions/start", StartSupportAccessSessionAsync);
-        group.MapPost("/support-access/sessions/{sessionId:guid}/end", EndSupportAccessSessionAsync);
+        group.MapPost("/support-access/sessions/start", StartSupportAccessSessionAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/support-access/sessions/{sessionId:guid}/end", EndSupportAccessSessionAsync)
+            .RequireRateLimiting("internal-mutation");
 
         return app;
     }
@@ -101,6 +116,8 @@ public static class InternalAdminEndpoints
                                orderby billing.UpdatedAt descending
                                select billing.Phone).FirstOrDefaultAsync(cancellationToken) ?? "-";
             var devices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.TenantId == tenant.Id && x.RevokedAt == null, cancellationToken);
+            var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+            var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
 
             rows.Add(new
             {
@@ -114,6 +131,15 @@ public static class InternalAdminEndpoints
                 billingCycle = subscription?.BillingCycle ?? "monthly",
                 subscriptionStatus = subscription?.Status ?? "inactive",
                 licenseStatus = license?.Status ?? "inactive",
+                lifecycleState,
+                lifecycleLabel = lifecycle.Label,
+                lifecycleMessage = lifecycle.Message,
+                canCheckout = lifecycle.CanCheckout,
+                canWrite = lifecycle.CanWrite,
+                canSync = lifecycle.CanSync,
+                canView = lifecycle.CanView,
+                requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+                requiresBlock = lifecycle.RequiresBlock,
                 deviceCount = devices,
                 deviceLimit = license?.DeviceLimit ?? 0,
                 resellerCode = subscription?.ResellerCode,
@@ -140,6 +166,8 @@ public static class InternalAdminEndpoints
         var subscription = await dbContext.Subscriptions.AsNoTracking().Where(x => x.TenantId == tenant.Id).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(cancellationToken);
         var license = await dbContext.IssuedLicenses.AsNoTracking().Where(x => x.TenantId == tenant.Id).OrderByDescending(x => x.IssuedAt).FirstOrDefaultAsync(cancellationToken);
         var devices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.TenantId == tenant.Id && x.RevokedAt == null, cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
 
         return Results.Ok(new
         {
@@ -153,7 +181,16 @@ public static class InternalAdminEndpoints
             billingCycle = subscription?.BillingCycle ?? "monthly",
             subscriptionStatus = subscription?.Status ?? "inactive",
             licenseStatus = license?.Status ?? "inactive",
-            deviceCount = devices,
+            lifecycleState,
+                lifecycleLabel = lifecycle.Label,
+                lifecycleMessage = lifecycle.Message,
+                canCheckout = lifecycle.CanCheckout,
+                canWrite = lifecycle.CanWrite,
+                canSync = lifecycle.CanSync,
+                canView = lifecycle.CanView,
+                requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+                requiresBlock = lifecycle.RequiresBlock,
+                deviceCount = devices,
             deviceLimit = license?.DeviceLimit ?? 0,
             resellerCode = subscription?.ResellerCode,
             lastSyncAt = DateTimeOffset.UtcNow.AddMinutes(-8),
@@ -165,6 +202,404 @@ public static class InternalAdminEndpoints
             onboardingState = "9/10 complete",
             supportSummary = "Internal case summary available"
         });
+    }
+
+
+    private static async Task<IResult> GetDevicesAsync(
+        Guid? tenantId,
+        string? status,
+        string? search,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var normalizedStatusFilter = NormalizeDeviceStatusFilter(status);
+        if (status is not null && normalizedStatusFilter is null)
+        {
+            return Results.BadRequest(new { message = "status must be one of: active, stale, offline, blocked." });
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var activeThreshold = now.AddMinutes(-2);
+        var staleThreshold = now.AddMinutes(-10);
+
+        var query = from device in dbContext.Devices.AsNoTracking()
+                    join tenant in dbContext.Tenants.AsNoTracking() on device.TenantId equals tenant.Id
+                    select new
+                    {
+                        DeviceId = device.Id,
+                        device.TenantId,
+                        TenantName = tenant.Name,
+                        TenantStatus = tenant.Status,
+                        device.BranchId,
+                        DeviceName = device.Name,
+                        DeviceType = device.Type,
+                        DeviceLastSeenAt = device.LastSeenAt
+                    };
+
+        if (tenantId.HasValue)
+        {
+            query = query.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            var likePattern = $"%{normalizedSearch}%";
+            var hasDeviceIdSearch = Guid.TryParse(normalizedSearch, out var parsedDeviceId);
+            query = query.Where(x =>
+                EF.Functions.ILike(x.TenantName, likePattern) ||
+                EF.Functions.ILike(x.DeviceName, likePattern) ||
+                (hasDeviceIdSearch && x.DeviceId == parsedDeviceId));
+        }
+
+        var baseRows = await query
+            .OrderByDescending(x => x.DeviceLastSeenAt)
+            .Take(5000)
+            .ToListAsync(cancellationToken);
+
+        if (baseRows.Count == 0)
+        {
+            return Results.Ok(Array.Empty<AdminDeviceResponse>());
+        }
+
+        var tenantIds = baseRows.Select(x => x.TenantId).Distinct().ToArray();
+        var deviceIds = baseRows.Select(x => x.DeviceId).Distinct().ToArray();
+
+        var activationRows = await dbContext.DeviceActivations.AsNoTracking()
+            .Where(x => tenantIds.Contains(x.TenantId) && deviceIds.Contains(x.DeviceId))
+            .OrderByDescending(x => x.LastSeenAt)
+            .ThenByDescending(x => x.UpdatedAt)
+            .Select(x => new
+            {
+                x.TenantId,
+                x.DeviceId,
+                x.AppVersion,
+                ActivationLastSeenAt = x.LastSeenAt,
+                x.Status
+            })
+            .ToListAsync(cancellationToken);
+
+        var activationLookup = activationRows
+            .GroupBy(x => (x.TenantId, x.DeviceId))
+            .ToDictionary(x => x.Key, x => x.First());
+
+        var lastSyncRows = await dbContext.ProcessedEvents.AsNoTracking()
+            .Where(x => tenantIds.Contains(x.TenantId) && deviceIds.Contains(x.DeviceId))
+            .GroupBy(x => new { x.TenantId, x.DeviceId })
+            .Select(x => new
+            {
+                x.Key.TenantId,
+                x.Key.DeviceId,
+                LastSyncAt = x.Max(y => y.ProcessedAt)
+            })
+            .ToListAsync(cancellationToken);
+
+        var lastSyncLookup = lastSyncRows.ToDictionary(x => (x.TenantId, x.DeviceId), x => (DateTimeOffset?)x.LastSyncAt);
+
+        var licenseRows = await dbContext.IssuedLicenses.AsNoTracking()
+            .Where(x => tenantIds.Contains(x.TenantId))
+            .OrderByDescending(x => x.IssuedAt)
+            .ThenByDescending(x => x.CreatedAt)
+            .Select(x => new
+            {
+                x.TenantId,
+                x.Status,
+                x.ExpiresAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var licenseLookup = licenseRows
+            .GroupBy(x => x.TenantId)
+            .ToDictionary(x => x.Key, x => x.First());
+
+        var response = new List<AdminDeviceResponse>(baseRows.Count);
+        foreach (var row in baseRows)
+        {
+            activationLookup.TryGetValue((row.TenantId, row.DeviceId), out var activation);
+            lastSyncLookup.TryGetValue((row.TenantId, row.DeviceId), out var lastSyncAt);
+            licenseLookup.TryGetValue(row.TenantId, out var license);
+
+            var lastSeenAt = activation?.ActivationLastSeenAt ?? row.DeviceLastSeenAt;
+            var licenseStatus = ResolveLicenseStatus(row.TenantStatus, license?.Status, license?.ExpiresAt, now);
+            var blocked = licenseStatus != "valid";
+            var derivedStatus = blocked
+                ? "blocked"
+                : ResolveDeviceStatus(lastSeenAt, activeThreshold, staleThreshold);
+
+            var isOnline = derivedStatus is "active" or "stale";
+            var isStale = derivedStatus == "stale";
+            var branchId = row.BranchId == Guid.Empty ? (Guid?)null : row.BranchId;
+
+            response.Add(new AdminDeviceResponse(
+                row.DeviceId,
+                row.TenantId,
+                row.TenantName,
+                branchId,
+                derivedStatus,
+                lastSeenAt,
+                lastSyncAt,
+                activation?.AppVersion,
+                licenseStatus,
+                isOnline,
+                isStale));
+        }
+
+        var filtered = normalizedStatusFilter is null
+            ? response
+            : response.Where(x => x.Status == normalizedStatusFilter).ToList();
+
+        return Results.Ok(filtered);
+    }
+
+
+    private static async Task<IResult> GetSyncIssuesAsync(
+        Guid? tenantId,
+        string? status,
+        string? eventType,
+        string? search,
+        bool? retryable,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var normalizedStatusFilter = NormalizeSyncIssueStatusFilter(status);
+        if (status is not null && normalizedStatusFilter is null)
+        {
+            return Results.BadRequest(new { message = "status must be one of: retrying, failed, dead_letter." });
+        }
+
+        var normalizedEventTypeFilter = string.IsNullOrWhiteSpace(eventType) ? null : eventType.Trim();
+        var normalizedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+
+        var auditQuery = dbContext.AuditLogs.AsNoTracking()
+            .Where(x => x.Action == "SYNC_EVENT_FAILED");
+        if (tenantId.HasValue)
+        {
+            auditQuery = auditQuery.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        var auditRows = await auditQuery
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(5000)
+            .Select(x => new
+            {
+                x.Id,
+                x.TenantId,
+                x.EntityId,
+                x.PayloadJson,
+                x.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var auditParsedRows = new List<AdminSyncIssueIntermediateRow>(auditRows.Count);
+        foreach (var log in auditRows)
+        {
+            var parsedEventId = string.IsNullOrWhiteSpace(log.EntityId) ? $"audit-{log.Id}" : log.EntityId;
+            string eventTypeValue = "sync.unknown";
+            string rawStatus = "failed";
+            string? errorCode = null;
+            string reason = "Sync event failed.";
+            Guid? deviceIdValue = null;
+            DateTimeOffset? payloadAttemptAt = null;
+
+            if (!string.IsNullOrWhiteSpace(log.PayloadJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(log.PayloadJson);
+                    var root = doc.RootElement;
+
+                    parsedEventId = ReadStringProperty(root, "eventId", "EventId") ?? parsedEventId;
+                    eventTypeValue = ReadStringProperty(root, "eventType", "EventType") ?? eventTypeValue;
+                    rawStatus = ReadStringProperty(root, "status", "Status") ?? rawStatus;
+                    errorCode = ReadStringProperty(root, "errorCode", "ErrorCode");
+                    reason = ReadStringProperty(root, "message", "Message") ?? reason;
+                    deviceIdValue = ReadGuidProperty(root, "deviceId", "DeviceId");
+                    payloadAttemptAt = ReadDateTimeOffsetProperty(root, "lastAttemptAt", "LastAttemptAt", "failedAt", "FailedAt");
+                }
+                catch
+                {
+                    // Ignore malformed payloads and keep fallback values.
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(parsedEventId))
+            {
+                parsedEventId = $"audit-{log.Id}";
+            }
+
+            auditParsedRows.Add(new AdminSyncIssueIntermediateRow(
+                IssueId: $"sync-audit-{log.Id}",
+                TenantId: log.TenantId,
+                TenantName: string.Empty,
+                DeviceId: deviceIdValue,
+                EventId: parsedEventId,
+                EventType: eventTypeValue,
+                Status: rawStatus,
+                RetryCount: 0,
+                Reason: reason,
+                ErrorCode: errorCode,
+                CreatedAt: log.CreatedAt,
+                LastAttemptAt: payloadAttemptAt ?? log.CreatedAt,
+                IsPermanentFailure: false,
+                IsRetryable: false,
+                SortAt: payloadAttemptAt ?? log.CreatedAt));
+        }
+
+        var groupedAuditIssues = auditParsedRows
+            .GroupBy(x => new { x.TenantId, x.EventId })
+            .Select(group =>
+            {
+                var ordered = group.OrderBy(x => x.CreatedAt).ToList();
+                var latest = ordered[^1];
+                var retryCountValue = Math.Max(0, ordered.Count - 1);
+                var createdAtValue = ordered[0].CreatedAt;
+                var lastAttemptAtValue = ordered.Max(x => x.LastAttemptAt ?? x.CreatedAt);
+                var classification = ClassifySyncIssue(latest.Status, latest.ErrorCode, latest.Reason, retryCountValue, null);
+
+                return latest with
+                {
+                    RetryCount = retryCountValue,
+                    Status = classification.Status,
+                    IsPermanentFailure = classification.IsPermanentFailure,
+                    IsRetryable = classification.IsRetryable,
+                    CreatedAt = createdAtValue,
+                    LastAttemptAt = lastAttemptAtValue,
+                    SortAt = lastAttemptAtValue
+                };
+            })
+            .ToList();
+
+        var integrationQuery = dbContext.IntegrationJobs.AsNoTracking()
+            .Where(x => x.Status == "retrying" || x.Status == "failed" || x.Status == "dead_letter");
+        if (tenantId.HasValue)
+        {
+            integrationQuery = integrationQuery.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        var integrationRows = await integrationQuery
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(2000)
+            .Select(x => new
+            {
+                x.Id,
+                x.TenantId,
+                x.IntegrationEventId,
+                x.JobType,
+                x.Status,
+                x.RetryCount,
+                x.MaxRetryCount,
+                x.ErrorCode,
+                x.ErrorMessage,
+                x.PayloadJson,
+                x.IdempotencyKey,
+                x.CreatedAt,
+                x.LastAttemptAt,
+                x.UpdatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var integrationIssues = new List<AdminSyncIssueIntermediateRow>(integrationRows.Count);
+        foreach (var job in integrationRows)
+        {
+            var classification = ClassifySyncIssue(job.Status, job.ErrorCode, job.ErrorMessage, job.RetryCount, job.MaxRetryCount);
+            var deviceIdValue = TryExtractDeviceIdFromPayload(job.PayloadJson);
+            var resolvedEventId = job.IntegrationEventId?.ToString()
+                ?? (!string.IsNullOrWhiteSpace(job.IdempotencyKey) ? job.IdempotencyKey : job.Id.ToString());
+
+            integrationIssues.Add(new AdminSyncIssueIntermediateRow(
+                IssueId: $"integration-job-{job.Id}",
+                TenantId: job.TenantId,
+                TenantName: string.Empty,
+                DeviceId: deviceIdValue,
+                EventId: resolvedEventId,
+                EventType: string.IsNullOrWhiteSpace(job.JobType) ? "integration.unknown" : job.JobType,
+                Status: classification.Status,
+                RetryCount: Math.Max(0, job.RetryCount),
+                Reason: !string.IsNullOrWhiteSpace(job.ErrorMessage) ? job.ErrorMessage : (!string.IsNullOrWhiteSpace(job.ErrorCode) ? job.ErrorCode : "Integration sync issue."),
+                ErrorCode: job.ErrorCode,
+                CreatedAt: job.CreatedAt,
+                LastAttemptAt: job.LastAttemptAt ?? job.UpdatedAt,
+                IsPermanentFailure: classification.IsPermanentFailure,
+                IsRetryable: classification.IsRetryable,
+                SortAt: job.LastAttemptAt ?? job.UpdatedAt));
+        }
+
+        var allIssues = groupedAuditIssues.Concat(integrationIssues).ToList();
+        if (allIssues.Count == 0)
+        {
+            return Results.Ok(Array.Empty<AdminSyncIssueResponse>());
+        }
+
+        var tenantIds = allIssues.Select(x => x.TenantId).Distinct().ToArray();
+        var tenantNameLookup = await dbContext.Tenants.AsNoTracking()
+            .Where(x => tenantIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+
+        var hydrated = allIssues
+            .Select(x => x with { TenantName = tenantNameLookup.GetValueOrDefault(x.TenantId) ?? "Unknown tenant" })
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatusFilter))
+        {
+            hydrated = hydrated.Where(x => x.Status.Equals(normalizedStatusFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedEventTypeFilter))
+        {
+            hydrated = hydrated.Where(x => x.EventType.Contains(normalizedEventTypeFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        if (retryable.HasValue)
+        {
+            hydrated = hydrated.Where(x => x.IsRetryable == retryable.Value).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            hydrated = hydrated.Where(x =>
+                    x.TenantName.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    x.EventId.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    x.Reason.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    x.DeviceId?.ToString().Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) == true)
+                .ToList();
+        }
+
+        var response = hydrated
+            .OrderByDescending(x => x.SortAt ?? x.CreatedAt)
+            .Take(1000)
+            .Select(x => new AdminSyncIssueResponse(
+                x.IssueId,
+                x.TenantId,
+                x.TenantName,
+                x.DeviceId,
+                x.EventId,
+                x.EventType,
+                x.Status,
+                x.RetryCount,
+                x.Reason,
+                x.CreatedAt,
+                x.LastAttemptAt,
+                x.IsPermanentFailure,
+                x.IsRetryable))
+            .ToList();
+
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> SuspendTenantAsync(Guid tenantId, AdminReasonRequest request, HttpContext httpContext, IInternalAdminAuthService authService, IAdminApprovalService approvalService, AppDbContext dbContext, CancellationToken cancellationToken)
@@ -722,9 +1157,15 @@ public static class InternalAdminEndpoints
 
     private static async Task<IResult> StartSupportAccessSessionAsync(StartSupportAccessSessionRequest request, HttpContext httpContext, IInternalAdminAuthService authService, AppDbContext dbContext, CancellationToken cancellationToken)
     {
+        var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.Actions");
         var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
         if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent" }))
         {
+            logger.LogWarning(
+                "internal_admin_action_forbidden action {Action} actor {Actor} tenantId {TenantId}",
+                "internal.support_access.started",
+                context?.Email ?? "unknown",
+                request.TenantId);
             return Results.Forbid();
         }
         if (string.IsNullOrWhiteSpace(request.Reason))
@@ -772,6 +1213,14 @@ public static class InternalAdminEndpoints
             request.Reason.Trim()));
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        logger.LogInformation(
+            "internal_admin_action_applied action {Action} actor {Actor} tenantId {TenantId} supportSessionId {SupportSessionId} accessMode {AccessMode}",
+            "internal.support_access.started",
+            context.Email,
+            request.TenantId,
+            session.Id,
+            accessMode);
+
         return Results.Ok(new
         {
             id = session.Id,
@@ -786,9 +1235,15 @@ public static class InternalAdminEndpoints
 
     private static async Task<IResult> EndSupportAccessSessionAsync(Guid sessionId, EndSupportAccessSessionRequest request, HttpContext httpContext, IInternalAdminAuthService authService, AppDbContext dbContext, CancellationToken cancellationToken)
     {
+        var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.Actions");
         var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
         if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor" }))
         {
+            logger.LogWarning(
+                "internal_admin_action_forbidden action {Action} actor {Actor} supportSessionId {SupportSessionId}",
+                "internal.support_access.ended",
+                context?.Email ?? "unknown",
+                sessionId);
             return Results.Forbid();
         }
         if (string.IsNullOrWhiteSpace(request.Reason))
@@ -818,6 +1273,13 @@ public static class InternalAdminEndpoints
             request.Reason.Trim()));
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        logger.LogInformation(
+            "internal_admin_action_applied action {Action} actor {Actor} tenantId {TenantId} supportSessionId {SupportSessionId}",
+            "internal.support_access.ended",
+            context.Email,
+            session.TenantId,
+            session.Id);
+
         return Results.Ok(new
         {
             id = session.Id,
@@ -829,9 +1291,15 @@ public static class InternalAdminEndpoints
 
     private static async Task<IResult> ApplyTenantActionAsync(Guid tenantId, AdminReasonRequest request, HttpContext httpContext, IInternalAdminAuthService authService, IAdminApprovalService approvalService, AppDbContext dbContext, CancellationToken cancellationToken, string targetStatus, string action, string[] allowedRoles)
     {
+        var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.Actions");
         var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
         if (context is null || !HasAnyRole(context, allowedRoles))
         {
+            logger.LogWarning(
+                "internal_admin_action_forbidden action {Action} actor {Actor} tenantId {TenantId}",
+                action,
+                context?.Email ?? "unknown",
+                tenantId);
             return Results.Forbid();
         }
         if (string.IsNullOrWhiteSpace(request.Reason))
@@ -849,14 +1317,28 @@ public static class InternalAdminEndpoints
         await approvalService.RecordActionAsync(context, action, "tenant", tenantId.ToString(), request.Reason, requiresApproval: true, new { targetStatus }, cancellationToken);
         dbContext.AuditLogs.Add(BuildAudit(tenantId, action, context.Email, string.Join(",", context.Roles), request.Reason));
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "internal_admin_action_applied action {Action} actor {Actor} tenantId {TenantId} targetStatus {TargetStatus}",
+            action,
+            context.Email,
+            tenantId,
+            targetStatus);
+
         return Results.Ok(new { success = true, message = action });
     }
 
     private static async Task<IResult> RecordAdminActionAsync(Guid tenantId, AdminReasonRequest request, HttpContext httpContext, IInternalAdminAuthService authService, IAdminApprovalService approvalService, AppDbContext dbContext, CancellationToken cancellationToken, string action, string[] allowedRoles)
     {
+        var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.Actions");
         var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
         if (context is null || !HasAnyRole(context, allowedRoles))
         {
+            logger.LogWarning(
+                "internal_admin_action_forbidden action {Action} actor {Actor} tenantId {TenantId}",
+                action,
+                context?.Email ?? "unknown",
+                tenantId);
             return Results.Forbid();
         }
         if (string.IsNullOrWhiteSpace(request.Reason))
@@ -867,11 +1349,239 @@ public static class InternalAdminEndpoints
         await approvalService.RecordActionAsync(context, action, "tenant", tenantId.ToString(), request.Reason, requiresApproval: false, metadata: null, cancellationToken);
         dbContext.AuditLogs.Add(BuildAudit(tenantId, action, context.Email, string.Join(",", context.Roles), request.Reason));
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "internal_admin_action_applied action {Action} actor {Actor} tenantId {TenantId}",
+            action,
+            context.Email,
+            tenantId);
+
         return Results.Ok(new { success = true, message = action });
     }
 
     private static bool HasAnyRole(InternalAdminAccessContext context, IEnumerable<string> roles)
         => context.Roles.Any(role => roles.Contains(role, StringComparer.OrdinalIgnoreCase));
+
+
+
+    private static SyncIssueClassification ClassifySyncIssue(string? rawStatus, string? errorCode, string? reason, int retryCount, int? maxRetryCount)
+    {
+        var normalizedStatus = rawStatus?.Trim().ToLowerInvariant();
+        if (normalizedStatus is "dead_letter" or "dead-letter")
+        {
+            return new SyncIssueClassification("dead_letter", true, false);
+        }
+
+        if (normalizedStatus is "retrying" or "retry_later" or "pending_retry" or "queued")
+        {
+            return new SyncIssueClassification("retrying", false, true);
+        }
+
+        var permanent = IsPermanentFailure(errorCode, reason) || normalizedStatus == "rejected";
+        if (!permanent && maxRetryCount.HasValue && maxRetryCount.Value > 0 && retryCount >= maxRetryCount.Value)
+        {
+            permanent = true;
+        }
+
+        return new SyncIssueClassification("failed", permanent, !permanent);
+    }
+
+    private static bool IsPermanentFailure(string? errorCode, string? reason)
+    {
+        var normalizedCode = errorCode?.Trim().ToLowerInvariant() ?? string.Empty;
+        var normalizedReason = reason?.Trim().ToLowerInvariant() ?? string.Empty;
+
+        var permanentSignals = new[]
+        {
+            "validation",
+            "unsupported",
+            "business_rule",
+            "invalid",
+            "forbidden",
+            "not_found",
+            "schema",
+            "conflict"
+        };
+
+        return permanentSignals.Any(signal => normalizedCode.Contains(signal, StringComparison.Ordinal))
+            || permanentSignals.Any(signal => normalizedReason.Contains(signal, StringComparison.Ordinal));
+    }
+
+    private static string? NormalizeSyncIssueStatusFilter(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "retrying" => "retrying",
+            "failed" => "failed",
+            "dead_letter" => "dead_letter",
+            "dead-letter" => "dead_letter",
+            _ => null
+        };
+    }
+
+    private static Guid? TryExtractDeviceIdFromPayload(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(payloadJson);
+            return ReadGuidProperty(document.RootElement, "deviceId", "DeviceId");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadStringProperty(JsonElement root, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!TryGetPropertyIgnoreCase(root, propertyName, out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString();
+            }
+
+            if (value.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+            {
+                return value.ToString();
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTimeOffset? ReadDateTimeOffsetProperty(JsonElement root, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!TryGetPropertyIgnoreCase(root, propertyName, out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(value.GetString(), out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static Guid? ReadGuidProperty(JsonElement root, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!TryGetPropertyIgnoreCase(root, propertyName, out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.String && Guid.TryParse(value.GetString(), out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement root, string propertyName, out JsonElement value)
+    {
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in root.EnumerateObject())
+            {
+                if (property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string ResolveDeviceStatus(DateTimeOffset? lastSeenAt, DateTimeOffset activeThreshold, DateTimeOffset staleThreshold)
+    {
+        if (!lastSeenAt.HasValue)
+        {
+            return "offline";
+        }
+
+        if (lastSeenAt.Value >= activeThreshold)
+        {
+            return "active";
+        }
+
+        if (lastSeenAt.Value >= staleThreshold)
+        {
+            return "stale";
+        }
+
+        return "offline";
+    }
+
+    private static string ResolveLicenseStatus(string? tenantStatus, string? licenseStatus, DateTimeOffset? licenseExpiresAt, DateTimeOffset now)
+    {
+        var normalizedTenantStatus = tenantStatus?.Trim().ToLowerInvariant();
+        if (normalizedTenantStatus is "suspended" or "blocked")
+        {
+            return "blocked";
+        }
+
+        if (string.IsNullOrWhiteSpace(licenseStatus))
+        {
+            return "expired";
+        }
+
+        var normalizedLicenseStatus = licenseStatus.Trim().ToLowerInvariant();
+        if (normalizedLicenseStatus is "blocked" or "suspended" or "revoked" or "invalid" or "canceled")
+        {
+            return "blocked";
+        }
+
+        if (normalizedLicenseStatus == "expired" || (licenseExpiresAt.HasValue && licenseExpiresAt.Value <= now))
+        {
+            return "expired";
+        }
+
+        return normalizedLicenseStatus is "active" or "valid" ? "valid" : "expired";
+    }
+
+    private static string? NormalizeDeviceStatusFilter(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "active" => "active",
+            "stale" => "stale",
+            "offline" => "offline",
+            "blocked" => "blocked",
+            _ => null
+        };
+    }
 
     private static AuditLog BuildAudit(Guid tenantId, string action, string email, string roles, string reason)
     {
@@ -911,4 +1621,55 @@ public static class InternalAdminEndpoints
     private sealed record EscalateSupportCaseRequest(string Level, string Reason);
     private sealed record StartSupportAccessSessionRequest(Guid? TenantId, string AccessMode, string Reason, int? ExpiresInMinutes);
     private sealed record EndSupportAccessSessionRequest(string Reason);
+
+
+    private sealed record SyncIssueClassification(
+        string Status,
+        bool IsPermanentFailure,
+        bool IsRetryable);
+
+    private sealed record AdminSyncIssueIntermediateRow(
+        string IssueId,
+        Guid TenantId,
+        string TenantName,
+        Guid? DeviceId,
+        string EventId,
+        string EventType,
+        string Status,
+        int RetryCount,
+        string Reason,
+        string? ErrorCode,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? LastAttemptAt,
+        bool IsPermanentFailure,
+        bool IsRetryable,
+        DateTimeOffset? SortAt);
+
+    private sealed record AdminSyncIssueResponse(
+        string IssueId,
+        Guid TenantId,
+        string TenantName,
+        Guid? DeviceId,
+        string EventId,
+        string EventType,
+        string Status,
+        int RetryCount,
+        string Reason,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? LastAttemptAt,
+        bool IsPermanentFailure,
+        bool IsRetryable);
+
+    private sealed record AdminDeviceResponse(
+        Guid DeviceId,
+        Guid TenantId,
+        string TenantName,
+        Guid? BranchId,
+        string Status,
+        DateTimeOffset? LastSeenAt,
+        DateTimeOffset? LastSyncAt,
+        string? AppVersion,
+        string LicenseStatus,
+        bool IsOnline,
+        bool IsStale);
 }

@@ -15,22 +15,22 @@ public static class CommerceLicenseCoreEndpoints
         group.MapPost("/validate", ValidateLicenseAsync)
             .WithName("ValidateCommercialLicense")
             .WithSummary("Validates license token or license key for desktop/mobile activation prep.")
-            .RequireRateLimiting("license");
+            .RequireRateLimiting("license-heartbeat");
 
         group.MapPost("/activate", ActivateDeviceAsync)
             .WithName("ActivateCommercialDevice")
             .WithSummary("Activates a device for a license and enforces device limits.")
-            .RequireRateLimiting("license");
+            .RequireRateLimiting("license-activation");
 
         group.MapPost("/heartbeat", DeviceHeartbeatAsync)
             .WithName("CommercialDeviceHeartbeat")
             .WithSummary("Updates device last seen and returns current license state.")
-            .RequireRateLimiting("license");
+            .RequireRateLimiting("license-heartbeat");
 
         group.MapPost("/deactivate", DeactivateDeviceAsync)
             .WithName("DeactivateCommercialDevice")
             .WithSummary("Deactivates a bound device for future reuse.")
-            .RequireRateLimiting("license");
+            .RequireRateLimiting("license-activation");
 
         return app;
     }
@@ -51,6 +51,15 @@ public static class CommerceLicenseCoreEndpoints
             ? licenseArtifactService.TryValidate(request.LicenseToken, out _)
             : licenseArtifactService.TryValidate(license.LicenseToken, out _);
 
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == license.TenantId, cancellationToken);
+        var subscription = await dbContext.Subscriptions.AsNoTracking()
+            .Where(x => x.TenantId == license.TenantId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+
         return Results.Ok(new
         {
             license.Id,
@@ -60,7 +69,19 @@ public static class CommerceLicenseCoreEndpoints
             license.ExpiresAt,
             license.DeviceLimit,
             Features = JsonSerializer.Deserialize<string[]>(license.FeaturesJson) ?? [],
-            TokenValid = tokenValid
+            TokenValid = tokenValid,
+            LifecycleState = lifecycle.State,
+            LifecycleLabel = lifecycle.Label,
+            LifecycleMessage = lifecycle.Message,
+            AllowedActions = lifecycle.AllowedActions,
+            BlockedActions = lifecycle.BlockedActions,
+            WriteLocked = !lifecycle.AllowsOperationalWrites,
+            CanCheckout = lifecycle.CanCheckout,
+            CanWrite = lifecycle.CanWrite,
+            CanSync = lifecycle.CanSync,
+            CanView = lifecycle.CanView,
+            RequiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            RequiresBlock = lifecycle.RequiresBlock
         });
     }
 
@@ -78,6 +99,27 @@ public static class CommerceLicenseCoreEndpoints
         if (!string.Equals(license.Status, "active", StringComparison.OrdinalIgnoreCase))
         {
             return Results.BadRequest(new { error = "license is not active" });
+        }
+
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == license.TenantId, cancellationToken);
+        var subscription = await dbContext.Subscriptions.AsNoTracking()
+            .Where(x => x.TenantId == license.TenantId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+        if (!lifecycle.CanWrite || !lifecycle.AllowsDeviceActivation)
+        {
+            return Results.Json(new
+            {
+                error = "device activation blocked by subscription lifecycle",
+                lifecycleState = lifecycle.State,
+                lifecycleLabel = lifecycle.Label,
+                lifecycleMessage = lifecycle.Message,
+                allowedActions = lifecycle.AllowedActions,
+                blockedActions = lifecycle.BlockedActions
+            }, statusCode: StatusCodes.Status403Forbidden);
         }
 
         var activeCount = await dbContext.DeviceActivations
@@ -163,13 +205,33 @@ public static class CommerceLicenseCoreEndpoints
 
         var license = await dbContext.IssuedLicenses.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == activation.LicenseId, cancellationToken);
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == activation.TenantId, cancellationToken);
+        var subscription = await dbContext.Subscriptions.AsNoTracking()
+            .Where(x => x.TenantId == activation.TenantId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+
         return Results.Ok(new
         {
             activation.DeviceId,
             activation.LastSeenAt,
             activation.Status,
             LicenseStatus = license?.Status,
-            license?.ExpiresAt
+            license?.ExpiresAt,
+            LifecycleState = lifecycle.State,
+            LifecycleLabel = lifecycle.Label,
+            LifecycleMessage = lifecycle.Message,
+            WriteLocked = !lifecycle.AllowsOperationalWrites,
+            CanCheckout = lifecycle.CanCheckout,
+            CanWrite = lifecycle.CanWrite,
+            CanSync = lifecycle.CanSync,
+            CanView = lifecycle.CanView,
+            RequiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            RequiresBlock = lifecycle.RequiresBlock,
+            DeviceActivationAllowed = lifecycle.AllowsDeviceActivation
         });
     }
 

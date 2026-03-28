@@ -121,6 +121,10 @@ public static class CommercePortalCoreEndpoints
             .OrderByDescending(x => x.IssuedAt)
             .FirstOrDefaultAsync(cancellationToken);
         var downloads = await QueryPortalDownloadsAsync(dbContext, access.TenantId.Value, cancellationToken);
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == access.TenantId.Value, cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
 
         return Results.Ok(new
         {
@@ -128,6 +132,18 @@ public static class CommercePortalCoreEndpoints
             activePlan = subscription?.PlanCode,
             renewalDate = subscription?.RenewalDate,
             billingPeriod = subscription?.BillingCycle,
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock,
+            allowedActions = lifecycle.AllowedActions,
+            blockedActions = lifecycle.BlockedActions,
+            writeLocked = !lifecycle.AllowsOperationalWrites,
             licenseStatus = license?.Status,
             activeDevices = deviceCount,
             latestInvoice = invoice is null ? null : new
@@ -156,7 +172,49 @@ public static class CommercePortalCoreEndpoints
         }
 
         var subscription = await GetLatestSubscriptionAsync(dbContext, access.TenantId!.Value, cancellationToken);
-        return subscription is null ? Results.NotFound() : Results.Ok(subscription);
+        if (subscription is null)
+        {
+            return Results.NotFound();
+        }
+
+        var license = await GetLatestLicenseAsync(dbContext, access.TenantId.Value, cancellationToken);
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == access.TenantId.Value, cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+
+        return Results.Ok(new
+        {
+            subscription.Id,
+            subscription.TenantId,
+            subscription.BillingProfileId,
+            subscription.PlanCode,
+            subscription.BillingCycle,
+            subscription.Status,
+            subscription.CurrentPeriodStart,
+            subscription.CurrentPeriodEnd,
+            subscription.RenewalDate,
+            subscription.CancelAtPeriodEnd,
+            subscription.CanceledAt,
+            subscription.ProviderSubscriptionId,
+            subscription.ProviderCustomerReference,
+            subscription.PlanSnapshotJson,
+            subscription.ResellerCode,
+            subscription.CreatedAt,
+            subscription.UpdatedAt,
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock,
+            allowedActions = lifecycle.AllowedActions,
+            blockedActions = lifecycle.BlockedActions,
+            writeLocked = !lifecycle.AllowsOperationalWrites
+        });
     }
 
     private static async Task<IResult> CancelSubscriptionAsync(
@@ -182,8 +240,26 @@ public static class CommercePortalCoreEndpoints
             return Results.NotFound();
         }
 
+        var license = await GetLatestLicenseAsync(dbContext, tenantId, cancellationToken);
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
+        var currentState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var targetState = SubscriptionLifecyclePolicy.SubscriptionCanceled;
+
+        if (!SubscriptionLifecyclePolicy.IsValidTransition(currentState, targetState))
+        {
+            return Results.Conflict(new
+            {
+                error = "invalid_lifecycle_transition",
+                fromState = currentState,
+                toState = targetState
+            });
+        }
+
+        var now = DateTimeOffset.UtcNow;
         subscription.CancelAtPeriodEnd = true;
-        subscription.CanceledAt = DateTimeOffset.UtcNow;
+        subscription.CanceledAt = now;
+        subscription.Status = targetState;
         dbContext.AuditLogs.Add(BuildAudit(access, "portal.subscription.cancel_requested", "subscription", subscription.Id.ToString(), new
         {
             subscription.PlanCode,
@@ -192,11 +268,22 @@ public static class CommercePortalCoreEndpoints
         }));
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(targetState);
         return Results.Ok(new
         {
             subscription.Id,
             subscription.CancelAtPeriodEnd,
-            subscription.CanceledAt
+            subscription.CanceledAt,
+            subscription.Status,
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock
         });
     }
 
@@ -262,6 +349,11 @@ public static class CommercePortalCoreEndpoints
             warnings.Add("Branch limit would fall below current branch count.");
         }
 
+        var license = await GetLatestLicenseAsync(dbContext, tenantId, cancellationToken);
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
+        var currentLifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+
         var currentSnapshot = ParsePlanSnapshot(subscription.PlanSnapshotJson);
         var currentAmount = currentSnapshot.PromoPrice ?? currentSnapshot.Price ?? 0m;
         var targetAmount = price?.PromoAmount ?? price?.Amount ?? currentAmount;
@@ -271,8 +363,22 @@ public static class CommercePortalCoreEndpoints
 
         if (immediate)
         {
+            var targetLifecycleState = SubscriptionLifecyclePolicy.SubscriptionActive;
+            if (!SubscriptionLifecyclePolicy.IsValidTransition(currentLifecycleState, targetLifecycleState))
+            {
+                return Results.Conflict(new
+                {
+                    error = "invalid_lifecycle_transition",
+                    fromState = currentLifecycleState,
+                    toState = targetLifecycleState
+                });
+            }
+
             subscription.PlanCode = plan.Code;
             subscription.BillingCycle = request.BillingCycle;
+            subscription.Status = targetLifecycleState;
+            subscription.CancelAtPeriodEnd = false;
+            subscription.CanceledAt = null;
             subscription.PlanSnapshotJson = JsonSerializer.Serialize(new
             {
                 plan.Code,
@@ -329,12 +435,26 @@ public static class CommercePortalCoreEndpoints
             return Results.NotFound();
         }
 
+        var tenantId = access.TenantId!.Value;
+        var license = await GetLatestLicenseAsync(dbContext, tenantId, cancellationToken);
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
+        var currentState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var targetState = SubscriptionLifecyclePolicy.SubscriptionActive;
+
+        if (!SubscriptionLifecyclePolicy.IsValidTransition(currentState, targetState))
+        {
+            return Results.Conflict(new
+            {
+                error = "invalid_lifecycle_transition",
+                fromState = currentState,
+                toState = targetState
+            });
+        }
+
         subscription.CancelAtPeriodEnd = false;
         subscription.CanceledAt = null;
-        if (subscription.Status is "canceled" or "expired" && subscription.CurrentPeriodEnd > DateTimeOffset.UtcNow)
-        {
-            subscription.Status = "active";
-        }
+        subscription.Status = targetState;
 
         dbContext.AuditLogs.Add(BuildAudit(access, "portal.subscription.reactivated", "subscription", subscription.Id.ToString(), new
         {
@@ -343,7 +463,24 @@ public static class CommercePortalCoreEndpoints
         }));
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { implemented = true, reactivated = true, subscription.Id, subscription.CancelAtPeriodEnd, subscription.Status });
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(targetState);
+        return Results.Ok(new
+        {
+            implemented = true,
+            reactivated = true,
+            subscription.Id,
+            subscription.CancelAtPeriodEnd,
+            subscription.Status,
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock
+        });
     }
 
     private static async Task<IResult> GetRenewalInfoAsync(
@@ -359,17 +496,37 @@ public static class CommercePortalCoreEndpoints
         }
 
         var subscription = await GetLatestSubscriptionAsync(dbContext, access.TenantId!.Value, cancellationToken);
-        return subscription is null
-            ? Results.NotFound()
-            : Results.Ok(new
-            {
-                subscription.PlanCode,
-                subscription.BillingCycle,
-                subscription.RenewalDate,
-                subscription.CurrentPeriodStart,
-                subscription.CurrentPeriodEnd,
-                subscription.Status
-            });
+        if (subscription is null)
+        {
+            return Results.NotFound();
+        }
+
+        var license = await GetLatestLicenseAsync(dbContext, access.TenantId.Value, cancellationToken);
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == access.TenantId.Value, cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+
+        return Results.Ok(new
+        {
+            subscription.PlanCode,
+            subscription.BillingCycle,
+            subscription.RenewalDate,
+            subscription.CurrentPeriodStart,
+            subscription.CurrentPeriodEnd,
+            subscription.Status,
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock,
+            allowedActions = lifecycle.AllowedActions,
+            blockedActions = lifecycle.BlockedActions
+        });
     }
 
     private static async Task<IResult> ListPortalLicensesAsync(

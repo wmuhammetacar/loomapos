@@ -90,7 +90,16 @@ public static class CommerceCustomerPortalPhase6Endpoints
         }
 
         var snapshot = ParsePlanSnapshot(subscription.PlanSnapshotJson);
-        var remaining = subscription.TrialEndsAt.HasValue ? Math.Max(0, (int)Math.Ceiling((subscription.TrialEndsAt.Value - DateTimeOffset.UtcNow).TotalDays)) : (int?)null;
+        var now = DateTimeOffset.UtcNow;
+        var remaining = subscription.TrialEndsAt.HasValue ? Math.Max(0, (int)Math.Ceiling((subscription.TrialEndsAt.Value - now).TotalDays)) : (int?)null;
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == access.TenantId.Value, cancellationToken);
+        var license = await dbContext.IssuedLicenses.AsNoTracking()
+            .Where(x => x.TenantId == access.TenantId.Value)
+            .OrderByDescending(x => x.IssuedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, now);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
 
         return Results.Ok(new
         {
@@ -99,7 +108,19 @@ public static class CommerceCustomerPortalPhase6Endpoints
             couponCode = (string?)null,
             promoAmount = snapshot.PromoPrice,
             annualDiscountLabel = subscription.BillingCycle == "yearly" ? "Annual billing active" : null,
-            conversionState = subscription.TrialEndsAt.HasValue ? remaining > 0 ? "trialing" : "trial_expired" : snapshot.PromoPrice.HasValue ? "coupon_applied" : "paid"
+            conversionState = subscription.TrialEndsAt.HasValue ? remaining > 0 ? "trialing" : "trial_expired" : snapshot.PromoPrice.HasValue ? "coupon_applied" : "paid",
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            allowedActions = lifecycle.AllowedActions,
+            blockedActions = lifecycle.BlockedActions,
+            writeLocked = !lifecycle.AllowsOperationalWrites,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock
         });
     }
 
@@ -116,6 +137,18 @@ public static class CommerceCustomerPortalPhase6Endpoints
         var devices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.TenantId == access.TenantId.Value && x.RevokedAt == null, cancellationToken);
         var snapshot = subscription is null ? new PlanSnapshot() : ParsePlanSnapshot(subscription.PlanSnapshotJson);
         var notices = new List<object>();
+        var tenant = await dbContext.Tenants.AsNoTracking().FirstOrDefaultAsync(x => x.Id == access.TenantId.Value, cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+
+        notices.Add(new
+        {
+            id = "lifecycle",
+            level = lifecycle.AllowsOperationalWrites ? (lifecycle.State == SubscriptionLifecyclePolicy.TrialExpiring ? "warning" : "info") : "danger",
+            title = lifecycle.Label,
+            description = lifecycle.Message,
+            href = "/portal/subscription"
+        });
 
         if (subscription?.CancelAtPeriodEnd == true)
         {

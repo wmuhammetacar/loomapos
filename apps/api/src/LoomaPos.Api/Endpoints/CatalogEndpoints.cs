@@ -1,4 +1,5 @@
 using LoomaPos.Api.Common;
+using LoomaPos.Api.Commerce;
 using LoomaPos.Domain.Catalog;
 using LoomaPos.Domain.Inventory;
 using LoomaPos.Infrastructure.MultiTenancy;
@@ -129,6 +130,12 @@ public static class CatalogEndpoints
             return Results.NotFound();
         }
 
+        var lifecycleWriteBlock = await EnsureLifecycleWriteAllowedAsync(product.TenantId, dbContext, cancellationToken);
+        if (lifecycleWriteBlock is not null)
+        {
+            return lifecycleWriteBlock;
+        }
+
         if (request.CategoryId.HasValue)
         {
             var categoryExists = await dbContext.Categories.AsNoTracking()
@@ -252,6 +259,12 @@ public static class CatalogEndpoints
         if (!tenantId.HasValue)
         {
             return Results.BadRequest(new { error = "Tenant context is required." });
+        }
+
+        var lifecycleWriteBlock = await EnsureLifecycleWriteAllowedAsync(tenantId.Value, dbContext, cancellationToken);
+        if (lifecycleWriteBlock is not null)
+        {
+            return lifecycleWriteBlock;
         }
 
         var normalizedName = request.Name?.Trim();
@@ -404,6 +417,12 @@ public static class CatalogEndpoints
             return Results.BadRequest(new { error = "Tenant context is required." });
         }
 
+        var lifecycleWriteBlock = await EnsureLifecycleWriteAllowedAsync(tenantId.Value, dbContext, cancellationToken);
+        if (lifecycleWriteBlock is not null)
+        {
+            return lifecycleWriteBlock;
+        }
+
         var normalizedName = request.Name?.Trim();
         if (string.IsNullOrWhiteSpace(normalizedName))
         {
@@ -483,6 +502,12 @@ public static class CatalogEndpoints
             return Results.NotFound();
         }
 
+        var lifecycleWriteBlock = await EnsureLifecycleWriteAllowedAsync(product.TenantId, dbContext, cancellationToken);
+        if (lifecycleWriteBlock is not null)
+        {
+            return lifecycleWriteBlock;
+        }
+
         var normalizedName = request.Name?.Trim();
         if (string.IsNullOrWhiteSpace(normalizedName))
         {
@@ -543,6 +568,46 @@ public static class CatalogEndpoints
                 variant.PriceDelta,
                 variant.StockTrackingEnabled,
                 variant.IsActive));
+    }
+
+    private static async Task<IResult?> EnsureLifecycleWriteAllowedAsync(
+        Guid tenantId,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
+        var subscription = await dbContext.Subscriptions.AsNoTracking()
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var license = await dbContext.IssuedLicenses.AsNoTracking()
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.IssuedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+        if (lifecycle.CanWrite)
+        {
+            return null;
+        }
+
+        return Results.Json(new
+        {
+            error = "subscription_state_blocked",
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            allowedActions = lifecycle.AllowedActions,
+            blockedActions = lifecycle.BlockedActions,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock
+        }, statusCode: StatusCodes.Status403Forbidden);
     }
 
     public sealed record CreateProductRequest(

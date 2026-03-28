@@ -441,10 +441,12 @@ export const getDesktopActivationContext = async (appVersion: string): Promise<D
 
   const [company, license] = await Promise.all([
     getCommerceJson<CommercePortalCompanyDto>("/commerce/portal/company", {
-      accessToken: session.accessToken
+      accessToken: session.accessToken,
+      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
     }),
     getCommerceJson<CommercePortalLicenseDto>("/commerce/portal/licenses/active", {
-      accessToken: session.accessToken
+      accessToken: session.accessToken,
+      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
     })
   ]);
 
@@ -483,10 +485,12 @@ export const activateDesktopDevice = async (appVersion: string, input: DesktopAc
 
   const [company, license] = await Promise.all([
     getCommerceJson<CommercePortalCompanyDto>("/commerce/portal/company", {
-      accessToken: session.accessToken
+      accessToken: session.accessToken,
+      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
     }),
     getCommerceJson<CommercePortalLicenseDto>("/commerce/portal/licenses/active", {
-      accessToken: session.accessToken
+      accessToken: session.accessToken,
+      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
     })
   ]);
 
@@ -683,6 +687,15 @@ const refreshActivationSnapshot = async (appVersion: string, online: boolean, ac
       status: string;
       licenseStatus?: string | null;
       expiresAt?: string | null;
+      lifecycleState?: string | null;
+      canCheckout?: boolean;
+      canWrite?: boolean;
+      canSync?: boolean;
+      canView?: boolean;
+      requiresUpgradeAction?: boolean;
+      requiresBlock?: boolean;
+      allowedActions?: string[];
+      blockedActions?: string[];
     }>("/commerce/license/heartbeat", {
       deviceId: activation.deviceId,
       appVersion
@@ -692,7 +705,8 @@ const refreshActivationSnapshot = async (appVersion: string, online: boolean, ac
     if (accessToken) {
       try {
         refreshedLicense = await getCommerceJson<CommercePortalLicenseDto>("/commerce/portal/licenses/active", {
-          accessToken
+          accessToken,
+          headers: { "X-Tenant-Id": activation.tenantId }
         });
         touchLocalSessionValidation();
       } catch {
@@ -718,7 +732,9 @@ const refreshActivationSnapshot = async (appVersion: string, online: boolean, ac
       graceDays,
       lastValidationAt,
       offlineAllowedUntil,
-      status: heartbeat.licenseStatus?.toLowerCase() ?? "active"
+      status:
+        heartbeat.lifecycleState?.toLowerCase() ??
+        (heartbeat.licenseStatus?.toLowerCase() === "active" ? "subscription_active" : activation.status)
     });
 
     if (accessToken) {
@@ -726,10 +742,8 @@ const refreshActivationSnapshot = async (appVersion: string, online: boolean, ac
     }
 
     const normalizedActivation = getLocalActivation();
-    const locked = Boolean(
-      heartbeat.licenseStatus &&
-        ["revoked", "suspended", "expired"].includes(heartbeat.licenseStatus.toLowerCase())
-    );
+    const lifecycleState = normalizeDesktopLifecycleState(heartbeat.lifecycleState ?? activation.status);
+    const locked = heartbeat.requiresBlock === true || lifecycleState === "suspended_blocked";
     const license = buildLicenseRuntimeStatus(normalizedActivation, null, locked ? "LOCKED" : "ACTIVE");
     setLicenseRuntimeStatus(license);
 
@@ -753,20 +767,186 @@ const refreshActivationSnapshot = async (appVersion: string, online: boolean, ac
   }
 };
 
+type DesktopLifecycleState =
+  | "trial_active"
+  | "trial_expiring"
+  | "trial_expired"
+  | "subscription_active"
+  | "subscription_past_due"
+  | "subscription_canceled"
+  | "suspended_blocked";
+
+const normalizeDesktopLifecycleState = (rawState: string | null | undefined): DesktopLifecycleState => {
+  const normalized = (rawState ?? "").trim().toLowerCase();
+  if (normalized === "trial_active") {
+    return "trial_active";
+  }
+  if (normalized === "trial_expiring" || normalized === "trial_expiring_soon") {
+    return "trial_expiring";
+  }
+  if (normalized === "trial_expired" || normalized === "trial_expired_read_only") {
+    return "trial_expired";
+  }
+  if (normalized === "subscription_past_due" || normalized === "past_due" || normalized === "past-due") {
+    return "subscription_past_due";
+  }
+  if (normalized === "subscription_canceled" || normalized === "canceled" || normalized === "cancelled") {
+    return "subscription_canceled";
+  }
+  if (normalized === "suspended_blocked" || normalized === "suspended" || normalized === "blocked" || normalized === "revoked") {
+    return "suspended_blocked";
+  }
+  return "subscription_active";
+};
+
+const resolveDesktopLifecyclePolicy = (rawState: string | null | undefined) => {
+  const state = normalizeDesktopLifecycleState(rawState);
+
+  if (state === "trial_expired") {
+    return {
+      state,
+      allowedActions: ["Rapor goruntuleme", "Durum izleme"],
+      blockedActions: ["Satis", "Stok mutasyonu", "Sync push", "Yeni cihaz aktivasyonu"],
+      canCheckout: false,
+      canWrite: false,
+      canSync: false,
+      canView: true,
+      requiresUpgradeAction: true,
+      requiresBlock: false
+    };
+  }
+
+  if (state === "subscription_past_due") {
+    return {
+      state,
+      allowedActions: ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
+      blockedActions: ["Yeni cihaz aktivasyonu"],
+      canCheckout: true,
+      canWrite: true,
+      canSync: true,
+      canView: true,
+      requiresUpgradeAction: true,
+      requiresBlock: false
+    };
+  }
+
+  if (state === "subscription_canceled") {
+    return {
+      state,
+      allowedActions: ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
+      blockedActions: ["Yeni cihaz aktivasyonu"],
+      canCheckout: true,
+      canWrite: true,
+      canSync: true,
+      canView: true,
+      requiresUpgradeAction: true,
+      requiresBlock: false
+    };
+  }
+
+  if (state === "suspended_blocked") {
+    return {
+      state,
+      allowedActions: ["Rapor goruntuleme", "Durum izleme"],
+      blockedActions: ["Satis", "Stok mutasyonu", "Sync push", "Cihaz aktivasyonu"],
+      canCheckout: false,
+      canWrite: false,
+      canSync: false,
+      canView: true,
+      requiresUpgradeAction: true,
+      requiresBlock: true
+    };
+  }
+
+  if (state === "trial_expiring") {
+    return {
+      state,
+      allowedActions: ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
+      blockedActions: ["-"],
+      canCheckout: true,
+      canWrite: true,
+      canSync: true,
+      canView: true,
+      requiresUpgradeAction: true,
+      requiresBlock: false
+    };
+  }
+
+  if (state === "trial_active") {
+    return {
+      state,
+      allowedActions: ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
+      blockedActions: ["-"],
+      canCheckout: true,
+      canWrite: true,
+      canSync: true,
+      canView: true,
+      requiresUpgradeAction: false,
+      requiresBlock: false
+    };
+  }
+
+  return {
+    state: "subscription_active" as const,
+    allowedActions: ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
+    blockedActions: ["-"],
+    canCheckout: true,
+    canWrite: true,
+    canSync: true,
+    canView: true,
+    requiresUpgradeAction: false,
+    requiresBlock: false
+  };
+};
+
 const buildLicenseRuntimeStatus = (
   activation: ReturnType<typeof getLocalActivation>,
   message: string | null,
   status: LicenseRuntimeStatus["status"]
-): LicenseRuntimeStatus => ({
-  status,
-  planCode: activation?.planCode ?? null,
-  expiresAt: activation?.expiresAt ?? null,
-  graceDays: activation?.graceDays ?? null,
-  maxDevices: null,
-  activeDevices: null,
-  message,
-  lastCheckedAt: activation?.lastValidationAt ?? new Date().toISOString()
-});
+): LicenseRuntimeStatus => {
+  if (!activation) {
+    return {
+      status,
+      planCode: null,
+      expiresAt: null,
+      graceDays: null,
+      maxDevices: null,
+      activeDevices: null,
+      message,
+      lastCheckedAt: new Date().toISOString(),
+      lifecycleState: null,
+      allowedActions: [],
+      blockedActions: [],
+      canCheckout: false,
+      canWrite: false,
+      canSync: false,
+      canView: true,
+      requiresUpgradeAction: false,
+      requiresBlock: status === "LOCKED"
+    };
+  }
+
+  const policy = resolveDesktopLifecyclePolicy(activation.status ?? null);
+  return {
+    status,
+    planCode: activation?.planCode ?? null,
+    expiresAt: activation?.expiresAt ?? null,
+    graceDays: activation?.graceDays ?? null,
+    maxDevices: null,
+    activeDevices: null,
+    message,
+    lastCheckedAt: activation?.lastValidationAt ?? new Date().toISOString(),
+    lifecycleState: policy.state,
+    allowedActions: policy.allowedActions,
+    blockedActions: policy.blockedActions,
+    canCheckout: policy.canCheckout,
+    canWrite: policy.canWrite,
+    canSync: policy.canSync,
+    canView: policy.canView,
+    requiresUpgradeAction: policy.requiresUpgradeAction,
+    requiresBlock: policy.requiresBlock
+  };
+};
 
 const toActivationWriteModel = (activation: NonNullable<ReturnType<typeof getLocalActivation>>) => ({
   activationId: activation.activationId,
@@ -792,7 +972,8 @@ const toActivationWriteModel = (activation: NonNullable<ReturnType<typeof getLoc
 const hydrateCatalog = async (tenantId: string, accessToken: string) => {
   try {
     const rows = await getCommerceJson<CommerceCatalogProductDto[]>("/commerce/portal/catalog/products", {
-      accessToken
+      accessToken,
+      headers: { "X-Tenant-Id": tenantId }
     });
     if (rows.length > 0) {
       replaceLocalProducts(tenantId, rows.map((row) => ({

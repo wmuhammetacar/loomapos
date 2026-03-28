@@ -112,6 +112,7 @@ export function CustomerPortalPanelsPhase6({
   }, []);
 
   const notices = useMemo(() => buildNotices(snapshot), [snapshot]);
+  const lifecycle = useMemo(() => resolvePortalTrialLifecycle(snapshot), [snapshot]);
   const run = async (fn: () => Promise<unknown>, successText: string) => {
     setBusy(true);
     setError(null);
@@ -162,6 +163,18 @@ export function CustomerPortalPanelsPhase6({
         </Card>
         <Card>
           <CardTitle>Quick actions</CardTitle>
+          <div className="mt-5 rounded-[24px] border border-line bg-muted/30 px-4 py-4">
+            <p className="text-sm font-semibold text-text">{lifecycle.message}</p>
+            <p className="mt-2 text-xs text-text/70">
+              Sonraki adim: <Link href={lifecycle.nextActionHref as never} className="font-semibold text-brand">{lifecycle.nextActionLabel}</Link>
+            </p>
+            <p className="mt-2 text-[11px] text-text/60">
+              Acik: {lifecycle.allowedActions.join(" • ")}
+            </p>
+            <p className="mt-1 text-[11px] text-text/60">
+              Kapali: {lifecycle.blockedActions.join(" • ")}
+            </p>
+          </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link href="/portal/subscription" className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white">Manage subscription</Link>
             <Link href="/portal/licenses" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Licenses</Link>
@@ -170,7 +183,7 @@ export function CustomerPortalPanelsPhase6({
             <Link href="/portal/support" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Support</Link>
           </div>
           <p className="mt-5 text-sm leading-6 text-text/72">
-            The portal manages subscription, billing, license and device metadata only. POS operations remain in Desktop and Mobile apps.
+            Bu portal sadece abonelik, faturalama, lisans ve cihaz yonetimi icindir. Canli satis/odeme Desktop POS tarafinda calisir; Mobile uygulama operasyon takip ve kontrol icindir.
           </p>
         </Card>
       </div>
@@ -188,7 +201,7 @@ export function CustomerPortalPanelsPhase6({
             <Metric label="Next billing" value={snapshot.usage.nextBillingAmount ? formatCurrency(snapshot.usage.nextBillingAmount) : "-"} />
             <Metric label="Support tier" value={snapshot.usage.supportTier ?? currentPlan?.supportLevel ?? "-"} />
             <Metric label="Pending change" value={snapshot.usage.pendingPlanChange?.targetPlanCode ?? "-"} />
-            <Metric label="Promo state" value={snapshot.promo.conversionState.replaceAll("_", " ")} />
+            <Metric label="Lifecycle" value={lifecycle.label} />
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button
@@ -602,6 +615,143 @@ function hasAnyRole(roleCode: string | null | undefined, allowed: string[]) {
   return allowed.includes(roleCode);
 }
 
+type PortalLifecycleState =
+  | "trial_active"
+  | "trial_expiring"
+  | "trial_expired"
+  | "subscription_active"
+  | "subscription_past_due"
+  | "subscription_canceled"
+  | "suspended_blocked";
+
+interface PortalLifecycleDescriptor {
+  state: PortalLifecycleState;
+  label: string;
+  message: string;
+  nextActionLabel: string;
+  nextActionHref: string;
+  allowedActions: string[];
+  blockedActions: string[];
+}
+
+function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null): PortalLifecycleDescriptor {
+  if (snapshot === null) {
+    return {
+      state: "subscription_active",
+      label: "Abonelik aktif",
+      message: "Abonelik durumu yukleniyor.",
+      nextActionLabel: "Abonelik yonet",
+      nextActionHref: "/portal/subscription",
+      allowedActions: ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
+      blockedActions: ["-"]
+    };
+  }
+
+  const backendLifecycle = (snapshot.promo.lifecycleState ?? "").toLowerCase();
+  const backendAllowed = snapshot.promo.allowedActions?.length ? snapshot.promo.allowedActions : undefined;
+  const backendBlocked = snapshot.promo.blockedActions?.length ? snapshot.promo.blockedActions : undefined;
+
+  const describe = (
+    state: PortalLifecycleState,
+    fallbackLabel: string,
+    fallbackMessage: string,
+    nextActionLabel: string,
+    nextActionHref: string,
+    allowed: string[],
+    blocked: string[]
+  ): PortalLifecycleDescriptor => ({
+    state,
+    label: snapshot.promo.lifecycleLabel ?? fallbackLabel,
+    message: snapshot.promo.lifecycleMessage ?? fallbackMessage,
+    nextActionLabel,
+    nextActionHref,
+    allowedActions: backendAllowed ?? allowed,
+    blockedActions: backendBlocked ?? blocked
+  });
+
+  if (backendLifecycle === "trial_active") {
+    return describe(
+      "trial_active",
+      "Deneme aktif",
+      "Deneme suresi aktif. Operasyon yazma islemleri acik.",
+      "Planlari gor",
+      "/pricing",
+      ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
+      ["-"]
+    );
+  }
+
+  if (backendLifecycle === "trial_expiring" || backendLifecycle === "trial_expiring_soon") {
+    return describe(
+      "trial_expiring",
+      "Deneme bitmek uzere",
+      "Deneme suresi kritik seviyede. Kesinti olmamasi icin plan secimi yapin.",
+      "Plan sec",
+      "/pricing",
+      ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
+      ["-"]
+    );
+  }
+
+  if (backendLifecycle === "trial_expired" || backendLifecycle === "trial_expired_read_only") {
+    return describe(
+      "trial_expired",
+      "Deneme bitti (salt-okunur)",
+      "Deneme suresi doldu. Yazma islemleri kapali, goruntuleme acik.",
+      "Plani yukselt",
+      "/pricing",
+      ["Rapor ve verileri goruntuleme"],
+      ["Desktop satis", "Stok mutasyonu", "Sync push", "Yeni cihaz aktivasyonu"]
+    );
+  }
+
+  if (backendLifecycle === "subscription_past_due" || backendLifecycle === "past_due") {
+    return describe(
+      "subscription_past_due",
+      "Odeme gecikmis",
+      "Abonelik odemesi gecikmis. Operasyon acik, yeni cihaz aktivasyonu kisitli.",
+      "Fatura ve odeme",
+      "/portal/billing",
+      ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
+      ["Yeni cihaz aktivasyonu"]
+    );
+  }
+
+  if (backendLifecycle === "subscription_canceled" || backendLifecycle === "canceled" || backendLifecycle === "cancelled") {
+    return describe(
+      "subscription_canceled",
+      "Abonelik iptal",
+      "Abonelik iptal isaretli. Donem sonuna kadar operasyon acik olabilir.",
+      "Abonelik yonet",
+      "/portal/subscription",
+      ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
+      ["Yeni cihaz aktivasyonu"]
+    );
+  }
+
+  if (backendLifecycle === "suspended_blocked" || backendLifecycle === "suspended" || backendLifecycle === "blocked") {
+    return describe(
+      "suspended_blocked",
+      "Askida / bloklu",
+      "Hesap bloklu oldugu icin operasyon yazma akisleri kapali.",
+      "Destek",
+      "/contact",
+      ["Rapor ve verileri goruntuleme"],
+      ["Desktop satis", "Stok mutasyonu", "Sync push", "Cihaz aktivasyonu"]
+    );
+  }
+
+  return describe(
+    "subscription_active",
+    "Abonelik aktif",
+    "Abonelik aktif. Tum izinli operasyon akislari acik.",
+    "Abonelik yonet",
+    "/portal/subscription",
+    ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
+    ["-"]
+  );
+}
+
 function buildNotices(snapshot: CustomerPortalExperience | null): PortalNotice[] {
   if (!snapshot) {
     return [];
@@ -609,15 +759,31 @@ function buildNotices(snapshot: CustomerPortalExperience | null): PortalNotice[]
 
   const notices = [...snapshot.notices];
   const renewalDate = snapshot.subscription?.renewalDate ?? snapshot.overview?.renewalDate ?? null;
+  const lifecycle = resolvePortalTrialLifecycle(snapshot);
+
+  notices.push({
+    id: "trial-lifecycle",
+    level:
+      lifecycle.state === "suspended_blocked" || lifecycle.state === "trial_expired"
+        ? "danger"
+        : lifecycle.state === "trial_expiring" || lifecycle.state === "subscription_past_due" || lifecycle.state === "subscription_canceled"
+          ? "warning"
+          : lifecycle.state === "trial_active"
+            ? "info"
+            : "success",
+    title: lifecycle.label,
+    description: lifecycle.message,
+    href: lifecycle.nextActionHref
+  });
 
   if (snapshot.subscription?.cancelAtPeriodEnd) {
     notices.push({
       id: "cancel-at-period-end",
       level: "warning",
-      title: "Subscription will end at period close",
+      title: "Abonelik donem sonunda kapanacak",
       description: renewalDate
-        ? `Auto-renew is disabled. Service remains active until ${formatDate(renewalDate)}.`
-        : "Auto-renew is disabled for the current subscription.",
+        ? `Otomatik yenileme kapali. Hizmet ${formatDate(renewalDate)} tarihine kadar aktif kalir.`
+        : "Mevcut abonelikte otomatik yenileme kapali.",
       href: "/portal/subscription"
     });
   }
@@ -626,29 +792,9 @@ function buildNotices(snapshot: CustomerPortalExperience | null): PortalNotice[]
     notices.push({
       id: "device-limit",
       level: "danger",
-      title: "Device limit reached",
-      description: "Deactivate unused devices before downgrading or activating a new device.",
+      title: "Cihaz limiti doldu",
+      description: "Yeni cihaz aktivasyonu veya dusuk plana gecis oncesinde kullanilmayan cihazlari devre disi birakin.",
       href: "/portal/devices"
-    });
-  }
-
-  if (snapshot.promo.conversionState === "trialing" && snapshot.promo.trialRemainingDays !== null) {
-    notices.push({
-      id: "trial-state",
-      level: "info",
-      title: "Trial is active",
-      description: `${snapshot.promo.trialRemainingDays} day(s) remain before billing starts.`,
-      href: "/portal/subscription"
-    });
-  }
-
-  if (snapshot.license && snapshot.license.status !== "active") {
-    notices.push({
-      id: "license-state",
-      level: "warning",
-      title: "License requires attention",
-      description: `Current license status is ${snapshot.license.status}.`,
-      href: "/portal/licenses"
     });
   }
 
@@ -656,8 +802,8 @@ function buildNotices(snapshot: CustomerPortalExperience | null): PortalNotice[]
     notices.push({
       id: "healthy",
       level: "success",
-      title: "Account is healthy",
-      description: "Subscription, license and device usage are within current limits."
+      title: "Hesap durumu saglikli",
+      description: "Abonelik, lisans ve cihaz kullanimi mevcut limitler icinde."
     });
   }
 

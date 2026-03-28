@@ -83,6 +83,13 @@ export interface DesktopSyncStatus {
   failed: number;
   sent: number;
   deadLetter: number;
+  oldestFailedAt: string | null;
+  failedReasons: Array<{
+    errorCode: string;
+    count: number;
+    sampleMessage: string | null;
+    latestAt: string | null;
+  }>;
   lastRunAt: string | null;
   lastSuccessAt: string | null;
   lastPullAt: string | null;
@@ -91,6 +98,38 @@ export interface DesktopSyncStatus {
   lastTryAt: string | null;
   connectionQuality: "online" | "degraded" | "offline";
   blockedReason: string | null;
+}
+
+export interface DesktopSyncDiagnostics {
+  pendingCount: number;
+  failedCount: number;
+  lastSuccessfulSyncAt: string | null;
+  health: "healthy" | "delayed" | "failed";
+}
+
+export interface DesktopRecoveredCartDraft {
+  cart: Array<{
+    productId: string;
+    name: string;
+    taxRate: number;
+    qty: number;
+    unitPrice: number;
+    discount: number;
+  }>;
+  headerDiscount: number;
+  customerName: string;
+  paymentDraft: {
+    method: DesktopPaymentMethod;
+    cashReceived: number | null;
+  };
+  updatedAt: string;
+}
+
+export interface DesktopCartDraftRecovery {
+  restored: boolean;
+  draft: DesktopRecoveredCartDraft | null;
+  warningCode: "stale" | "invalid" | "missing_products" | null;
+  skippedProductCount: number;
 }
 
 export interface DesktopCashSession {
@@ -146,6 +185,15 @@ export interface DesktopLicenseStatus {
   activeDevices: number | null;
   message: string | null;
   lastCheckedAt: string | null;
+  lifecycleState: string | null;
+  allowedActions: string[];
+  blockedActions: string[];
+  canCheckout: boolean;
+  canWrite: boolean;
+  canSync: boolean;
+  canView: boolean;
+  requiresUpgradeAction: boolean;
+  requiresBlock: boolean;
 }
 
 export interface DesktopSessionSnapshot {
@@ -328,6 +376,7 @@ export interface DesktopPosApi {
     printWarning?: string;
   }>;
   getSyncStatus: () => Promise<DesktopSyncStatus>;
+  getSyncDiagnostics: () => Promise<DesktopSyncDiagnostics>;
   syncNow: () => Promise<DesktopSyncStatus>;
   retryDeadLetterSync: () => Promise<DesktopSyncStatus>;
   getCartDraft: () => Promise<{
@@ -340,6 +389,7 @@ export interface DesktopPosApi {
     updatedAt: string;
     createdAt: string;
   } | null>;
+  restoreCartDraft: () => Promise<DesktopCartDraftRecovery>;
   saveCartDraft: (args: { payloadJson: string }) => Promise<{ ok: true }>;
   clearCartDraft: () => Promise<{ ok: true }>;
   getLicenseStatus: () => Promise<DesktopLicenseStatus>;

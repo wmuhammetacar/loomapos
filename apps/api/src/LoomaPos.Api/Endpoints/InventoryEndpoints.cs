@@ -1,4 +1,5 @@
 using LoomaPos.Api.Common;
+using LoomaPos.Api.Commerce;
 using LoomaPos.Domain.Inventory;
 using LoomaPos.Infrastructure.MultiTenancy;
 using LoomaPos.Infrastructure.Persistence;
@@ -95,6 +96,12 @@ public static class InventoryEndpoints
             return Results.BadRequest(new { error = "tenant_id and branch_id are required." });
         }
 
+        var lifecycleWriteBlock = await EnsureLifecycleWriteAllowedAsync(tenantId.Value, dbContext, cancellationToken);
+        if (lifecycleWriteBlock is not null)
+        {
+            return lifecycleWriteBlock;
+        }
+
         var product = await dbContext.Products
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == request.ProductId, cancellationToken);
@@ -134,6 +141,46 @@ public static class InventoryEndpoints
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return Results.Ok(new { stockMove.Id, eventType = "STOCK_ADJUSTMENT" });
+    }
+
+    private static async Task<IResult?> EnsureLifecycleWriteAllowedAsync(
+        Guid tenantId,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var tenant = await dbContext.Tenants.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
+        var subscription = await dbContext.Subscriptions.AsNoTracking()
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var license = await dbContext.IssuedLicenses.AsNoTracking()
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.IssuedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+        if (lifecycle.CanWrite)
+        {
+            return null;
+        }
+
+        return Results.Json(new
+        {
+            error = "subscription_state_blocked",
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            allowedActions = lifecycle.AllowedActions,
+            blockedActions = lifecycle.BlockedActions,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock
+        }, statusCode: StatusCodes.Status403Forbidden);
     }
 
     private static async Task UpsertStockBalanceAsync(
