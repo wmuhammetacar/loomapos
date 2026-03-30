@@ -2,6 +2,7 @@ using LoomaPos.Api.Common;
 using LoomaPos.Api.Commerce;
 using LoomaPos.Domain.Catalog;
 using LoomaPos.Domain.Inventory;
+using LoomaPos.Infrastructure.Inventory;
 using LoomaPos.Infrastructure.MultiTenancy;
 using LoomaPos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -253,6 +254,7 @@ public static class CatalogEndpoints
         CreateProductRequest request,
         ITenantProvider tenantProvider,
         AppDbContext dbContext,
+        IWarehouseCompatibilityService warehouseCompatibilityService,
         CancellationToken cancellationToken)
     {
         var tenantId = tenantProvider.TenantId ?? request.TenantId;
@@ -326,11 +328,14 @@ public static class CatalogEndpoints
                 return Results.BadRequest(new { error = "branch_id is required when opening_stock is used." });
             }
 
+            var resolvedWarehouseId = await warehouseCompatibilityService.EnsureDefaultWarehouseAsync(tenantId.Value, cancellationToken);
+
             dbContext.StockMoves.Add(new StockMove
             {
                 TenantId = tenantId.Value,
                 BranchId = branchId.Value,
                 ProductId = product.Id,
+                WarehouseId = resolvedWarehouseId,
                 QtyDelta = normalizedOpeningStock,
                 Reason = "OPENING_STOCK",
                 RefType = "product_opening",
@@ -354,6 +359,13 @@ public static class CatalogEndpoints
             {
                 currentBalance.Qty += normalizedOpeningStock;
             }
+
+            await warehouseCompatibilityService.ApplyWarehouseDeltaAsync(
+                tenantId.Value,
+                product.Id,
+                normalizedOpeningStock,
+                resolvedWarehouseId,
+                cancellationToken);
         }
 
         AuditLogWriter.Add(

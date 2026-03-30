@@ -20,6 +20,14 @@ final repositoryProvider = FutureProvider<MobileRepository>((ref) async {
   return MobileRepository(store: store, api: ref.read(apiClientProvider));
 });
 
+String _toUiMessage(Object error) {
+  if (error is ApiException) {
+    return error.userMessage;
+  }
+  return error.toString();
+}
+
+
 class AppController extends StateNotifier<AppShellState> {
   AppController(this._ref) : super(AppShellState.initial) {
     unawaited(_bootstrap());
@@ -40,7 +48,7 @@ class AppController extends StateNotifier<AppShellState> {
       state = AppShellState.initial.copyWith(
         mode: AppRuntimeMode.needsLogin,
         busy: false,
-        message: error.toString(),
+        message: _toUiMessage(error),
       );
     }
   }
@@ -60,7 +68,7 @@ class AppController extends StateNotifier<AppShellState> {
       refreshDataProvidersFromRef(_ref);
       _ref.read(syncControllerProvider.notifier).refreshFromStore();
     } catch (error) {
-      state = state.copyWith(busy: false, message: error.toString());
+      state = state.copyWith(busy: false, message: _toUiMessage(error));
     }
   }
 

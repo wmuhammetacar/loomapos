@@ -1,7 +1,10 @@
 using LoomaPos.Api.Common;
+using System.Text.Json;
 using LoomaPos.Api.Commerce;
 using LoomaPos.Domain.Common;
 using LoomaPos.Domain.Cashbook;
+using LoomaPos.Domain.Accounting;
+using LoomaPos.Infrastructure.Accounting;
 using LoomaPos.Infrastructure.MultiTenancy;
 using LoomaPos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -77,6 +80,7 @@ public static class CashbookEndpoints
         CreateCashTransactionRequest request,
         ITenantProvider tenantProvider,
         AppDbContext dbContext,
+        IAccountingBridgeService accountingBridgeService,
         CancellationToken cancellationToken)
     {
         var tenantId = tenantProvider.TenantId ?? request.TenantId;
@@ -106,6 +110,9 @@ public static class CashbookEndpoints
             Amount = request.Amount,
             Reason = request.Reason
         };
+
+        await using var dbTransaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
         dbContext.CashTransactions.Add(transaction);
 
         AuditLogWriter.Add(
@@ -116,7 +123,28 @@ public static class CashbookEndpoints
             "cash_transactions",
             transaction.Id.ToString(),
             request);
+
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await accountingBridgeService.EnsurePendingExportItemAsync(
+            tenantId.Value,
+            AccountingBridgeSourceTypes.CashMovement,
+            transaction.Id.ToString(),
+            "cash_transaction_created",
+            JsonSerializer.Serialize(new
+            {
+                transaction.Id,
+                transaction.TenantId,
+                transaction.BranchId,
+                type = transaction.Type.ToString(),
+                transaction.Amount,
+                transaction.Reason,
+                transaction.CreatedAt
+            }),
+            cancellationToken);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await dbTransaction.CommitAsync(cancellationToken);
 
         return Results.Ok(new CashTransactionResponse(
             transaction.Id,

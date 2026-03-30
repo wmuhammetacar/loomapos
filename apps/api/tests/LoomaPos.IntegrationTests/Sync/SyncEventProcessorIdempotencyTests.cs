@@ -3,9 +3,11 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using LoomaPos.Infrastructure.Integration;
 using LoomaPos.Domain.Commerce;
+using LoomaPos.Domain.Catalog;
 using LoomaPos.Domain.Identity;
 using LoomaPos.Infrastructure.MultiTenancy;
 using LoomaPos.Infrastructure.Persistence;
+using LoomaPos.Infrastructure.Inventory;
 using LoomaPos.Infrastructure.Sync;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -87,9 +89,14 @@ public sealed class SyncEventProcessorIdempotencyTests : IAsyncLifetime
         {
             var processedCount = await verify.ProcessedEvents.CountAsync(x => x.EventId == eventId);
             var saleCount = await verify.Sales.CountAsync(x => x.Id == saleId);
+            var exportCount = await verify.AccountingExportItems.CountAsync(
+                x => x.TenantId == tenantId &&
+                     x.SourceType == "sale" &&
+                     x.SourceId == saleId.ToString());
 
             Assert.Equal(1, processedCount);
             Assert.Equal(1, saleCount);
+            Assert.Equal(1, exportCount);
         }
     }
 
@@ -124,6 +131,69 @@ public sealed class SyncEventProcessorIdempotencyTests : IAsyncLifetime
 
         Assert.Equal(1, processedCount);
         Assert.Equal(1, saleCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_SaleCreated_ShouldMirrorStockDeltaToDefaultWarehouse()
+    {
+        if (_containerReady == false)
+        {
+            return;
+        }
+
+        var tenantId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var saleId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+
+        var request = BuildSaleCreatedRequestWithLine(eventId, tenantId, branchId, deviceId, saleId, productId, 2m);
+
+        await using var context = CreateContext(tenantId, branchId, deviceId, Guid.NewGuid());
+        await SeedOperationalStateAsync(context, tenantId);
+
+        context.Products.Add(new Product
+        {
+            Id = productId,
+            TenantId = tenantId,
+            Name = "Warehouse Sync Product",
+            Unit = "adet",
+            SalePrice = 50m,
+            PurchasePrice = 0m,
+            TaxRate = 0m,
+            StockTrackingEnabled = true,
+            MinStock = 0,
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var processor = CreateProcessor(context);
+        var result = await processor.ProcessAsync(request, CancellationToken.None);
+
+        Assert.Equal("accepted", result.Status);
+
+        var warehouse = await context.Warehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Name == "DEFAULT");
+        Assert.NotNull(warehouse);
+
+        var stockByWarehouse = await context.StockByWarehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ProductId == productId && x.WarehouseId == warehouse!.Id);
+
+        Assert.NotNull(stockByWarehouse);
+        Assert.Equal(-2m, stockByWarehouse!.Quantity);
+
+        var branchStockBalance = await context.StockBalances.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.BranchId == branchId && x.ProductId == productId);
+        Assert.NotNull(branchStockBalance);
+        Assert.Equal(-2m, branchStockBalance!.Qty);
+
+        var stockMove = await context.StockMoves.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ProductId == productId && x.RefId == saleId.ToString());
+        Assert.NotNull(stockMove);
+        Assert.Equal(warehouse.Id, stockMove!.WarehouseId);
     }
 
     private static async Task SeedOperationalStateAsync(AppDbContext context, Guid tenantId)
@@ -205,7 +275,65 @@ public sealed class SyncEventProcessorIdempotencyTests : IAsyncLifetime
 
     private static SyncEventProcessor CreateProcessor(AppDbContext context)
     {
-        return new SyncEventProcessor(context, new NoopRabbitMqPublisher(), NullLogger<SyncEventProcessor>.Instance);
+        return new SyncEventProcessor(
+            context,
+            new NoopRabbitMqPublisher(),
+            new WarehouseCompatibilityService(context),
+            new LoomaPos.Infrastructure.Accounting.AccountingBridgeService(context),
+            NullLogger<SyncEventProcessor>.Instance);
+    }
+
+    private static SyncEventRequest BuildSaleCreatedRequestWithLine(
+        Guid eventId,
+        Guid tenantId,
+        Guid branchId,
+        Guid deviceId,
+        Guid saleId,
+        Guid productId,
+        decimal qty)
+    {
+        var lineTotal = qty * 50m;
+        var payload = JsonSerializer.SerializeToElement(new
+        {
+            saleId,
+            receiptNo = "RCP-IDEMP-LINE",
+            createdAt = DateTimeOffset.UtcNow,
+            subtotal = lineTotal,
+            discount = 0m,
+            tax = 0m,
+            total = lineTotal,
+            lines = new[]
+            {
+                new
+                {
+                    productId,
+                    qty,
+                    unitPrice = 50m,
+                    discount = 0m,
+                    tax = 0m,
+                    lineTotal
+                }
+            },
+            payments = new[]
+            {
+                new
+                {
+                    method = "Cash",
+                    amount = lineTotal
+                }
+            }
+        });
+
+        return new SyncEventRequest(
+            eventId,
+            tenantId,
+            branchId,
+            deviceId,
+            SyncEventTypes.SaleCreated,
+            payload,
+            "sale",
+            saleId.ToString(),
+            1);
     }
 
     private static SyncEventRequest BuildSaleCreatedRequest(

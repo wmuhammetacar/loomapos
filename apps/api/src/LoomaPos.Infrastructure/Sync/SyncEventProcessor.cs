@@ -2,11 +2,14 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using LoomaPos.Domain.Auditing;
 using LoomaPos.Domain.Catalog;
+using LoomaPos.Domain.Accounting;
 using LoomaPos.Domain.Inventory;
 using LoomaPos.Domain.Sales;
 using LoomaPos.Domain.Sync;
 using LoomaPos.Infrastructure.Integration;
+using LoomaPos.Infrastructure.Inventory;
 using LoomaPos.Infrastructure.Persistence;
+using LoomaPos.Infrastructure.Accounting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -27,14 +30,20 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
     private readonly AppDbContext _dbContext;
     private readonly IRabbitMqPublisher _rabbitMqPublisher;
     private readonly ILogger<SyncEventProcessor> _logger;
+    private readonly IWarehouseCompatibilityService _warehouseCompatibilityService;
+    private readonly IAccountingBridgeService _accountingBridgeService;
 
     public SyncEventProcessor(
         AppDbContext dbContext,
         IRabbitMqPublisher rabbitMqPublisher,
+        IWarehouseCompatibilityService warehouseCompatibilityService,
+        IAccountingBridgeService accountingBridgeService,
         ILogger<SyncEventProcessor> logger)
     {
         _dbContext = dbContext;
         _rabbitMqPublisher = rabbitMqPublisher;
+        _warehouseCompatibilityService = warehouseCompatibilityService;
+        _accountingBridgeService = accountingBridgeService;
         _logger = logger;
     }
 
@@ -458,6 +467,8 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
             CreatedAt = payload.CreatedAt
         };
 
+        var defaultWarehouseId = await _warehouseCompatibilityService.EnsureDefaultWarehouseAsync(request.TenantId, cancellationToken);
+
         foreach (var line in payload.Lines)
         {
             sale.Lines.Add(new SaleLine
@@ -480,6 +491,7 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
                 TenantId = request.TenantId,
                 BranchId = request.BranchId,
                 ProductId = line.ProductId,
+                WarehouseId = defaultWarehouseId,
                 QtyDelta = -line.Qty,
                 Reason = "SALE_CREATED",
                 RefType = "sale",
@@ -487,6 +499,7 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
             });
 
             await UpsertStockBalanceAsync(request.TenantId, request.BranchId, line.ProductId, -line.Qty, cancellationToken);
+            await _warehouseCompatibilityService.ApplyWarehouseDeltaAsync(request.TenantId, line.ProductId, -line.Qty, defaultWarehouseId, cancellationToken);
         }
 
         foreach (var payment in payload.Payments)
@@ -500,6 +513,14 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
 
         _dbContext.Sales.Add(sale);
         AddDomainAuditLog(request, "SALE_CREATED", "sales", payload.SaleId.ToString(), payload);
+
+        await QueueAccountingExportAsync(
+            request,
+            AccountingBridgeSourceTypes.Sale,
+            payload.SaleId.ToString(),
+            SyncEventTypes.SaleCreated,
+            payload,
+            cancellationToken);
     }
 
     private async Task ProcessSaleVoidedAsync(SyncEventRequest request, CancellationToken cancellationToken)
@@ -517,6 +538,8 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
 
         sale.Status = Domain.Common.SaleStatus.Voided;
 
+        var defaultWarehouseId = await _warehouseCompatibilityService.EnsureDefaultWarehouseAsync(request.TenantId, cancellationToken);
+
         foreach (var line in sale.Lines)
         {
             if (!await IsStockTrackingEnabledAsync(line.ProductId, cancellationToken))
@@ -529,6 +552,7 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
                 TenantId = request.TenantId,
                 BranchId = request.BranchId,
                 ProductId = line.ProductId,
+                WarehouseId = defaultWarehouseId,
                 QtyDelta = line.Qty,
                 Reason = payload.Reason ?? "SALE_VOIDED",
                 RefType = "sale_void",
@@ -536,9 +560,18 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
             });
 
             await UpsertStockBalanceAsync(request.TenantId, request.BranchId, line.ProductId, line.Qty, cancellationToken);
+            await _warehouseCompatibilityService.ApplyWarehouseDeltaAsync(request.TenantId, line.ProductId, line.Qty, defaultWarehouseId, cancellationToken);
         }
 
         AddDomainAuditLog(request, "SALE_VOIDED", "sales", payload.SaleId.ToString(), payload);
+
+        await QueueAccountingExportAsync(
+            request,
+            AccountingBridgeSourceTypes.SaleReversal,
+            payload.SaleId.ToString(),
+            SyncEventTypes.SaleVoided,
+            payload,
+            cancellationToken);
     }
 
     private async Task ProcessSaleRefundCreatedAsync(SyncEventRequest request, CancellationToken cancellationToken)
@@ -567,6 +600,8 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
             CreatedAt = payload.CreatedAt
         };
 
+        var defaultWarehouseId = await _warehouseCompatibilityService.EnsureDefaultWarehouseAsync(request.TenantId, cancellationToken);
+
         foreach (var line in payload.Lines)
         {
             sale.Lines.Add(new SaleLine
@@ -589,6 +624,7 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
                 TenantId = request.TenantId,
                 BranchId = request.BranchId,
                 ProductId = line.ProductId,
+                WarehouseId = defaultWarehouseId,
                 QtyDelta = line.Qty,
                 Reason = SyncEventTypes.SaleRefundCreated,
                 RefType = "sale_refund",
@@ -596,6 +632,7 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
             });
 
             await UpsertStockBalanceAsync(request.TenantId, request.BranchId, line.ProductId, line.Qty, cancellationToken);
+            await _warehouseCompatibilityService.ApplyWarehouseDeltaAsync(request.TenantId, line.ProductId, line.Qty, defaultWarehouseId, cancellationToken);
         }
 
         foreach (var payment in payload.Payments)
@@ -609,17 +646,39 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
 
         _dbContext.Sales.Add(sale);
         AddDomainAuditLog(request, "SALE_REFUND_CREATED", "sales", payload.RefundSaleId.ToString(), payload);
+
+        await QueueAccountingExportAsync(
+            request,
+            AccountingBridgeSourceTypes.SaleReversal,
+            payload.RefundSaleId.ToString(),
+            SyncEventTypes.SaleRefundCreated,
+            payload,
+            cancellationToken);
     }
 
     private async Task ProcessStockAdjustedAsync(SyncEventRequest request, CancellationToken cancellationToken)
     {
         var payload = DeserializePayload<StockAdjustedPayload>(request.Payload);
 
+        Guid resolvedWarehouseId;
+        try
+        {
+            resolvedWarehouseId = await _warehouseCompatibilityService.ResolveWarehouseAsync(
+                request.TenantId,
+                payload.WarehouseId,
+                cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new InvalidOperationException("Stock adjustment warehouse resolution failed: " + ex.Message);
+        }
+
         _dbContext.StockMoves.Add(new StockMove
         {
             TenantId = request.TenantId,
             BranchId = request.BranchId,
             ProductId = payload.ProductId,
+            WarehouseId = resolvedWarehouseId,
             QtyDelta = payload.QtyDelta,
             Reason = payload.ReasonCode ?? payload.Reason ?? SyncEventTypes.StockAdjusted,
             RefType = "manual_adjustment",
@@ -627,6 +686,13 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
         });
 
         await UpsertStockBalanceAsync(request.TenantId, request.BranchId, payload.ProductId, payload.QtyDelta, cancellationToken);
+        await _warehouseCompatibilityService.ApplyWarehouseDeltaAsync(
+            request.TenantId,
+            payload.ProductId,
+            payload.QtyDelta,
+            resolvedWarehouseId,
+            cancellationToken);
+
         AddDomainAuditLog(request, "STOCK_ADJUSTED", "stock_moves", request.EventId.ToString(), payload);
     }
 
@@ -661,8 +727,9 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
     private async Task ProcessCashAdjustmentRecordedAsync(SyncEventRequest request, CancellationToken cancellationToken)
     {
         var payload = DeserializePayload<CashAdjustmentRecordedPayload>(request.Payload);
-        _dbContext.CashTransactions.Add(new Domain.Cashbook.CashTransaction
+        var cashTransaction = new Domain.Cashbook.CashTransaction
         {
+            Id = ParseAggregateGuid(request.AggregateId) ?? Guid.NewGuid(),
             TenantId = request.TenantId,
             BranchId = request.BranchId,
             Type = payload.Type.Equals("cash_out", StringComparison.OrdinalIgnoreCase)
@@ -670,10 +737,19 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
                 : Domain.Common.CashTransactionType.In,
             Amount = payload.Amount,
             Reason = payload.Reason
-        });
+        };
+
+        _dbContext.CashTransactions.Add(cashTransaction);
 
         AddDomainAuditLog(request, "CASH_ADJUSTMENT_RECORDED", "cash_transactions", request.AggregateId ?? request.EventId.ToString(), payload);
-        await Task.CompletedTask;
+
+        await QueueAccountingExportAsync(
+            request,
+            AccountingBridgeSourceTypes.CashMovement,
+            cashTransaction.Id.ToString(),
+            SyncEventTypes.CashAdjustmentRecorded,
+            payload,
+            cancellationToken);
     }
 
     private async Task ProcessStockCountSubmittedAsync(SyncEventRequest request, CancellationToken cancellationToken)
@@ -764,6 +840,8 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
                     x.BranchId == branchId &&
                     x.ProductId == productId,
                 cancellationToken);
+
+        var previousQty = stockBalance?.Qty ?? 0;
         if (stockBalance is null)
         {
             _dbContext.StockBalances.Add(new StockBalance
@@ -779,6 +857,18 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
             stockBalance.Qty = payload.StockQty;
         }
 
+        var warehouseDelta = payload.StockQty - previousQty;
+        if (warehouseDelta != 0)
+        {
+            var defaultWarehouseId = await _warehouseCompatibilityService.EnsureDefaultWarehouseAsync(request.TenantId, cancellationToken);
+            await _warehouseCompatibilityService.ApplyWarehouseDeltaAsync(
+                request.TenantId,
+                productId,
+                warehouseDelta,
+                defaultWarehouseId,
+                cancellationToken);
+        }
+
         AddDomainAuditLog(
             request,
             request.EventType.Equals(SyncEventTypes.ProductCreated, StringComparison.OrdinalIgnoreCase)
@@ -788,6 +878,31 @@ public sealed class SyncEventProcessor : ISyncEventProcessor
             productId.ToString(),
             payload);
         return null;
+    }
+
+    private async Task QueueAccountingExportAsync(
+        SyncEventRequest request,
+        string sourceType,
+        string sourceId,
+        string eventCode,
+        object payload,
+        CancellationToken cancellationToken)
+    {
+        await _accountingBridgeService.EnsurePendingExportItemAsync(
+            request.TenantId,
+            sourceType,
+            sourceId,
+            eventCode,
+            JsonSerializer.Serialize(new
+            {
+                request.EventId,
+                request.EventType,
+                request.TenantId,
+                request.BranchId,
+                request.DeviceId,
+                Payload = payload
+            }),
+            cancellationToken);
     }
 
     private async Task TouchDeviceAsync(SyncEventRequest request, CancellationToken cancellationToken)

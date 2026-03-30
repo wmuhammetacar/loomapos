@@ -11,6 +11,9 @@ const api = {
   getDesktopSettings: () => ipcRenderer.invoke("desktop:get-settings"),
   updateDesktopSettings: (args: { deviceName?: string; printerName?: string | null }) =>
     ipcRenderer.invoke("desktop:update-settings", args),
+  getOnboardingState: () => ipcRenderer.invoke("desktop:get-onboarding-state"),
+  seedOnboardingDemoData: () => ipcRenderer.invoke("desktop:seed-onboarding-demo"),
+  completeOnboarding: () => ipcRenderer.invoke("desktop:complete-onboarding"),
   getContext: () => ipcRenderer.invoke("pos:get-context") as Promise<{ tenantId: string; branchId: string; deviceId: string }>,
   listProducts: (args: { search?: string; barcode?: string }) => ipcRenderer.invoke("pos:list-products", args),
   getShiftStatus: () => ipcRenderer.invoke("pos:get-shift-status"),

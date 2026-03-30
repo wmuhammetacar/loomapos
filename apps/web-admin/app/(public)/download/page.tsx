@@ -39,6 +39,9 @@ export default function DownloadPage() {
         <p className="rounded-2xl border border-line bg-white px-4 py-3 text-sm text-text/75">
           Web uzerinden kasa satis/odeme islemi yapilmaz. Satis ve odeme Desktop POS tarafinda, Mobile ise saha operasyonu ve izleme icin kullanilir.
         </p>
+        <p className="rounded-2xl border border-warning/35 bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
+          Deneme aktifken kurulum yapabilirsiniz. Deneme biterse sistem salt-okunur moda gecer; goruntuleme acik kalir, operasyon yazma akislarini yeniden acmak icin plan yukseltmesi gerekir.
+        </p>
         <DownloadIntentForm />
         <div className="grid gap-4">
           {getDownloadHighlights().map((artifact) => (

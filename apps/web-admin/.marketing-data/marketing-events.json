@@ -1,5 +1,184 @@
 [
   {
+    "id": "evt_72873999",
+    "type": "page_view",
+    "path": "/login?next=%2F",
+    "context": "page_view",
+    "createdAt": "2026-03-29T18:02:04.946Z"
+  },
+  {
+    "id": "evt_6d5860d2",
+    "type": "page_view",
+    "path": "/portal/onboarding",
+    "context": "page_view",
+    "source": "localhost",
+    "referrer": "http://localhost:3100/login?next=%2F",
+    "createdAt": "2026-03-29T17:49:17.216Z"
+  },
+  {
+    "id": "evt_d8e07cbf",
+    "type": "page_view",
+    "path": "/login?next=%2F",
+    "context": "page_view",
+    "createdAt": "2026-03-29T17:48:45.288Z"
+  },
+  {
+    "id": "evt_2518b256",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-29T17:20:24.753Z"
+  },
+  {
+    "id": "evt_b6d68b0f",
+    "type": "page_view",
+    "path": "/generations/52564a71-f9c0-470d-a8bf-7e53df8f4004",
+    "context": "page_view",
+    "source": "localhost",
+    "referrer": "http://localhost:3100/generations/52564a71-f9c0-470d-a8bf-7e53df8f4004",
+    "createdAt": "2026-03-29T17:14:19.637Z"
+  },
+  {
+    "id": "evt_a2c20852",
+    "type": "page_view",
+    "path": "/generations/52564a71-f9c0-470d-a8bf-7e53df8f4004",
+    "context": "page_view",
+    "source": "localhost",
+    "referrer": "http://localhost:3100/generations/52564a71-f9c0-470d-a8bf-7e53df8f4004",
+    "createdAt": "2026-03-29T17:14:18.041Z"
+  },
+  {
+    "id": "evt_49eed6d9",
+    "type": "page_view",
+    "path": "/portal/users",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:23:14.491Z"
+  },
+  {
+    "id": "evt_f39eee93",
+    "type": "page_view",
+    "path": "/portal/licenses",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:23:13.347Z"
+  },
+  {
+    "id": "evt_95b36b91",
+    "type": "page_view",
+    "path": "/portal/devices",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:23:10.759Z"
+  },
+  {
+    "id": "evt_c9ea82c4",
+    "type": "page_view",
+    "path": "/portal/subscription",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:54.090Z"
+  },
+  {
+    "id": "evt_795a9652",
+    "type": "page_view",
+    "path": "/portal/analytics",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:45.380Z"
+  },
+  {
+    "id": "evt_1435b10c",
+    "type": "page_view",
+    "path": "/portal/support",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:40.300Z"
+  },
+  {
+    "id": "evt_08fac738",
+    "type": "page_view",
+    "path": "/portal/devices",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:38.027Z"
+  },
+  {
+    "id": "evt_49886781",
+    "type": "page_view",
+    "path": "/portal/licenses",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:34.688Z"
+  },
+  {
+    "id": "evt_a1cbbd0d",
+    "type": "page_view",
+    "path": "/portal",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:29.612Z"
+  },
+  {
+    "id": "evt_dbdf1840",
+    "type": "page_view",
+    "path": "/portal/licenses",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:22.929Z"
+  },
+  {
+    "id": "evt_ad9cf2bc",
+    "type": "page_view",
+    "path": "/portal/billing",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:21.758Z"
+  },
+  {
+    "id": "evt_e916e498",
+    "type": "page_view",
+    "path": "/portal/onboarding",
+    "context": "page_view",
+    "source": "127.0.0.1",
+    "referrer": "http://127.0.0.1:3100/login",
+    "createdAt": "2026-03-28T20:22:12.801Z"
+  },
+  {
+    "id": "evt_8ef1fa3b",
+    "type": "page_view",
+    "path": "/login",
+    "context": "page_view",
+    "createdAt": "2026-03-28T20:21:38.542Z"
+  },
+  {
+    "id": "evt_50e35e94",
+    "type": "cta_click",
+    "path": "/",
+    "label": "Giris",
+    "href": "/login",
+    "context": "header_nav",
+    "createdAt": "2026-03-28T20:21:37.786Z"
+  },
+  {
+    "id": "evt_4e87e338",
+    "type": "page_view",
+    "path": "/",
+    "context": "page_view",
+    "createdAt": "2026-03-28T20:19:25.038Z"
+  },
+  {
     "id": "evt_c1e1871f",
     "type": "page_view",
     "path": "/reseller/portal/licenses",

@@ -9,14 +9,15 @@
     "build:renderer": "node scripts/build-renderer.cjs",
     "dev": "tsc -w -p tsconfig.main.json",
     "dev:renderer": "node scripts/build-renderer.cjs --watch",
-    "start": "electron ./dist/main/index.js",
+    "start": "env -u ELECTRON_RUN_AS_NODE electron ./dist/main/index.js",
     "lint": "npm run lint:main && npm run lint:renderer",
     "lint:main": "tsc -p tsconfig.main.json --noEmit",
     "lint:renderer": "tsc -p tsconfig.renderer.json --noEmit",
     "smoke": "node scripts/smoke-test.cjs",
     "test:sync-hardening": "npm run build:main && node scripts/sync-hardening-test.cjs",
     "test:sync-diagnostics": "npm run build:main && node scripts/sync-diagnostics-test.cjs",
-    "test:cart-recovery": "npm run build:main && node scripts/cart-recovery-test.cjs"
+    "test:cart-recovery": "npm run build:main && node scripts/cart-recovery-test.cjs",
+    "test:onboarding": "npm run build:main && node scripts/onboarding-test.cjs"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.2.1",

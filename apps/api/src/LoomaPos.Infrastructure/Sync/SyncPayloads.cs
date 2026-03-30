@@ -54,7 +54,8 @@ internal sealed record StockAdjustedPayload(
     Guid ProductId,
     decimal QtyDelta,
     string? Reason,
-    string? ReasonCode = null);
+    string? ReasonCode = null,
+    Guid? WarehouseId = null);
 
 internal sealed record PaymentAddedPayload(
     Guid SaleId,

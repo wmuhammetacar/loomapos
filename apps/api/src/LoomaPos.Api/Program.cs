@@ -55,8 +55,8 @@ builder.Services.AddRateLimiter(options =>
 
         var endpoint = httpContext.GetEndpoint();
         var policyName = endpoint?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName ?? "unknown";
-        var tenantId = ResolveRateLimitGuid(httpContext, "tenant_id", "tenantId", "tenant", "X-Tenant-Id");
-        var deviceId = ResolveRateLimitGuid(httpContext, "device_id", "deviceId", "X-Device-Id");
+        var tenantId = ResolveRateLimitGuid(httpContext, "tenant_id", "tenantId", "tenant");
+        var deviceId = ResolveRateLimitGuid(httpContext, "device_id", "deviceId");
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         var clientIdentity = ResolveRateLimitClientIdentity(httpContext);
 
@@ -283,8 +283,9 @@ using (var scope = app.Services.CreateScope())
             "startup_database_initialization_failed phase {StartupPhase} provider {DatabaseProvider}",
             "database_migration",
             dbContext.Database.ProviderName ?? "unknown");
+        throw;
     }
-}
+    }
 
 app.MapHealthEndpoints();
 app.MapCommercePublicEndpoints();
@@ -319,11 +320,13 @@ api.MapFileEndpoints();
 api.MapCommerceProtectedEndpoints();
 
 managerApi.MapInventoryEndpoints();
+managerApi.MapManufacturingPreparationEndpoints();
 managerApi.MapReportsEndpoints();
 managerApi.MapContactsEndpoints();
 managerApi.MapSalesEndpoints();
 managerApi.MapCatalogEndpoints();
 managerApi.MapIntegrationEndpoints();
+managerApi.MapAccountingBridgeEndpoints();
 
 adminApi.MapIdentityEndpoints();
 adminApi.MapCashbookEndpoints();
@@ -353,12 +356,6 @@ static string? ResolveRateLimitGuid(HttpContext context, params string[] keys)
         if (Guid.TryParse(claimValue, out var claimGuid))
         {
             return claimGuid.ToString();
-        }
-
-        var headerValue = context.Request.Headers[key].FirstOrDefault();
-        if (Guid.TryParse(headerValue, out var headerGuid))
-        {
-            return headerGuid.ToString();
         }
     }
 

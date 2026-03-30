@@ -123,9 +123,7 @@ public static class CommerceCheckoutCoreEndpoints
 
     private static async Task<IResult> GetCheckoutStatusAsync(
         Guid checkoutSessionId,
-        HttpContext httpContext,
         ICommerceProvisioningService provisioningService,
-        IPortalAuthService authService,
         CancellationToken cancellationToken)
     {
         var snapshot = await provisioningService.GetCheckoutStatusAsync(checkoutSessionId, cancellationToken);
@@ -134,47 +132,36 @@ public static class CommerceCheckoutCoreEndpoints
             return Results.NotFound();
         }
 
-        CommerceAuthCoreEndpoints.PortalAuthResponse? auth = null;
-        if (snapshot.Status == "provisioned" && snapshot.CustomerAccountId.HasValue)
-        {
-            var existingAccess = await authService.GetAccessContextAsync(httpContext, cancellationToken);
-            if (existingAccess is null || existingAccess.CustomerAccountId != snapshot.CustomerAccountId.Value)
-            {
-                var session = await authService.CreateCustomerPortalSessionAsync(
-                    snapshot.CustomerAccountId.Value,
-                    snapshot.TenantId,
-                    httpContext,
-                    cancellationToken);
-                auth = new CommerceAuthCoreEndpoints.PortalAuthResponse(
-                    session.AccessToken,
-                    session.RefreshToken,
-                    session.ExpiresAt,
-                    session.RefreshExpiresAt,
-                    session.PortalType,
-                    session.Roles,
-                    session.Email,
-                    session.DisplayName,
-                    session.TenantId,
-                    session.CompanyName,
-                    session.ResellerCode);
-            }
-        }
-
-        return Results.Ok(new CheckoutStatusResponse(snapshot, auth));
+        return Results.Ok(MapPublicCheckoutStatus(snapshot));
     }
 
     private static async Task<IResult> PaymentWebhookAsync(
         PaymentWebhookBody request,
         IPaymentProviderResolver paymentProviderResolver,
         ICommerceProvisioningService provisioningService,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
-        var provider = paymentProviderResolver.Resolve(request.Provider);
+        var logger = loggerFactory.CreateLogger("CommerceWebhook");
+
+        if (!paymentProviderResolver.TryResolve(request.Provider, out var provider))
+        {
+            logger.LogWarning("payment_webhook_rejected reason {Reason} provider {Provider}", "unknown_provider", request.Provider);
+            return Results.BadRequest(new { error = "unknown or missing payment provider" });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Signature))
+        {
+            logger.LogWarning("payment_webhook_rejected reason {Reason} provider {Provider}", "missing_signature", request.Provider);
+            return Results.BadRequest(new { error = "signature is required" });
+        }
+
         var verification = await provider.VerifyWebhookAsync(
             new PaymentWebhookVerificationRequest(request.Provider, request.PayloadJson, request.Signature),
             cancellationToken);
         if (!verification.IsValid)
         {
+            logger.LogWarning("payment_webhook_rejected reason {Reason} provider {Provider} eventId {EventId}", verification.Error ?? "invalid_webhook", request.Provider, verification.EventId);
             return Results.BadRequest(new { error = verification.Error ?? "invalid webhook" });
         }
 
@@ -233,6 +220,24 @@ public static class CommerceCheckoutCoreEndpoints
         return Results.Ok(await provisioningService.ValidateReferralAsync(request.Code, cancellationToken));
     }
 
+    private static CheckoutPublicStatusResponse MapPublicCheckoutStatus(CheckoutStatusSnapshot snapshot)
+    {
+        return new CheckoutPublicStatusResponse(
+            snapshot.CheckoutSessionId,
+            snapshot.CheckoutReference,
+            snapshot.CompanyName,
+            snapshot.PlanCode,
+            snapshot.BillingPeriod,
+            snapshot.Status,
+            snapshot.PaymentStatus,
+            snapshot.Provider,
+            snapshot.Amount,
+            snapshot.TaxAmount,
+            snapshot.Currency,
+            snapshot.LicenseStatus,
+            snapshot.LicenseExpiresAt);
+    }
+
     public sealed record PricingPlanResponse(
         Guid Id,
         string Code,
@@ -286,9 +291,20 @@ public static class CommerceCheckoutCoreEndpoints
         string? Signature,
         string? ProviderPaymentReference);
 
-    public sealed record CheckoutStatusResponse(
-        CheckoutStatusSnapshot Checkout,
-        CommerceAuthCoreEndpoints.PortalAuthResponse? PortalAccess);
+    public sealed record CheckoutPublicStatusResponse(
+        Guid CheckoutSessionId,
+        string CheckoutReference,
+        string CompanyName,
+        string PlanCode,
+        string BillingPeriod,
+        string Status,
+        string PaymentStatus,
+        string Provider,
+        decimal Amount,
+        decimal TaxAmount,
+        string Currency,
+        string? LicenseStatus,
+        DateTimeOffset? LicenseExpiresAt);
 
     public sealed record ReferralAttachRequest(string Code);
 }

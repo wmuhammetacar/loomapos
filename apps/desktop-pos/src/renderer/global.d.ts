@@ -276,6 +276,15 @@ export interface DesktopBootstrapState {
   sync: DesktopSyncStatus;
 }
 
+export interface DesktopOnboardingState {
+  required: boolean;
+  completedAt: string | null;
+  demoSeededAt: string | null;
+  demoProductCount: number;
+  firstSaleDone: boolean;
+  firstSaleAt: string | null;
+}
+
 export interface DesktopPosApi {
   getBootstrap: () => Promise<DesktopBootstrapState>;
   login: (args: { email: string; password: string }) => Promise<DesktopBootstrapState>;
@@ -292,6 +301,9 @@ export interface DesktopPosApi {
     deviceName?: string;
     printerName?: string | null;
   }) => Promise<DesktopSettingsSnapshot>;
+  getOnboardingState: () => Promise<DesktopOnboardingState>;
+  seedOnboardingDemoData: () => Promise<DesktopOnboardingState>;
+  completeOnboarding: () => Promise<DesktopOnboardingState>;
   getContext: () => Promise<{ tenantId: string; branchId: string; deviceId: string }>;
   listProducts: (args: { search?: string; barcode?: string }) => Promise<DesktopProduct[]>;
   getShiftStatus: () => Promise<DesktopShiftSummary>;

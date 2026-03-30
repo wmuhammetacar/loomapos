@@ -1,4 +1,5 @@
-import { FormEvent, useEffect } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { DesktopOnboardingState } from "./global";
 import { PosWorkspace } from "./PosWorkspace";
 import { useDesktopShellStore } from "./stores/desktop-shell-store";
 
@@ -43,6 +44,13 @@ export function App() {
     seedActivationForm
   } = useDesktopShellStore();
 
+  const [onboarding, setOnboarding] = useState<DesktopOnboardingState | null>(null);
+  const [onboardingStep, setOnboardingStep] = useState<1 | 2 | 3 | 4>(1);
+  const [isSeedingDemo, setIsSeedingDemo] = useState(false);
+  const [isCompletingOnboarding, setIsCompletingOnboarding] = useState(false);
+  const [guidedSaleMode, setGuidedSaleMode] = useState(false);
+  const [guidedSaleDone, setGuidedSaleDone] = useState(false);
+
   useEffect(() => {
     void refreshBootstrap();
   }, []);
@@ -56,10 +64,43 @@ export function App() {
       if (next.stage === "activation_required" && next.session) {
         await loadActivationContext(next);
       }
+
+      if (next.stage === "ready") {
+        await loadOnboardingState();
+      } else {
+        setOnboarding(null);
+        setGuidedSaleMode(false);
+        setGuidedSaleDone(false);
+        setOnboardingStep(1);
+      }
     } catch (error) {
       setShellError(error instanceof Error ? error.message : "Desktop durumu yuklenemedi.");
     } finally {
       setIsBootstrapping(false);
+    }
+  }
+
+  async function loadOnboardingState() {
+    try {
+      const next = await window.posApi.getOnboardingState();
+      setOnboarding(next);
+      if (!next.required) {
+        setGuidedSaleMode(false);
+        setGuidedSaleDone(false);
+        setOnboardingStep(4);
+        return;
+      }
+
+      if (next.firstSaleDone) {
+        setOnboardingStep(4);
+        return;
+      }
+
+      if (next.demoProductCount > 0) {
+        setOnboardingStep((current) => (current < 3 ? 3 : current));
+      }
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Onboarding durumu yuklenemedi.");
     }
   }
 
@@ -74,7 +115,13 @@ export function App() {
       const context = await window.posApi.getActivationContext();
       seedActivationForm(context);
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Aktivasyon bilgisi yuklenemedi.");
+      const message = error instanceof Error ? error.message : "Aktivasyon bilgisi yuklenemedi.";
+      if (message.toLowerCase().includes("giris yapin")) {
+        setActivationContext(null);
+        await refreshBootstrap();
+        return;
+      }
+      setShellError(message);
     } finally {
       setIsLoadingActivation(false);
     }
@@ -93,6 +140,9 @@ export function App() {
       setAuthPassword("");
       if (next.stage === "activation_required") {
         await loadActivationContext(next);
+      }
+      if (next.stage === "ready") {
+        await loadOnboardingState();
       }
     } catch (error) {
       setShellError(error instanceof Error ? error.message : "Giris basarisiz.");
@@ -113,6 +163,9 @@ export function App() {
       });
       hydrateFromBootstrap(next);
       setActivationContext(null);
+      if (next.stage === "ready") {
+        await loadOnboardingState();
+      }
     } catch (error) {
       setShellError(error instanceof Error ? error.message : "Aktivasyon basarisiz.");
     } finally {
@@ -162,6 +215,59 @@ export function App() {
     setActivationContext(null);
   }
 
+  const onboardingStepTitle = useMemo(() => {
+    if (onboardingStep === 1) {
+      return "Adim 1/4 - Hos Geldiniz";
+    }
+    if (onboardingStep === 2) {
+      return "Adim 2/4 - Demo Veri";
+    }
+    if (onboardingStep === 3) {
+      return "Adim 3/4 - Ilk Test Satisi";
+    }
+    return "Adim 4/4 - Tamam";
+  }, [onboardingStep]);
+
+  async function seedDemoData() {
+    setIsSeedingDemo(true);
+    setShellError(null);
+    try {
+      const next = await window.posApi.seedOnboardingDemoData();
+      setOnboarding(next);
+      setOnboardingStep(3);
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Demo veri yuklenemedi.");
+    } finally {
+      setIsSeedingDemo(false);
+    }
+  }
+
+  function startGuidedSale() {
+    setGuidedSaleDone(false);
+    setGuidedSaleMode(true);
+  }
+
+  async function handleGuidedSaleCompleted() {
+    setGuidedSaleDone(true);
+    setGuidedSaleMode(false);
+    await loadOnboardingState();
+    setOnboardingStep(4);
+  }
+
+  async function finalizeOnboarding() {
+    setIsCompletingOnboarding(true);
+    setShellError(null);
+    try {
+      const next = await window.posApi.completeOnboarding();
+      setOnboarding(next);
+      await refreshBootstrap();
+    } catch (error) {
+      setShellError(error instanceof Error ? error.message : "Onboarding tamamlanamadi.");
+    } finally {
+      setIsCompletingOnboarding(false);
+    }
+  }
+
   if (isBootstrapping || !bootstrap) {
     return (
       <div className="desktop-shell-screen items-center justify-center">
@@ -177,73 +283,152 @@ export function App() {
   }
 
   if (bootstrap.stage === "ready") {
+    const onboardingRequired = onboarding?.required === true;
+    const canFinishOnboarding = onboarding?.firstSaleDone === true || guidedSaleDone;
+
+    const settingsModal = isSettingsOpen ? (
+      <div className="shell-modal-overlay" role="presentation">
+        <div className="shell-modal-card" role="dialog" aria-modal="true">
+          <h2 className="text-2xl font-semibold text-slate-950">Cihaz Ayarlari</h2>
+          <form className="shell-form mt-5" onSubmit={(event) => void saveSettings(event)}>
+            <label>
+              Cihaz adi
+              <input
+                value={settingsDraft.deviceName}
+                onChange={(event) =>
+                  setSettingsDraft((current) => ({
+                    ...current,
+                    deviceName: event.target.value
+                  }))
+                }
+                required
+              />
+            </label>
+            <label>
+              Yazici secimi
+              <input
+                value={settingsDraft.printerName}
+                onChange={(event) =>
+                  setSettingsDraft((current) => ({
+                    ...current,
+                    printerName: event.target.value
+                  }))
+                }
+                placeholder="ESC/POS printer placeholder"
+              />
+            </label>
+            <div className="shell-metrics md:grid-cols-2">
+              <div>
+                <span>Versiyon</span>
+                <strong>{bootstrap.settings.version}</strong>
+              </div>
+              <div>
+                <span>Sube</span>
+                <strong>{bootstrap.activation?.branchName ?? "-"}</strong>
+              </div>
+              <div>
+                <span>Lisans</span>
+                <strong>{bootstrap.license.status}</strong>
+              </div>
+              <div>
+                <span>Senkron</span>
+                <strong>
+                  Bekleyen {bootstrap.sync.pending} / Hatali {bootstrap.sync.failed}
+                </strong>
+              </div>
+            </div>
+            <div className="shell-modal-actions mt-2">
+              <button className="btn-secondary" type="button" onClick={() => setIsSettingsOpen(false)}>
+                Kapat
+              </button>
+              <button className="btn-primary" type="submit" disabled={isSavingSettings}>
+                {isSavingSettings ? "Kaydediliyor..." : "Kaydet"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    ) : null;
+
+    if (onboardingRequired && guidedSaleMode) {
+      return (
+        <>
+          <PosWorkspace
+            onOpenSettings={openSettings}
+            onLogout={handleLogout}
+            onboardingHint="Onboarding test satisi: demo urun ekleyip gercek checkout ile satisi tamamlayin."
+            onSaleCompleted={() => void handleGuidedSaleCompleted()}
+          />
+          {settingsModal}
+        </>
+      );
+    }
+
     return (
       <>
-        <PosWorkspace onOpenSettings={openSettings} onLogout={handleLogout} />
+        {onboardingRequired ? (
+          <div className="desktop-shell-screen">
+            <div className="desktop-shell-card max-w-2xl">
+              <span className="eyebrow">ILK KURULUM</span>
+              <h1 className="mt-4 text-3xl font-bold text-slate-950">{onboardingStepTitle}</h1>
 
-        {isSettingsOpen ? (
-          <div className="shell-modal-overlay" role="presentation">
-            <div className="shell-modal-card" role="dialog" aria-modal="true">
-              <h2 className="text-2xl font-semibold text-slate-950">Cihaz Ayarlari</h2>
-              <form className="shell-form mt-5" onSubmit={(event) => void saveSettings(event)}>
-                <label>
-                  Cihaz adi
-                  <input
-                    value={settingsDraft.deviceName}
-                    onChange={(event) =>
-                      setSettingsDraft((current) => ({
-                        ...current,
-                        deviceName: event.target.value
-                      }))
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  Yazici secimi
-                  <input
-                    value={settingsDraft.printerName}
-                    onChange={(event) =>
-                      setSettingsDraft((current) => ({
-                        ...current,
-                        printerName: event.target.value
-                      }))
-                    }
-                    placeholder="ESC/POS printer placeholder"
-                  />
-                </label>
-                <div className="shell-metrics md:grid-cols-2">
-                  <div>
-                    <span>Versiyon</span>
-                    <strong>{bootstrap.settings.version}</strong>
-                  </div>
-                  <div>
-                    <span>Sube</span>
-                    <strong>{bootstrap.activation?.branchName ?? "-"}</strong>
-                  </div>
-                  <div>
-                    <span>Lisans</span>
-                    <strong>{bootstrap.license.status}</strong>
-                  </div>
-                  <div>
-                    <span>Senkron</span>
-                    <strong>
-                      Bekleyen {bootstrap.sync.pending} / Hatali {bootstrap.sync.failed}
-                    </strong>
+              {shellError ? <div className="shell-banner danger mt-4">{shellError}</div> : null}
+
+              {onboardingStep === 1 ? (
+                <div className="shell-note-list mt-5">
+                  <p>Masaustu POS, satis operasyonunun gercek calistigi ana yuzeydir.</p>
+                  <p>Birkac adimda demo urunleri yukleyip ilk test satisinizi gercek checkout ile tamamlayacagiz.</p>
+                  <button className="btn-primary" onClick={() => setOnboardingStep(2)}>Devam et</button>
+                </div>
+              ) : null}
+
+              {onboardingStep === 2 ? (
+                <div className="shell-note-list mt-5">
+                  <p>Demo veri, urun arama/barkod/sepet/satis akisini hemen denemeniz icin lokal veritabanina yazilir.</p>
+                  <p>Mevcut demo urun sayisi: <strong>{onboarding?.demoProductCount ?? 0}</strong></p>
+                  <div className="shell-modal-actions mt-2">
+                    <button className="btn-secondary" onClick={() => setOnboardingStep(1)}>Geri</button>
+                    <button className="btn-primary" onClick={() => void seedDemoData()} disabled={isSeedingDemo}>
+                      {isSeedingDemo ? "Yukleniyor..." : "Demo veriyi yukle"}
+                    </button>
+                    <button
+                      className="btn-primary"
+                      onClick={() => setOnboardingStep(3)}
+                      disabled={(onboarding?.demoProductCount ?? 0) === 0}
+                    >
+                      Sonraki adim
+                    </button>
                   </div>
                 </div>
-                <div className="shell-modal-actions mt-2">
-                  <button className="btn-secondary" type="button" onClick={() => setIsSettingsOpen(false)}>
-                    Kapat
-                  </button>
-                  <button className="btn-primary" type="submit" disabled={isSavingSettings}>
-                    {isSavingSettings ? "Kaydediliyor..." : "Kaydet"}
+              ) : null}
+
+              {onboardingStep === 3 ? (
+                <div className="shell-note-list mt-5">
+                  <p>Siradaki adimda gercek POS ekrani acilacak.</p>
+                  <p>En az bir demo urun ekleyip odemeyi tamamlayin. Satis olusunca onboarding otomatik ilerler.</p>
+                  <div className="shell-modal-actions mt-2">
+                    <button className="btn-secondary" onClick={() => setOnboardingStep(2)}>Geri</button>
+                    <button className="btn-primary" onClick={startGuidedSale}>Test satis ekranini ac</button>
+                  </div>
+                </div>
+              ) : null}
+
+              {onboardingStep === 4 ? (
+                <div className="shell-note-list mt-5">
+                  <p>Harika, ilk test satisiniz tamamlandi.</p>
+                  <p>Onboarding bitirildiginde bir sonraki acilista dogrudan POS calisma alanina girilecektir.</p>
+                  <button className="btn-primary" onClick={() => void finalizeOnboarding()} disabled={!canFinishOnboarding || isCompletingOnboarding}>
+                    {isCompletingOnboarding ? "Tamamlaniyor..." : "Onboardingi bitir ve POS'a gec"}
                   </button>
                 </div>
-              </form>
+              ) : null}
             </div>
           </div>
-        ) : null}
+        ) : (
+          <PosWorkspace onOpenSettings={openSettings} onLogout={handleLogout} />
+        )}
+
+        {settingsModal}
       </>
     );
   }

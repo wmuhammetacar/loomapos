@@ -87,12 +87,19 @@ public static class CommerceAuthCoreEndpoints
         IPortalAuthService authService,
         CancellationToken cancellationToken)
     {
-        var result = await authService.LoginCustomerAsync(
-            request.Email,
-            request.Password,
-            httpContext,
-            cancellationToken);
-        return Results.Ok(ToAuthResponse(result));
+        try
+        {
+            var result = await authService.LoginCustomerAsync(
+                request.Email,
+                request.Password,
+                httpContext,
+                cancellationToken);
+            return Results.Ok(ToAuthResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new { message = ex.Message }, statusCode: 401);
+        }
     }
 
     private static async Task<IResult> DesktopLoginAsync(
@@ -101,12 +108,19 @@ public static class CommerceAuthCoreEndpoints
         IPortalAuthService authService,
         CancellationToken cancellationToken)
     {
-        var result = await authService.LoginCustomerAsync(
-            request.Email,
-            request.Password,
-            httpContext,
-            cancellationToken);
-        return Results.Ok(ToAuthResponse(result));
+        try
+        {
+            var result = await authService.LoginCustomerAsync(
+                request.Email,
+                request.Password,
+                httpContext,
+                cancellationToken);
+            return Results.Ok(ToAuthResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new { message = ex.Message }, statusCode: 401);
+        }
     }
 
     private static async Task<IResult> MobileLoginAsync(
@@ -115,12 +129,19 @@ public static class CommerceAuthCoreEndpoints
         IPortalAuthService authService,
         CancellationToken cancellationToken)
     {
-        var result = await authService.LoginCustomerAsync(
-            request.Email,
-            request.Password,
-            httpContext,
-            cancellationToken);
-        return Results.Ok(ToAuthResponse(result));
+        try
+        {
+            var result = await authService.LoginCustomerAsync(
+                request.Email,
+                request.Password,
+                httpContext,
+                cancellationToken);
+            return Results.Ok(ToAuthResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new { message = ex.Message }, statusCode: 401);
+        }
     }
 
     private static async Task<IResult> ResellerLoginAsync(
@@ -129,12 +150,19 @@ public static class CommerceAuthCoreEndpoints
         IPortalAuthService authService,
         CancellationToken cancellationToken)
     {
-        var result = await authService.LoginResellerAsync(
-            request.Email,
-            request.Password,
-            httpContext,
-            cancellationToken);
-        return Results.Ok(ToAuthResponse(result));
+        try
+        {
+            var result = await authService.LoginResellerAsync(
+                request.Email,
+                request.Password,
+                httpContext,
+                cancellationToken);
+            return Results.Ok(ToAuthResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new { message = ex.Message }, statusCode: 401);
+        }
     }
 
     private static async Task<IResult> ForgotPasswordAsync(
@@ -170,8 +198,15 @@ public static class CommerceAuthCoreEndpoints
         IPortalAuthService authService,
         CancellationToken cancellationToken)
     {
-        var result = await authService.RefreshSessionAsync(request.RefreshToken, httpContext, cancellationToken);
-        return Results.Ok(ToAuthResponse(result));
+        try
+        {
+            var result = await authService.RefreshSessionAsync(request.RefreshToken, httpContext, cancellationToken);
+            return Results.Ok(ToAuthResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Json(new { message = ex.Message }, statusCode: 401);
+        }
     }
 
     private static async Task<IResult> MeAsync(

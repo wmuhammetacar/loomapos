@@ -337,18 +337,22 @@ public abstract class GenericRestIntegrationAdapterBase(HttpClient httpClient) :
     {
         var timestamp = ExtractHeaderValue(request.Signature, "t");
         var signature = ExtractHeaderValue(request.Signature, "v1");
-        var webhookSecret = ExtractWebhookSecret(request.PayloadJson);
-        if (!string.IsNullOrWhiteSpace(webhookSecret))
+        if (string.IsNullOrWhiteSpace(timestamp) || string.IsNullOrWhiteSpace(signature))
         {
-            if (string.IsNullOrWhiteSpace(timestamp) || string.IsNullOrWhiteSpace(signature))
-            {
-                return Task.FromResult(new ProviderWebhookResult(false, "invalid_signature", "Webhook signature header is incomplete."));
-            }
+            return Task.FromResult(new ProviderWebhookResult(false, "invalid_signature", "Webhook signature header is incomplete."));
+        }
 
-            if (!WebhookSignatureV1.Verify(webhookSecret, request.PayloadJson, timestamp, signature))
-            {
-                return Task.FromResult(new ProviderWebhookResult(false, "invalid_signature", "Webhook signature verification failed."));
-            }
+        var secretKey = "LOOMAPOS_INTEGRATIONS_WEBHOOK_SECRET_" + ProviderCode.ToUpperInvariant().Replace("-", "_");
+        var webhookSecret = Environment.GetEnvironmentVariable(secretKey)
+            ?? Environment.GetEnvironmentVariable("LOOMAPOS_INTEGRATIONS_WEBHOOK_SECRET_DEFAULT");
+        if (string.IsNullOrWhiteSpace(webhookSecret))
+        {
+            return Task.FromResult(new ProviderWebhookResult(false, "webhook_secret_missing", "Webhook secret is not configured."));
+        }
+
+        if (!WebhookSignatureV1.Verify(webhookSecret, request.PayloadJson, timestamp, signature))
+        {
+            return Task.FromResult(new ProviderWebhookResult(false, "invalid_signature", "Webhook signature verification failed."));
         }
 
         return Task.FromResult(new ProviderWebhookResult(

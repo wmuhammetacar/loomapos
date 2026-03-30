@@ -176,7 +176,7 @@ export function CustomerPortalPanelsPhase6({
             </p>
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link href="/portal/subscription" className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white">Manage subscription</Link>
+            <Link href="/portal/subscription" className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white">Aboneligi Yonet / Yukselt</Link>
             <Link href="/portal/licenses" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Licenses</Link>
             <Link href="/portal/devices" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Devices</Link>
             <Link href="/portal/downloads" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Downloads</Link>
@@ -673,9 +673,9 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
     return describe(
       "trial_active",
       "Deneme aktif",
-      "Deneme suresi aktif. Operasyon yazma islemleri acik.",
-      "Planlari gor",
-      "/pricing",
+      "Deneme aktif. Operasyon yazma islemleri acik. Deneme sonunda yukseltme yapilmazsa sistem salt-okunur moda gecer.",
+      "Abonelik planlarini gor",
+      "/portal/subscription",
       ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
       ["-"]
     );
@@ -685,9 +685,9 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
     return describe(
       "trial_expiring",
       "Deneme bitmek uzere",
-      "Deneme suresi kritik seviyede. Kesinti olmamasi icin plan secimi yapin.",
-      "Plan sec",
-      "/pricing",
+      "Deneme bitmek uzere. Sure dolunca sistem salt-okunur moda gecer ve yazma akisleri kapanir.",
+      "Simdi yukselt",
+      "/portal/subscription",
       ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
       ["-"]
     );
@@ -697,9 +697,9 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
     return describe(
       "trial_expired",
       "Deneme bitti (salt-okunur)",
-      "Deneme suresi doldu. Yazma islemleri kapali, goruntuleme acik.",
-      "Plani yukselt",
-      "/pricing",
+      "Deneme suresi doldu. Goruntuleme acik, operasyon yazma akisleri kapali.",
+      "Yukselt ve yazmayi ac",
+      "/portal/subscription",
       ["Rapor ve verileri goruntuleme"],
       ["Desktop satis", "Stok mutasyonu", "Sync push", "Yeni cihaz aktivasyonu"]
     );
@@ -709,8 +709,8 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
     return describe(
       "subscription_past_due",
       "Odeme gecikmis",
-      "Abonelik odemesi gecikmis. Operasyon acik, yeni cihaz aktivasyonu kisitli.",
-      "Fatura ve odeme",
+      "Abonelik odemesi gecikmis. Operasyon kisitlanmadan once odeme guncellenmelidir.",
+      "Odeme durumunu guncelle",
       "/portal/billing",
       ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
       ["Yeni cihaz aktivasyonu"]
@@ -721,8 +721,8 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
     return describe(
       "subscription_canceled",
       "Abonelik iptal",
-      "Abonelik iptal isaretli. Donem sonuna kadar operasyon acik olabilir.",
-      "Abonelik yonet",
+      "Abonelik iptal durumunda. Donem sonunda operasyon yazma akisleri kapanabilir.",
+      "Yenilemeyi tekrar ac",
       "/portal/subscription",
       ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
       ["Yeni cihaz aktivasyonu"]
@@ -734,8 +734,8 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       "suspended_blocked",
       "Askida / bloklu",
       "Hesap bloklu oldugu icin operasyon yazma akisleri kapali.",
-      "Destek",
-      "/contact",
+      "Abonelik/Lisans durumunu kontrol et",
+      "/portal/subscription",
       ["Rapor ve verileri goruntuleme"],
       ["Desktop satis", "Stok mutasyonu", "Sync push", "Cihaz aktivasyonu"]
     );

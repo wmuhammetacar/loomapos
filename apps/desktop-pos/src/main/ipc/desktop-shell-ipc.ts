@@ -7,7 +7,10 @@ import {
   getDesktopSettings,
   loginDesktopUser,
   logoutDesktopUser,
-  updateDesktopSettings
+  updateDesktopSettings,
+  getDesktopOnboardingState,
+  seedDesktopOnboardingDemo,
+  completeDesktopOnboarding
 } from "../desktop/desktop-shell-service.js";
 
 export const registerDesktopShellIpc = (appVersion: string) => {
@@ -45,4 +48,10 @@ export const registerDesktopShellIpc = (appVersion: string) => {
     (_event, args: { deviceName?: string; printerName?: string | null }) =>
       updateDesktopSettings(appVersion, args ?? {})
   );
+
+  ipcMain.handle("desktop:get-onboarding-state", () => getDesktopOnboardingState(appVersion));
+
+  ipcMain.handle("desktop:seed-onboarding-demo", () => seedDesktopOnboardingDemo(appVersion));
+
+  ipcMain.handle("desktop:complete-onboarding", () => completeDesktopOnboarding(appVersion));
 };

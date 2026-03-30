@@ -20,6 +20,46 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/erp/customer-accounts/[id]",
+      "regex": "^/erp/customer\\-accounts/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/erp/customer\\-accounts/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/erp/purchase-orders/[id]",
+      "regex": "^/erp/purchase\\-orders/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/erp/purchase\\-orders/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/erp/suppliers/[id]",
+      "regex": "^/erp/suppliers/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/erp/suppliers/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/erp/transfers/[id]",
+      "regex": "^/erp/transfers/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/erp/transfers/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/erp/warehouses/[id]",
+      "regex": "^/erp/warehouses/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/erp/warehouses/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/tenants/[id]",
       "regex": "^/tenants/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -58,6 +98,48 @@
       "regex": "^/devices(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/devices(?:/)?$"
+    },
+    {
+      "page": "/erp/customer-accounts",
+      "regex": "^/erp/customer\\-accounts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/customer\\-accounts(?:/)?$"
+    },
+    {
+      "page": "/erp/purchase-orders",
+      "regex": "^/erp/purchase\\-orders(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/purchase\\-orders(?:/)?$"
+    },
+    {
+      "page": "/erp/purchase-orders/new",
+      "regex": "^/erp/purchase\\-orders/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/purchase\\-orders/new(?:/)?$"
+    },
+    {
+      "page": "/erp/suppliers",
+      "regex": "^/erp/suppliers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/suppliers(?:/)?$"
+    },
+    {
+      "page": "/erp/transfers",
+      "regex": "^/erp/transfers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/transfers(?:/)?$"
+    },
+    {
+      "page": "/erp/transfers/new",
+      "regex": "^/erp/transfers/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/transfers/new(?:/)?$"
+    },
+    {
+      "page": "/erp/warehouses",
+      "regex": "^/erp/warehouses(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/warehouses(?:/)?$"
     },
     {
       "page": "/subscriptions",

@@ -624,6 +624,25 @@ public sealed class IntegrationPlatformService : IIntegrationPlatformService
             return ToProviderEventDto(existing);
         }
 
+        if (!TryValidateInboundWebhookSignature(providerCode, signature, payloadJson, out var signatureStatus, out var signatureError))
+        {
+            var rejectedEvent = new ProviderWebhookEvent
+            {
+                TenantId = tenantId,
+                ProviderCode = providerCode,
+                EventKey = eventKey,
+                EventType = eventType,
+                Signature = signature,
+                PayloadJson = payloadJson,
+                Status = signatureStatus,
+                ErrorMessage = signatureError,
+                ProcessedAt = DateTimeOffset.UtcNow
+            };
+            _dbContext.ProviderWebhookEvents.Add(rejectedEvent);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return ToProviderEventDto(rejectedEvent);
+        }
+
         var connection = tenantId.HasValue
             ? await _dbContext.IntegrationConnections.AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == tenantId.Value && x.ProviderCode == providerCode, cancellationToken)
             : await _dbContext.IntegrationConnections.AsNoTracking().FirstOrDefaultAsync(x => x.ProviderCode == providerCode, cancellationToken);
@@ -667,6 +686,71 @@ public sealed class IntegrationPlatformService : IIntegrationPlatformService
         }
 
         return ToProviderEventDto(eventEntity);
+    }
+    private static bool TryValidateInboundWebhookSignature(
+        string providerCode,
+        string signature,
+        string payloadJson,
+        out string status,
+        out string? error)
+    {
+        var timestamp = ExtractWebhookSignatureField(signature, "t");
+        var hash = ExtractWebhookSignatureField(signature, "v1");
+        if (string.IsNullOrWhiteSpace(timestamp) || string.IsNullOrWhiteSpace(hash))
+        {
+            status = "invalid_signature";
+            error = "Webhook signature header is incomplete.";
+            return false;
+        }
+
+        var secretKey = "LOOMAPOS_INTEGRATIONS_WEBHOOK_SECRET_" + providerCode.ToUpperInvariant().Replace("-", "_");
+        var webhookSecret = Environment.GetEnvironmentVariable(secretKey)
+            ?? Environment.GetEnvironmentVariable("LOOMAPOS_INTEGRATIONS_WEBHOOK_SECRET_DEFAULT");
+        if (string.IsNullOrWhiteSpace(webhookSecret))
+        {
+            status = "webhook_secret_missing";
+            error = "Webhook secret is not configured.";
+            return false;
+        }
+
+        if (!WebhookSignatureV1.Verify(webhookSecret, payloadJson, timestamp, hash))
+        {
+            status = "invalid_signature";
+            error = "Webhook signature verification failed.";
+            return false;
+        }
+
+        status = "accepted";
+        error = null;
+        return true;
+    }
+
+    private static string? ExtractWebhookSignatureField(string signatureHeader, string key)
+    {
+        if (string.IsNullOrWhiteSpace(signatureHeader) || string.IsNullOrWhiteSpace(key))
+        {
+            return null;
+        }
+
+        foreach (var fragment in signatureHeader.Split(",", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separatorIndex = fragment.IndexOf("=", StringComparison.Ordinal);
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var name = fragment[..separatorIndex].Trim();
+            if (!name.Equals(key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = fragment[(separatorIndex + 1)..].Trim();
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        return null;
     }
 
     private IReadOnlyList<IntegrationProviderCatalogItemDto> BuildCatalog()

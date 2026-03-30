@@ -55,6 +55,15 @@ button {
   gap: 10px;
 }
 
+.onboarding-inline-hint {
+  border: 1px solid rgba(15, 108, 189, 0.28);
+  background: rgba(15, 108, 189, 0.1);
+  color: #0b4f8a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
 .status-bar {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, auto)) 1fr;

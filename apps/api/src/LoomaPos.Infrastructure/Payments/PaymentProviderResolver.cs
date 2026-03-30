@@ -3,6 +3,7 @@ namespace LoomaPos.Infrastructure.Payments;
 public interface IPaymentProviderResolver
 {
     IPaymentProvider Resolve(string? providerCode);
+    bool TryResolve(string? providerCode, out IPaymentProvider provider);
 }
 
 public sealed class PaymentProviderResolver : IPaymentProviderResolver
@@ -14,11 +15,25 @@ public sealed class PaymentProviderResolver : IPaymentProviderResolver
         _providers = providers.ToDictionary(x => x.ProviderCode, StringComparer.OrdinalIgnoreCase);
     }
 
+    public bool TryResolve(string? providerCode, out IPaymentProvider provider)
+    {
+        provider = default!;
+        if (string.IsNullOrWhiteSpace(providerCode))
+        {
+            return false;
+        }
+
+        var normalized = providerCode.Trim().ToLowerInvariant();
+        return _providers.TryGetValue(normalized, out provider!);
+    }
+
     public IPaymentProvider Resolve(string? providerCode)
     {
-        var normalized = string.IsNullOrWhiteSpace(providerCode) ? "mock" : providerCode.Trim().ToLowerInvariant();
-        return _providers.TryGetValue(normalized, out var provider)
-            ? provider
-            : _providers["mock"];
+        if (!TryResolve(providerCode, out var provider))
+        {
+            throw new InvalidOperationException("Unknown payment provider.");
+        }
+
+        return provider;
     }
 }

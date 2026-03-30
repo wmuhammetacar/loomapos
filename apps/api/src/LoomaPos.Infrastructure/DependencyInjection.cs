@@ -4,6 +4,11 @@ using LoomaPos.Infrastructure.Integration;
 using LoomaPos.Infrastructure.Storage;
 using LoomaPos.Infrastructure.Payments;
 using LoomaPos.Infrastructure.Sync;
+using LoomaPos.Infrastructure.Inventory;
+using LoomaPos.Infrastructure.Purchasing;
+using LoomaPos.Infrastructure.Manufacturing;
+using LoomaPos.Infrastructure.Customers;
+using LoomaPos.Infrastructure.Accounting;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
@@ -92,6 +97,12 @@ public static class DependencyInjection
                 : sp.GetRequiredService<LocalFileStorage>();
         });
 
+        services.AddScoped<IWarehouseCompatibilityService, WarehouseCompatibilityService>();
+        services.AddScoped<IWarehouseTransferService, WarehouseTransferService>();
+        services.AddScoped<IManufacturingPreparationService, ManufacturingPreparationService>();
+        services.AddScoped<IPurchasingService, PurchasingService>();
+        services.AddScoped<ICustomerCurrentAccountService, CustomerCurrentAccountService>();
+        services.AddScoped<IAccountingBridgeService, AccountingBridgeService>();
         services.AddScoped<ISyncEventProcessor, SyncEventProcessor>();
 
         return services;

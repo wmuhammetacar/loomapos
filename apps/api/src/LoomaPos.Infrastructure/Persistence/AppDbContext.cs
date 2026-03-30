@@ -1,5 +1,6 @@
 using LoomaPos.Domain.Auditing;
 using LoomaPos.Domain.Analytics;
+using LoomaPos.Domain.Accounting;
 using LoomaPos.Domain.Cashbook;
 using LoomaPos.Domain.Catalog;
 using LoomaPos.Domain.Common;
@@ -10,6 +11,8 @@ using LoomaPos.Domain.Integrations;
 using LoomaPos.Domain.Inventory;
 using LoomaPos.Domain.Internal;
 using LoomaPos.Domain.Ops;
+using LoomaPos.Domain.Purchasing;
+using LoomaPos.Domain.Manufacturing;
 using LoomaPos.Domain.Sales;
 using LoomaPos.Domain.Sync;
 using LoomaPos.Infrastructure.MultiTenancy;
@@ -107,11 +110,24 @@ public sealed class AppDbContext : DbContext
     public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
     public DbSet<StockMove> StockMoves => Set<StockMove>();
     public DbSet<StockBalance> StockBalances => Set<StockBalance>();
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<StockByWarehouse> StockByWarehouses => Set<StockByWarehouse>();
+    public DbSet<WarehouseTransfer> WarehouseTransfers => Set<WarehouseTransfer>();
+    public DbSet<WarehouseTransferLine> WarehouseTransferLines => Set<WarehouseTransferLine>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+    public DbSet<BillOfMaterials> BillOfMaterials => Set<BillOfMaterials>();
+    public DbSet<BillOfMaterialsLine> BillOfMaterialsLines => Set<BillOfMaterialsLine>();
+    public DbSet<ProductionOrder> ProductionOrders => Set<ProductionOrder>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleLine> SaleLines => Set<SaleLine>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<ContactLedger> ContactLedger => Set<ContactLedger>();
+    public DbSet<CustomerCurrentAccount> CustomerCurrentAccounts => Set<CustomerCurrentAccount>();
+    public DbSet<CustomerCurrentAccountEntry> CustomerCurrentAccountEntries => Set<CustomerCurrentAccountEntry>();
+    public DbSet<AccountingExportItem> AccountingExportItems => Set<AccountingExportItem>();
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
     public DbSet<ProcessedEvent> ProcessedEvents => Set<ProcessedEvent>();
     public DbSet<AggDailySales> AggDailySales => Set<AggDailySales>();
@@ -623,6 +639,150 @@ public sealed class AppDbContext : DbContext
             entity.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId);
         });
 
+        modelBuilder.Entity<Warehouse>(entity =>
+        {
+            entity.ToTable("warehouses");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Type).HasColumnName("type").HasMaxLength(30).IsRequired();
+            entity.Property(x => x.IsActive).HasColumnName("is_active");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<StockByWarehouse>(entity =>
+        {
+            entity.ToTable("stock_by_warehouse");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.ProductId).HasColumnName("product_id");
+            entity.Property(x => x.WarehouseId).HasColumnName("warehouse_id");
+            entity.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(x => new { x.TenantId, x.ProductId, x.WarehouseId }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.WarehouseId, x.ProductId });
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<WarehouseTransfer>(entity =>
+        {
+            entity.ToTable("warehouse_transfers");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.FromWarehouseId).HasColumnName("from_warehouse_id");
+            entity.Property(x => x.ToWarehouseId).HasColumnName("to_warehouse_id");
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.CompletedAt).HasColumnName("completed_at");
+            entity.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            entity.HasMany(x => x.Lines).WithOne().HasForeignKey(x => x.TransferId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<WarehouseTransferLine>(entity =>
+        {
+            entity.ToTable("warehouse_transfer_lines");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TransferId).HasColumnName("transfer_id");
+            entity.Property(x => x.ProductId).HasColumnName("product_id");
+            entity.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+            entity.HasIndex(x => new { x.TransferId, x.ProductId });
+        });
+
+        modelBuilder.Entity<Supplier>(entity =>
+        {
+            entity.ToTable("suppliers");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+            entity.Property(x => x.TaxNumber).HasColumnName("tax_number").HasMaxLength(50);
+            entity.Property(x => x.Phone).HasColumnName("phone").HasMaxLength(40);
+            entity.Property(x => x.Email).HasColumnName("email").HasMaxLength(320);
+            entity.Property(x => x.IsActive).HasColumnName("is_active");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(x => new { x.TenantId, x.Name });
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<PurchaseOrder>(entity =>
+        {
+            entity.ToTable("purchase_orders");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.SupplierId).HasColumnName("supplier_id");
+            entity.Property(x => x.WarehouseId).HasColumnName("warehouse_id");
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.ReceivedAt).HasColumnName("received_at");
+            entity.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            entity.HasMany(x => x.Lines).WithOne().HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<PurchaseOrderLine>(entity =>
+        {
+            entity.ToTable("purchase_order_lines");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.PurchaseOrderId).HasColumnName("purchase_order_id");
+            entity.Property(x => x.ProductId).HasColumnName("product_id");
+            entity.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+            entity.Property(x => x.UnitCost).HasColumnName("unit_cost").HasPrecision(18, 4);
+            entity.HasIndex(x => new { x.PurchaseOrderId, x.ProductId });
+        });
+
+        modelBuilder.Entity<BillOfMaterials>(entity =>
+        {
+            entity.ToTable("bill_of_materials");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.ProductId).HasColumnName("product_id");
+            entity.Property(x => x.Code).HasColumnName("code").HasMaxLength(80);
+            entity.Property(x => x.Version).HasColumnName("version");
+            entity.Property(x => x.IsActive).HasColumnName("is_active");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(x => new { x.TenantId, x.ProductId, x.Version }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.ProductId, x.IsActive });
+            entity.HasMany(x => x.Lines).WithOne().HasForeignKey(x => x.BomId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<BillOfMaterialsLine>(entity =>
+        {
+            entity.ToTable("bill_of_material_lines");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.BomId).HasColumnName("bom_id");
+            entity.Property(x => x.ComponentProductId).HasColumnName("component_product_id");
+            entity.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+            entity.HasIndex(x => new { x.BomId, x.ComponentProductId }).IsUnique();
+        });
+
+        modelBuilder.Entity<ProductionOrder>(entity =>
+        {
+            entity.ToTable("production_orders");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.BomId).HasColumnName("bom_id");
+            entity.Property(x => x.FinishedProductId).HasColumnName("finished_product_id");
+            entity.Property(x => x.PlannedQuantity).HasColumnName("planned_quantity").HasPrecision(18, 4);
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            entity.HasIndex(x => new { x.TenantId, x.FinishedProductId, x.CreatedAt });
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
         modelBuilder.Entity<StockMove>(entity =>
         {
             entity.ToTable("stock_moves");
@@ -631,12 +791,14 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.TenantId).HasColumnName("tenant_id");
             entity.Property(x => x.BranchId).HasColumnName("branch_id");
             entity.Property(x => x.ProductId).HasColumnName("product_id");
+            entity.Property(x => x.WarehouseId).HasColumnName("warehouse_id");
             entity.Property(x => x.QtyDelta).HasPrecision(18, 4).HasColumnName("qty_delta");
             entity.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(150).IsRequired();
             entity.Property(x => x.RefType).HasMaxLength(100).HasColumnName("ref_type");
             entity.Property(x => x.RefId).HasMaxLength(100).HasColumnName("ref_id");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.BranchId, x.ProductId, x.CreatedAt });
+            entity.HasIndex(x => new { x.TenantId, x.WarehouseId, x.ProductId, x.CreatedAt });
             entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 
@@ -726,6 +888,57 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.RefId).HasColumnName("ref_id").HasMaxLength(100);
             entity.Property(x => x.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(x => new { x.TenantId, x.ContactId, x.CreatedAt });
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<CustomerCurrentAccount>(entity =>
+        {
+            entity.ToTable("customer_current_accounts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.CustomerId).HasColumnName("customer_id");
+            entity.Property(x => x.Balance).HasColumnName("balance").HasPrecision(18, 2);
+            entity.Property(x => x.Currency).HasColumnName("currency").HasMaxLength(10).IsRequired();
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(x => new { x.TenantId, x.CustomerId }).IsUnique();
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<CustomerCurrentAccountEntry>(entity =>
+        {
+            entity.ToTable("customer_account_entries");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.CustomerId).HasColumnName("customer_id");
+            entity.Property(x => x.Type).HasColumnName("type").HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Amount).HasColumnName("amount").HasPrecision(18, 2);
+            entity.Property(x => x.RefType).HasColumnName("ref_type").HasMaxLength(100).IsRequired();
+            entity.Property(x => x.RefId).HasColumnName("ref_id").HasMaxLength(120).IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.Note).HasColumnName("note").HasMaxLength(500);
+            entity.HasIndex(x => new { x.TenantId, x.CustomerId, x.CreatedAt });
+            entity.HasIndex(x => new { x.TenantId, x.CustomerId, x.Type, x.RefType, x.RefId }).IsUnique();
+            entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
+        });
+
+        modelBuilder.Entity<AccountingExportItem>(entity =>
+        {
+            entity.ToTable("accounting_export_items");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.SourceType).HasColumnName("source_type").HasMaxLength(40).IsRequired();
+            entity.Property(x => x.SourceId).HasColumnName("source_id").HasMaxLength(120).IsRequired();
+            entity.Property(x => x.EventCode).HasColumnName("event_code").HasMaxLength(80).IsRequired();
+            entity.Property(x => x.PayloadJson).HasColumnName("payload_json").IsRequired();
+            entity.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).IsRequired();
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.ExportedAt).HasColumnName("exported_at");
+            entity.Property(x => x.FailureReason).HasColumnName("failure_reason").HasMaxLength(600);
+            entity.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            entity.HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId }).IsUnique();
             entity.HasQueryFilter(x => !CurrentTenantId.HasValue || x.TenantId == (CurrentTenantId ?? Guid.Empty));
         });
 

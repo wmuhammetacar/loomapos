@@ -15,8 +15,14 @@ export default async function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   const requestHeaders = await headers();
   const internalHeader = requestHeaders.get("x-internal-admin");
+  const forwardedHost = requestHeaders.get("x-forwarded-host");
+  const host = (forwardedHost ?? requestHeaders.get("host") ?? "").toLowerCase();
+  const isLocalHost = host.startsWith("127.0.0.1") || host.startsWith("localhost");
+  const allowLocalBypass =
+    isLocalHost &&
+    process.env.LOOMA_INTERNAL_ADMIN_REQUIRE_HEADER !== "true";
 
-  if (internalHeader !== "true") {
+  if (internalHeader !== "true" && !allowLocalBypass) {
     return (
       <html lang="en">
         <body>

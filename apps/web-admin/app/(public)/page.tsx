@@ -40,10 +40,10 @@ const coreFeatures = [
 ];
 
 const setupSteps = [
-  "Deneme baslat",
-  "Uygulamayi indir",
-  "Lisans ile aktive et",
-  "Satisa basla"
+  "Demo/deneme baslat",
+  "Desktop POS kur ve aktive et",
+  "Ilk test satisini tamamla",
+  "Deneme bitmeden plani yukselt"
 ];
 
 const pricingPreview = [
@@ -209,6 +209,17 @@ export default function HomePage() {
               <p className="mt-3 text-lg font-semibold text-text">{item}</p>
             </Card>
           ))}
+        </div>
+        <p className="rounded-2xl border border-warning/35 bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
+          Deneme sonunda plan yukseltilmezse sistem salt-okunur moda gecer: goruntuleme devam eder, operasyon yazma akisleri kapanir.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/pricing" className={buttonVariants({ variant: "outline", size: "md" })}>
+            Deneme bitmeden plani sec
+          </Link>
+          <Link href="/download" className={buttonVariants({ variant: "ghost", size: "md" })}>
+            Uygulamayi indir
+          </Link>
         </div>
       </section>
 

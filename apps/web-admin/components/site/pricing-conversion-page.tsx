@@ -136,7 +136,7 @@ function formatCurrency(value: number) {
 
 function getPrimaryAction(context: PricingContext) {
   if (context === "trial") {
-    return { label: "Simdi Yukselt", href: "/checkout?plan=pro&cycle=monthly" };
+    return { label: "Denemeyi Yukselt", href: "/checkout?plan=pro&cycle=monthly" };
   }
 
   if (context === "customer") {
@@ -213,9 +213,13 @@ export function PricingConversionPage() {
 
         setPricingContext("trial");
         setTrialStatusMessage(
-          expiringSoon
-            ? "Deneme bitmek uzere (" + remainingDays + " gun). Kesintisiz devam icin plan secin."
-            : "Deneme aktif" + (remainingDays === null ? "" : " (" + remainingDays + " gun kaldi)") + "."
+          remainingDays !== null && remainingDays <= 0
+            ? "Deneme suresi bitti. Sistem salt-okunur modda; goruntuleme acik, operasyon yazma akislari kapali."
+            : expiringSoon
+              ? "Deneme bitmek uzere (" + remainingDays + " gun). Sure sonunda sistem salt-okunur moda gecer."
+              : "Deneme aktif" +
+                  (remainingDays === null ? "" : " (" + remainingDays + " gun kaldi)") +
+                  ". Deneme bitmeden yukselterek kesintisiz devam edin."
         );
       } else {
         setPricingContext("customer");
@@ -264,7 +268,7 @@ export function PricingConversionPage() {
             </p>
             {trialStatusMessage ? (
               <p className="mt-3 rounded-2xl border border-warning/35 bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
-                {trialStatusMessage} Yukselterek salt-okunur moda dusmeden devam edebilirsiniz.
+                {trialStatusMessage}
               </p>
             ) : null}
           </div>

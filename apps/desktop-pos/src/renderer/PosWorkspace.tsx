@@ -181,18 +181,18 @@ const normalizeLifecycleState = (rawState: string | null | undefined): TrialLife
 const lifecycleTextByState: Record<TrialLifecycleState, Pick<TrialLifecycleDescriptor, "label" | "message" | "nextAction">> = {
   trial_active: {
     label: "Deneme aktif",
-    message: "Deneme suresi aktif. Operasyon yazma islemleri acik.",
-    nextAction: "Bitmeden once uygun plani secin"
+    message: "Deneme aktif. Operasyon yazma islemleri acik. Deneme sonunda yukseltme yapilmazsa sistem salt-okunur moda gecer.",
+    nextAction: "Web portal > Abonelik adimindan plani simdiden secin"
   },
   trial_expiring: {
     label: "Deneme bitmek uzere",
-    message: "Deneme suresi kritik seviyede. Kesinti olmamasi icin plan secimi yapin.",
-    nextAction: "Kesinti olmamasi icin plani netlestirin"
+    message: "Deneme bitmek uzere. Sure dolunca operasyon yazma kapanir ve sistem salt-okunur moda gecer.",
+    nextAction: "Kesinti olmamasi icin simdi yukseltin (Web portal > Abonelik)"
   },
   trial_expired: {
     label: "Deneme bitti / salt-okunur",
-    message: "Deneme suresi doldu. Yazma islemleri kapali, goruntuleme acik.",
-    nextAction: "Devam etmek icin ucretli plana gecin"
+    message: "Deneme suresi doldu. Goruntuleme acik, operasyon yazma akisleri kapali.",
+    nextAction: "Yukseltin ve operasyon yazmayi tekrar acin (Web portal > Abonelik)"
   },
   subscription_active: {
     label: "Abonelik aktif",
@@ -201,18 +201,18 @@ const lifecycleTextByState: Record<TrialLifecycleState, Pick<TrialLifecycleDescr
   },
   subscription_past_due: {
     label: "Odeme gecikmis",
-    message: "Abonelik odemesi gecikmis. Operasyon acik, yeni cihaz aktivasyonu kisitli olabilir.",
-    nextAction: "Odeme durumunu portalden guncelleyin"
+    message: "Abonelik odemesi gecikmis. Operasyon kisitlanmadan once odeme guncellenmelidir.",
+    nextAction: "Web portal > Faturalama adimindan odemeyi tamamlayin"
   },
   subscription_canceled: {
     label: "Abonelik iptal",
-    message: "Abonelik iptal isaretli. Donem sonuna kadar operasyon acik olabilir.",
-    nextAction: "Devam etmek icin aboneligi yeniden etkinlestirin"
+    message: "Abonelik iptal durumunda. Donem sonunda operasyon yazma akisleri kapanabilir.",
+    nextAction: "Web portal > Abonelik adimindan yenilemeyi tekrar acin"
   },
   suspended_blocked: {
     label: "Askida / bloklu",
     message: "Hesap bloklu oldugu icin operasyon yazma akisleri kapali.",
-    nextAction: "Portalden durum kontrolu yapin veya destekle iletisime gecin"
+    nextAction: "Web portal > Abonelik/Lisans durumunu kontrol edin veya destekle iletisime gecin"
   }
 };
 
@@ -243,9 +243,11 @@ const calcLineTotal = (qty: number, unitPrice: number, discount: number, taxRate
 export interface PosWorkspaceProps {
   onOpenSettings: () => void;
   onLogout: () => Promise<void>;
+  onboardingHint?: string | null;
+  onSaleCompleted?: (result: { saleId: string; receiptNo: string; total: number }) => void;
 }
 
-export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
+export function PosWorkspace({ onOpenSettings, onLogout, onboardingHint, onSaleCompleted }: PosWorkspaceProps) {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const refundInputRef = useRef<HTMLInputElement>(null);
 
@@ -825,6 +827,12 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
         }))
       });
 
+      onSaleCompleted?.({
+        saleId: result.saleId,
+        receiptNo: result.receiptNo,
+        total: result.total
+      });
+
       setPaymentMethod(method);
       pushToast("success", "Satis tamamlandi.");
       if (result.printWarning) {
@@ -1199,6 +1207,12 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
         <div className="status-clock">{clock.toLocaleString("tr-TR", { hour12: false })}</div>
       </header>
 
+      {onboardingHint ? (
+        <div className="onboarding-inline-hint" role="status">
+          {onboardingHint}
+        </div>
+      ) : null}
+
       <main className="pos-main">
         <section className="surface left-panel">
           <div className="section-header">
@@ -1431,6 +1445,9 @@ export function PosWorkspace({ onOpenSettings, onLogout }: PosWorkspaceProps) {
             <p className="muted-text">Acik: {lifecycle.allowedActions.join(" • ")}</p>
             <p className="muted-text">Kapali: {lifecycle.blockedActions.join(" • ")}</p>
             <p className="status-warn">Sonraki adim: {lifecycle.nextAction}</p>
+            {lifecycle.state === "trial_expiring" || lifecycle.state === "trial_expired" || appInfo.license.requiresUpgradeAction ? (
+              <p className="status-warn">Yukseltme aksiyonu: Web portal / Abonelik. Indirme tek basina lisans acmaz.</p>
+            ) : null}
           </section>
 
           <section className="info-card">

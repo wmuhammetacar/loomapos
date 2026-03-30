@@ -1625,3 +1625,244 @@ const generateRefundReceiptNo = (): string => {
 };
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+
+export interface OnboardingDemoSeedResult {
+  inserted: number;
+  updated: number;
+  totalProducts: number;
+}
+
+const ONBOARDING_DEMO_PRODUCTS: Array<{
+  code: string;
+  name: string;
+  unit: string;
+  taxRate: number;
+  price: number;
+  openingStock: number;
+}> = [
+  {
+    code: "DEMO-SU-05",
+    name: "Demo Su 0.5L",
+    unit: "adet",
+    taxRate: 1,
+    price: 10,
+    openingStock: 120
+  },
+  {
+    code: "DEMO-TOST-01",
+    name: "Demo Tost Kasarli",
+    unit: "adet",
+    taxRate: 10,
+    price: 85,
+    openingStock: 60
+  },
+  {
+    code: "DEMO-KAHVE-01",
+    name: "Demo Filtre Kahve",
+    unit: "adet",
+    taxRate: 10,
+    price: 70,
+    openingStock: 90
+  },
+  {
+    code: "DEMO-LIMONATA-01",
+    name: "Demo Limonata",
+    unit: "adet",
+    taxRate: 10,
+    price: 55,
+    openingStock: 75
+  }
+];
+
+const deterministicUuid = (seed: string) => {
+  const hash = crypto.createHash("sha256").update(seed).digest("hex");
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    hash.slice(12, 16),
+    hash.slice(16, 20),
+    hash.slice(20, 32)
+  ].join("-");
+};
+
+const deterministicBarcode = (seed: string) => {
+  const hash = crypto.createHash("sha256").update(seed).digest("hex");
+  const digits = BigInt(`0x${hash.slice(0, 14)}`) % 1_000_000_000_000n;
+  return `2${digits.toString().padStart(12, "0")}`;
+};
+
+export const getTenantProductStats = (tenantId: string) => {
+  const db = getDatabase();
+  const total = db
+    .prepare(`
+      SELECT COUNT(1) AS count
+      FROM local_products
+      WHERE tenant_id = @tenantId
+    `)
+    .get({ tenantId }) as { count: number };
+
+  const demo = db
+    .prepare(`
+      SELECT COUNT(1) AS count
+      FROM local_products
+      WHERE tenant_id = @tenantId
+        AND source = 'onboarding_demo'
+    `)
+    .get({ tenantId }) as { count: number };
+
+  return {
+    totalProducts: total.count,
+    demoProducts: demo.count
+  };
+};
+
+export const seedOnboardingDemoProducts = (tenantId: string, branchId: string): OnboardingDemoSeedResult => {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+
+  const hasProduct = db.prepare(`
+    SELECT 1 AS present
+    FROM local_products
+    WHERE id = @id
+    LIMIT 1
+  `);
+
+  const hasStockSnapshot = db.prepare(`
+    SELECT 1 AS present
+    FROM local_stock_snapshot
+    WHERE tenant_id = @tenantId
+      AND branch_id = @branchId
+      AND product_id = @productId
+      AND variant_id IS NULL
+    LIMIT 1
+  `);
+
+  const upsertLegacy = db.prepare(`
+    INSERT INTO products(id, tenant_id, name, sku, barcode, unit, tax_rate, price, is_active, created_at)
+    VALUES(@id, @tenantId, @name, @sku, @barcode, @unit, @taxRate, @price, 1, @createdAt)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      sku = excluded.sku,
+      barcode = excluded.barcode,
+      unit = excluded.unit,
+      tax_rate = excluded.tax_rate,
+      price = excluded.price,
+      is_active = 1
+  `);
+
+  const upsertLocal = db.prepare(`
+    INSERT INTO local_products(
+      id, tenant_id, name, sku, barcode, unit, tax_rate, price, stock_tracked, service_item,
+      variant_enabled, negative_stock_allowed, sell_when_out_of_stock, is_active, source, created_at, updated_at
+    )
+    VALUES(
+      @id, @tenantId, @name, @sku, @barcode, @unit, @taxRate, @price, 1, 0,
+      0, 0, 1, 1, 'onboarding_demo', @createdAt, @updatedAt
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      sku = excluded.sku,
+      barcode = excluded.barcode,
+      unit = excluded.unit,
+      tax_rate = excluded.tax_rate,
+      price = excluded.price,
+      is_active = 1,
+      source = 'onboarding_demo',
+      updated_at = excluded.updated_at
+  `);
+
+  const upsertBarcode = db.prepare(`
+    INSERT INTO local_product_barcodes(id, product_id, barcode, is_primary, created_at, updated_at)
+    VALUES(@id, @productId, @barcode, 1, @createdAt, @updatedAt)
+    ON CONFLICT(barcode) DO UPDATE SET
+      product_id = excluded.product_id,
+      is_primary = 1,
+      updated_at = excluded.updated_at
+  `);
+
+  const insertStockSnapshot = db.prepare(`
+    INSERT INTO local_stock_snapshot(
+      snapshot_id, tenant_id, branch_id, product_id, variant_id, qty_on_hand,
+      source_sync_at, last_calculated_at, stale_at
+    )
+    VALUES(
+      @snapshotId, @tenantId, @branchId, @productId, NULL, @qtyOnHand,
+      NULL, @lastCalculatedAt, @staleAt
+    )
+  `);
+
+  let inserted = 0;
+  let updated = 0;
+
+  const tx = db.transaction(() => {
+    for (const row of ONBOARDING_DEMO_PRODUCTS) {
+      const productId = deterministicUuid(`${tenantId}:${row.code}`);
+      const barcode = deterministicBarcode(`${tenantId}:${row.code}:barcode`);
+      const existing = hasProduct.get({ id: productId }) as { present: number } | undefined;
+      if (existing) {
+        updated += 1;
+      } else {
+        inserted += 1;
+      }
+
+      upsertLegacy.run({
+        id: productId,
+        tenantId,
+        name: row.name,
+        sku: row.code,
+        barcode,
+        unit: row.unit,
+        taxRate: row.taxRate,
+        price: row.price,
+        createdAt: now
+      });
+
+      upsertLocal.run({
+        id: productId,
+        tenantId,
+        name: row.name,
+        sku: row.code,
+        barcode,
+        unit: row.unit,
+        taxRate: row.taxRate,
+        price: row.price,
+        createdAt: now,
+        updatedAt: now
+      });
+
+      upsertBarcode.run({
+        id: deterministicUuid(`${productId}:barcode`),
+        productId,
+        barcode,
+        createdAt: now,
+        updatedAt: now
+      });
+
+      const snapshot = hasStockSnapshot.get({
+        tenantId,
+        branchId,
+        productId
+      }) as { present: number } | undefined;
+
+      if (!snapshot) {
+        insertStockSnapshot.run({
+          snapshotId: deterministicUuid(`${tenantId}:${branchId}:${productId}:snapshot`),
+          tenantId,
+          branchId,
+          productId,
+          qtyOnHand: round2(row.openingStock),
+          lastCalculatedAt: now,
+          staleAt: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+        });
+      }
+    }
+  });
+  tx();
+
+  const stats = getTenantProductStats(tenantId);
+  return {
+    inserted,
+    updated,
+    totalProducts: stats.totalProducts
+  };
+};

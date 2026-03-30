@@ -51,9 +51,13 @@ public static class CommerceLicenseCoreEndpoints
             ? licenseArtifactService.TryValidate(request.LicenseToken, out _)
             : licenseArtifactService.TryValidate(license.LicenseToken, out _);
 
-        var tenant = await dbContext.Tenants.AsNoTracking()
+        var tenant = await dbContext.Tenants
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == license.TenantId, cancellationToken);
-        var subscription = await dbContext.Subscriptions.AsNoTracking()
+        var subscription = await dbContext.Subscriptions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Where(x => x.TenantId == license.TenantId)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
@@ -101,9 +105,13 @@ public static class CommerceLicenseCoreEndpoints
             return Results.BadRequest(new { error = "license is not active" });
         }
 
-        var tenant = await dbContext.Tenants.AsNoTracking()
+        var tenant = await dbContext.Tenants
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == license.TenantId, cancellationToken);
-        var subscription = await dbContext.Subscriptions.AsNoTracking()
+        var subscription = await dbContext.Subscriptions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Where(x => x.TenantId == license.TenantId)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
@@ -123,9 +131,11 @@ public static class CommerceLicenseCoreEndpoints
         }
 
         var activeCount = await dbContext.DeviceActivations
+            .IgnoreQueryFilters()
             .CountAsync(x => x.TenantId == license.TenantId && x.RevokedAt == null, cancellationToken);
         var deviceId = request.DeviceId == Guid.Empty ? Guid.NewGuid() : request.DeviceId;
         var existing = await dbContext.DeviceActivations
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.TenantId == license.TenantId && x.DeviceId == deviceId, cancellationToken);
 
         if (existing is null && license.DeviceLimit.HasValue && activeCount >= license.DeviceLimit.Value)
@@ -158,6 +168,8 @@ public static class CommerceLicenseCoreEndpoints
             existing.RevokedAt = null;
         }
 
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         dbContext.ActivationEvents.Add(new ActivationEvent
         {
             TenantId = license.TenantId,
@@ -182,6 +194,7 @@ public static class CommerceLicenseCoreEndpoints
         CancellationToken cancellationToken)
     {
         var activation = await dbContext.DeviceActivations
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.DeviceId == request.DeviceId && x.RevokedAt == null, cancellationToken);
         if (activation is null)
         {
@@ -203,11 +216,17 @@ public static class CommerceLicenseCoreEndpoints
         });
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var license = await dbContext.IssuedLicenses.AsNoTracking()
+        var license = await dbContext.IssuedLicenses
+                .IgnoreQueryFilters()
+                .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == activation.LicenseId, cancellationToken);
-        var tenant = await dbContext.Tenants.AsNoTracking()
+        var tenant = await dbContext.Tenants
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == activation.TenantId, cancellationToken);
-        var subscription = await dbContext.Subscriptions.AsNoTracking()
+        var subscription = await dbContext.Subscriptions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
             .Where(x => x.TenantId == activation.TenantId)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
@@ -241,6 +260,7 @@ public static class CommerceLicenseCoreEndpoints
         CancellationToken cancellationToken)
     {
         var activation = await dbContext.DeviceActivations
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.DeviceId == request.DeviceId && x.RevokedAt == null, cancellationToken);
         if (activation is null)
         {
@@ -268,13 +288,17 @@ public static class CommerceLicenseCoreEndpoints
     {
         if (!string.IsNullOrWhiteSpace(request.LicenseKey))
         {
-            return await dbContext.IssuedLicenses.AsNoTracking()
+            return await dbContext.IssuedLicenses
+                .IgnoreQueryFilters()
+                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.LicenseKey == request.LicenseKey.Trim(), cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(request.LicenseToken))
         {
-            return await dbContext.IssuedLicenses.AsNoTracking()
+            return await dbContext.IssuedLicenses
+                .IgnoreQueryFilters()
+                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.LicenseToken == request.LicenseToken.Trim(), cancellationToken);
         }
 

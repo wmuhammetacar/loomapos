@@ -8,6 +8,7 @@ public sealed class StockMove : ITenantEntity, ICreatedAtEntity
     public Guid TenantId { get; set; }
     public Guid BranchId { get; set; }
     public Guid ProductId { get; set; }
+    public Guid? WarehouseId { get; set; }
     public decimal QtyDelta { get; set; }
     public string Reason { get; set; } = string.Empty;
     public string RefType { get; set; } = string.Empty;

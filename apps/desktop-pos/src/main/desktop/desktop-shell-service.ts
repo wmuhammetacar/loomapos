@@ -31,7 +31,7 @@ import {
   touchLocalSessionValidation,
   upsertLocalBranch
 } from "../storage/local-state-repository.js";
-import { replaceLocalProducts, seedLocalProducts } from "../pos/pos-service.js";
+import { getRecentSales, getTenantProductStats, replaceLocalProducts, seedLocalProducts, seedOnboardingDemoProducts } from "../pos/pos-service.js";
 import { LicenseRuntimeStatus, setLicenseRuntimeStatus } from "../license/license-client.js";
 import { appendOutboxEvent } from "../sync/outbox-repository.js";
 
@@ -135,6 +135,18 @@ export interface DesktopRuntimeContext {
   canManageCatalog: boolean;
 }
 
+export interface DesktopOnboardingState {
+  required: boolean;
+  completedAt: string | null;
+  demoSeededAt: string | null;
+  demoProductCount: number;
+  firstSaleDone: boolean;
+  firstSaleAt: string | null;
+}
+
+const ONBOARDING_COMPLETED_AT_KEY = "desktop_onboarding_completed_at";
+const ONBOARDING_DEMO_SEEDED_AT_KEY = "desktop_onboarding_demo_seeded_at";
+
 const normalizeFeatures = (value: string | null | undefined): string[] => {
   try {
     const parsed = JSON.parse(value ?? "[]");
@@ -146,7 +158,7 @@ const normalizeFeatures = (value: string | null | undefined): string[] => {
 
 const sanitizeSession = (offlineSession: boolean): DesktopSessionSnapshot | null => {
   const session = getLocalSession();
-  if (!session) {
+  if (!session || !session.accessToken.trim()) {
     return null;
   }
 
@@ -247,6 +259,76 @@ export const getDesktopRuntimeContext = (appVersion: string): DesktopRuntimeCont
     cashierRole,
     canManageCatalog
   };
+};
+
+const readOnboardingState = (tenantId: string): DesktopOnboardingState => {
+  const completedAt = getAppSetting(ONBOARDING_COMPLETED_AT_KEY);
+  const demoSeededAt = getAppSetting(ONBOARDING_DEMO_SEEDED_AT_KEY);
+  const productStats = getTenantProductStats(tenantId);
+  const latestSale = getRecentSales(tenantId, 1)[0] ?? null;
+
+  return {
+    required: !completedAt,
+    completedAt: completedAt ?? null,
+    demoSeededAt: demoSeededAt ?? null,
+    demoProductCount: productStats.totalProducts,
+    firstSaleDone: latestSale !== null,
+    firstSaleAt: latestSale?.createdAt ?? null
+  };
+};
+
+export const getDesktopOnboardingState = (appVersion: string): DesktopOnboardingState => {
+  const context = getDesktopRuntimeContext(appVersion);
+  return readOnboardingState(context.tenantId);
+};
+
+export const seedDesktopOnboardingDemo = (appVersion: string): DesktopOnboardingState => {
+  const context = getDesktopRuntimeContext(appVersion);
+  seedOnboardingDemoProducts(context.tenantId, context.branchId);
+  setAppSetting(ONBOARDING_DEMO_SEEDED_AT_KEY, new Date().toISOString());
+
+  appendLocalAuditLog({
+    tenantId: context.tenantId,
+    branchId: context.branchId,
+    deviceId: context.deviceId,
+    actorUserId: context.cashierUserId,
+    actorEmail: getLocalSession()?.email ?? null,
+    actorName: context.cashierName,
+    eventType: "desktop_onboarding_demo_seeded",
+    message: "Ilk kurulum demo urunleri yuklendi."
+  });
+
+  return readOnboardingState(context.tenantId);
+};
+
+export const completeDesktopOnboarding = (appVersion: string): DesktopOnboardingState => {
+  const context = getDesktopRuntimeContext(appVersion);
+  const current = readOnboardingState(context.tenantId);
+  if (current.completedAt) {
+    return current;
+  }
+  if (!current.firstSaleDone) {
+    throw new Error("Onboarding tamamlanmadan once en az bir test satisi tamamlayin.");
+  }
+
+  const completedAt = new Date().toISOString();
+  setAppSetting(ONBOARDING_COMPLETED_AT_KEY, completedAt);
+
+  appendLocalAuditLog({
+    tenantId: context.tenantId,
+    branchId: context.branchId,
+    deviceId: context.deviceId,
+    actorUserId: context.cashierUserId,
+    actorEmail: getLocalSession()?.email ?? null,
+    actorName: context.cashierName,
+    eventType: "desktop_onboarding_completed",
+    message: "Ilk kurulum adimlari tamamlandi.",
+    payload: {
+      completedAt
+    }
+  });
+
+  return readOnboardingState(context.tenantId);
 };
 
 export const getDesktopBootstrapState = async (appVersion: string): Promise<DesktopBootstrapState> => {
@@ -635,7 +717,7 @@ export const updateDesktopSettings = (appVersion: string, input: { deviceName?: 
 };
 
 const evaluateSessionUsability = (session: ReturnType<typeof getLocalSession>, online: boolean) => {
-  if (!session) {
+  if (!session || !session.accessToken.trim()) {
     return "missing" as const;
   }
 

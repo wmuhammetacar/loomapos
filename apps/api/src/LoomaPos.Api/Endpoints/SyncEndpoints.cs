@@ -329,7 +329,9 @@ public static class SyncEndpoints
             return null;
         }
 
-        if (tenantProvider.TenantId.HasValue && (!requestedTenantId.HasValue || tenantProvider.TenantId.Value == requestedTenantId.Value))
+        if (httpContext.User.Identity?.IsAuthenticated == true
+            && tenantProvider.TenantId.HasValue
+            && (!requestedTenantId.HasValue || tenantProvider.TenantId.Value == requestedTenantId.Value))
         {
             return new PortalAccessContext(
                 Guid.Empty,
@@ -338,7 +340,7 @@ public static class SyncEndpoints
                 null,
                 null,
                 tenantProvider.TenantId.Value,
-                "header-sync",
+                "claim-sync",
                 "Desktop Sync",
                 null,
                 null);

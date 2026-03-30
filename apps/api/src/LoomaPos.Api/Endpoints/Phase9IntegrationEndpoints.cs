@@ -290,13 +290,17 @@ public static class Phase9IntegrationEndpoints
             eventType = "provider.callback";
         }
         var signature = request.Headers["X-Provider-Signature"].ToString();
-        Guid? tenantId = null;
-        if (Guid.TryParse(request.Headers["X-Tenant-Id"], out var parsedTenantId))
+        if (string.IsNullOrWhiteSpace(signature))
         {
-            tenantId = parsedTenantId;
+            return Results.BadRequest(new { message = "X-Provider-Signature header is required." });
         }
 
-        var result = await integrationService.RecordInboundWebhookAsync(providerCode, eventKey, eventType, signature, payload, tenantId, cancellationToken);
+        var result = await integrationService.RecordInboundWebhookAsync(providerCode, eventKey, eventType, signature, payload, null, cancellationToken);
+        if (result.Status is "invalid_signature" or "webhook_secret_missing")
+        {
+            return Results.BadRequest(result);
+        }
+
         return Results.Ok(result);
     }
 

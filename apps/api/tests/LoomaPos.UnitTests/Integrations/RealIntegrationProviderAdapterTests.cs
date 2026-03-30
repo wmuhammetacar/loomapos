@@ -76,21 +76,34 @@ public sealed class RealIntegrationProviderAdapterTests
     public async Task RestEInvoiceAdapter_ShouldVerifyWebhookSignature()
     {
         var adapter = new RestEInvoiceAdapter(new HttpClient(new StubHttpMessageHandler((_, _) => throw new InvalidOperationException())));
-        const string payload = "{\"providerContext\":{\"webhookSecret\":\"whsec_123\"},\"event\":\"invoice.accepted\"}";
+        const string payload = "{\"event\":\"invoice.accepted\"}";
         const string timestamp = "1741501200";
-        var header = WebhookSignatureV1.BuildHeader("whsec_123", payload, timestamp);
+        const string secret = "whsec_123";
 
-        var accepted = await adapter.ReceiveWebhookAsync(
-            new ProviderWebhookRequest(adapter.ProviderCode, "evt_1", "invoice.accepted", header, payload),
-            CancellationToken.None);
-        var rejected = await adapter.ReceiveWebhookAsync(
-            new ProviderWebhookRequest(adapter.ProviderCode, "evt_2", "invoice.accepted", $"t={timestamp},v1=bad", payload),
-            CancellationToken.None);
+        var secretKey = "LOOMAPOS_INTEGRATIONS_WEBHOOK_SECRET_" + adapter.ProviderCode.ToUpperInvariant().Replace("-", "_");
+        var previousSecret = Environment.GetEnvironmentVariable(secretKey);
+        Environment.SetEnvironmentVariable(secretKey, secret);
 
-        Assert.True(accepted.Accepted);
-        Assert.Equal("accepted", accepted.Status);
-        Assert.False(rejected.Accepted);
-        Assert.Equal("invalid_signature", rejected.Status);
+        try
+        {
+            var header = WebhookSignatureV1.BuildHeader(secret, payload, timestamp);
+
+            var accepted = await adapter.ReceiveWebhookAsync(
+                new ProviderWebhookRequest(adapter.ProviderCode, "evt_1", "invoice.accepted", header, payload),
+                CancellationToken.None);
+            var rejected = await adapter.ReceiveWebhookAsync(
+                new ProviderWebhookRequest(adapter.ProviderCode, "evt_2", "invoice.accepted", "t=" + timestamp + ",v1=bad", payload),
+                CancellationToken.None);
+
+            Assert.True(accepted.Accepted);
+            Assert.Equal("accepted", accepted.Status);
+            Assert.False(rejected.Accepted);
+            Assert.Equal("invalid_signature", rejected.Status);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(secretKey, previousSecret);
+        }
     }
 
     [Fact]

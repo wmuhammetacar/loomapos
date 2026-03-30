@@ -3,6 +3,7 @@ using LoomaPos.Domain.Auditing;
 using LoomaPos.Domain.Commerce;
 using LoomaPos.Domain.Identity;
 using LoomaPos.Infrastructure.Payments;
+using LoomaPos.Infrastructure.Inventory;
 using LoomaPos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,6 +55,7 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
     private readonly ILicenseArtifactService _licenseArtifactService;
     private readonly IEmailTemplateService _emailTemplateService;
     private readonly IConfiguration _configuration;
+    private readonly IWarehouseCompatibilityService _warehouseCompatibilityService;
 
     public CommerceProvisioningService(
         AppDbContext dbContext,
@@ -61,7 +63,8 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
         IPortalCryptoService cryptoService,
         ILicenseArtifactService licenseArtifactService,
         IEmailTemplateService emailTemplateService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IWarehouseCompatibilityService warehouseCompatibilityService)
     {
         _dbContext = dbContext;
         _paymentProviderResolver = paymentProviderResolver;
@@ -69,6 +72,7 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
         _licenseArtifactService = licenseArtifactService;
         _emailTemplateService = emailTemplateService;
         _configuration = configuration;
+        _warehouseCompatibilityService = warehouseCompatibilityService;
     }
 
     public async Task<CheckoutStatusSnapshot> CreateCheckoutSessionAsync(
@@ -380,6 +384,8 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
             };
             _dbContext.TenantUsers.Add(tenantUser);
         }
+
+        await _warehouseCompatibilityService.EnsureDefaultWarehouseAsync(tenant.Id, cancellationToken);
 
         var plan = await _dbContext.SubscriptionPlans
             .AsNoTracking()
@@ -699,18 +705,36 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
             return null;
         }
 
-        var invoice = checkoutSession.TenantId.HasValue
-            ? await _dbContext.Invoices.AsNoTracking()
-                .Where(x => x.TenantId == checkoutSession.TenantId.Value)
-                .OrderByDescending(x => x.IssuedAt)
-                .FirstOrDefaultAsync(cancellationToken)
-            : null;
-        var license = checkoutSession.TenantId.HasValue
-            ? await _dbContext.IssuedLicenses.AsNoTracking()
-                .Where(x => x.TenantId == checkoutSession.TenantId.Value)
-                .OrderByDescending(x => x.IssuedAt)
-                .FirstOrDefaultAsync(cancellationToken)
-            : null;
+        string? invoiceNo = null;
+        CheckoutLicenseSnapshot? licenseSnapshot = null;
+
+        if (checkoutSession.TenantId.HasValue)
+        {
+            try
+            {
+                invoiceNo = await _dbContext.Invoices.AsNoTracking()
+                    .Where(x => EF.Property<Guid?>(x, "TenantId") == checkoutSession.TenantId.Value)
+                    .OrderByDescending(x => EF.Property<DateTimeOffset?>(x, "IssuedAt") ?? DateTimeOffset.MinValue)
+                    .Select(x => EF.Property<string?>(x, "InvoiceNo"))
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                licenseSnapshot = await _dbContext.IssuedLicenses.AsNoTracking()
+                    .Where(x => EF.Property<Guid?>(x, "TenantId") == checkoutSession.TenantId.Value)
+                    .OrderByDescending(x => EF.Property<DateTimeOffset?>(x, "IssuedAt") ?? DateTimeOffset.MinValue)
+                    .Select(x => new CheckoutLicenseSnapshot(
+                        EF.Property<string?>(x, "LicenseKey"),
+                        EF.Property<string?>(x, "LicenseToken"),
+                        EF.Property<string?>(x, "Status"),
+                        EF.Property<DateTimeOffset?>(x, "ExpiresAt")))
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+            catch (InvalidOperationException)
+            {
+                invoiceNo = null;
+                licenseSnapshot = null;
+            }
+        }
+
         var downloads = await BuildDownloadSnapshotsAsync(checkoutSession.TenantId, cancellationToken);
 
         return new CheckoutStatusSnapshot(
@@ -730,13 +754,19 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
             checkoutSession.TenantId,
             checkoutSession.CustomerAccountId,
             checkoutSession.SubscriptionId,
-            invoice?.InvoiceNo,
-            license?.LicenseKey,
-            license?.LicenseToken,
-            license?.Status,
-            license?.ExpiresAt,
+            invoiceNo,
+            licenseSnapshot?.LicenseKey,
+            licenseSnapshot?.LicenseToken,
+            licenseSnapshot?.Status,
+            licenseSnapshot?.ExpiresAt,
             downloads);
     }
+
+    private sealed record CheckoutLicenseSnapshot(
+        string? LicenseKey,
+        string? LicenseToken,
+        string? Status,
+        DateTimeOffset? ExpiresAt);
 
     private void QueueEmail(
         string eventCode,

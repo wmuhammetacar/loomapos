@@ -36,11 +36,23 @@ declare namespace __next_route_internal_types__ {
     | `/audit`
     | `/dashboard`
     | `/devices`
+    | `/erp/customer-accounts`
+    | `/erp/purchase-orders`
+    | `/erp/purchase-orders/new`
+    | `/erp/suppliers`
+    | `/erp/transfers`
+    | `/erp/transfers/new`
+    | `/erp/warehouses`
     | `/subscriptions`
     | `/support`
     | `/sync`
     | `/tenants`
   type DynamicRoutes<T extends string = string> = 
+    | `/erp/customer-accounts/${SafeSlug<T>}`
+    | `/erp/purchase-orders/${SafeSlug<T>}`
+    | `/erp/suppliers/${SafeSlug<T>}`
+    | `/erp/transfers/${SafeSlug<T>}`
+    | `/erp/warehouses/${SafeSlug<T>}`
     | `/tenants/${SafeSlug<T>}`
 
   type RouteImpl<T> = 

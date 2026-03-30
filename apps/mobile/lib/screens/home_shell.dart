@@ -168,9 +168,8 @@ class _DashboardTab extends ConsumerWidget {
     final appState = ref.watch(appControllerProvider);
     final syncState = ref.watch(syncControllerProvider);
     final lifecycle = resolveTenantLifecycle(appState, syncState);
-    final writeLocked =
-        lifecycle.state == TenantLifecycleState.trialExpired ||
-            lifecycle.state == TenantLifecycleState.suspendedBlocked;
+    final writeLocked = lifecycle.state == TenantLifecycleState.trialExpired ||
+        lifecycle.state == TenantLifecycleState.suspendedBlocked;
     final dashboard = ref.watch(dashboardReadProvider);
     final reports = ref.watch(reportsSummaryProvider);
     final branches = ref.watch(branchOverviewProvider);
@@ -631,9 +630,8 @@ class _StockCountTab extends ConsumerWidget {
     final appState = ref.watch(appControllerProvider);
     final syncState = ref.watch(syncControllerProvider);
     final lifecycle = resolveTenantLifecycle(appState, syncState);
-    final writeLocked =
-        lifecycle.state == TenantLifecycleState.trialExpired ||
-            lifecycle.state == TenantLifecycleState.suspendedBlocked;
+    final writeLocked = lifecycle.state == TenantLifecycleState.trialExpired ||
+        lifecycle.state == TenantLifecycleState.suspendedBlocked;
     final sessions = ref.watch(stockCountSessionsProvider);
 
     return ListView(
@@ -1246,9 +1244,8 @@ class _StockCountDetailPage extends ConsumerWidget {
     final appState = ref.watch(appControllerProvider);
     final syncState = ref.watch(syncControllerProvider);
     final lifecycle = resolveTenantLifecycle(appState, syncState);
-    final writeLocked =
-        lifecycle.state == TenantLifecycleState.trialExpired ||
-            lifecycle.state == TenantLifecycleState.suspendedBlocked;
+    final writeLocked = lifecycle.state == TenantLifecycleState.trialExpired ||
+        lifecycle.state == TenantLifecycleState.suspendedBlocked;
 
     return Scaffold(
       appBar: AppBar(
@@ -2014,8 +2011,7 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
   final planCode = activation.planCode.toLowerCase();
   final blockedReason = (syncState.blockedReason ?? "").toLowerCase();
 
-  final isSuspended =
-      status.contains("suspend") ||
+  final isSuspended = status.contains("suspend") ||
       status.contains("blocked") ||
       status.contains("lock") ||
       status.contains("revoked") ||
@@ -2029,13 +2025,13 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
     return const TenantLifecycleDescriptor(
       state: TenantLifecycleState.suspendedBlocked,
       label: "Askida / Bloklu",
-      message: "Hesap askida veya bloklu oldugu icin operasyon yazma akislari kapali.",
-      nextAction: "Web portalden abonelik/lisans durumunu kontrol edin.",
+      message:
+          "Hesap askida veya bloklu oldugu icin operasyon yazma akislari kapali.",
+      nextAction: "Web portal > Abonelik/Lisans durumunu kontrol edin.",
     );
   }
 
-  final isPastDue =
-      status.contains("past_due") ||
+  final isPastDue = status.contains("past_due") ||
       status.contains("past-due") ||
       blockedReason.contains("past_due") ||
       blockedReason.contains("past-due");
@@ -2044,13 +2040,12 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       state: TenantLifecycleState.subscriptionPastDue,
       label: "Odeme Gecikmis",
       message:
-          "Abonelik odemesi gecikmis. Operasyon acik; yeni cihaz aktivasyonu kisitli olabilir.",
-      nextAction: "Odeme durumunu portalden guncelleyin.",
+          "Abonelik odemesi gecikmis. Operasyon kisitlanmadan once odeme guncellenmelidir.",
+      nextAction: "Web portal > Faturalama adimindan odemeyi tamamlayin.",
     );
   }
 
-  final isCanceled =
-      status.contains("subscription_canceled") ||
+  final isCanceled = status.contains("subscription_canceled") ||
       status.contains("canceled") ||
       status.contains("cancelled") ||
       blockedReason.contains("subscription_canceled");
@@ -2059,26 +2054,21 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       state: TenantLifecycleState.subscriptionCanceled,
       label: "Abonelik Iptal",
       message:
-          "Abonelik iptal durumunda. Donem sonuna kadar izinli akislar devam eder, yenileme kapali olabilir.",
-      nextAction: "Devam etmek icin aboneligi yeniden etkinlestirin.",
+          "Abonelik iptal durumunda. Donem sonunda operasyon yazma akisleri kapanabilir.",
+      nextAction: "Web portal > Abonelik adimindan yenilemeyi tekrar acin.",
     );
   }
 
-  final isTrial =
-      status.contains("trial") ||
+  final isTrial = status.contains("trial") ||
       planCode.contains("trial") ||
       status.contains("deneme");
   final expiry = activation.licenseExpiresAt;
   final expired = expiry != null && !expiry.isAfter(now);
-  final daysRemaining =
-      expiry == null
-          ? null
-          : (expiry.difference(now).inDays < 0
-              ? 0
-              : expiry.difference(now).inDays);
+  final daysRemaining = expiry == null
+      ? null
+      : (expiry.difference(now).inDays < 0 ? 0 : expiry.difference(now).inDays);
 
-  final readOnlyHint =
-      status.contains("trial_expired") ||
+  final readOnlyHint = status.contains("trial_expired") ||
       status.contains("read_only") ||
       status.contains("readonly") ||
       status.contains("expired") ||
@@ -2092,8 +2082,9 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       state: TenantLifecycleState.trialExpired,
       label: "Deneme Bitti / Salt-Okunur",
       message:
-          "Deneme suresi sona erdi. Yazma islemleri kapali, yalnizca goruntuleme acik.",
-      nextAction: "Kesintisiz devam icin aktif plana gecin.",
+          "Deneme suresi sona erdi. Goruntuleme acik, operasyon yazma akisleri kapali.",
+      nextAction:
+          "Yukseltin ve operasyon yazmayi tekrar acin (Web portal > Abonelik).",
     );
   }
 
@@ -2104,8 +2095,9 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
         state: TenantLifecycleState.trialExpiring,
         label: "Deneme Bitmek Uzere",
         message:
-            "Deneme suresi kritik seviyede (${safeDays == 0 ? "Bugun son gun" : "$safeDays gun kaldi"}).",
-        nextAction: "Kesinti olmamasi icin plan secimini tamamlayin.",
+            "Deneme bitmek uzere (${safeDays == 0 ? "Bugun son gun" : "$safeDays gun kaldi"}). Sure dolunca sistem salt-okunur moda gecer.",
+        nextAction:
+            "Kesinti olmamasi icin simdi yukseltin (Web portal > Abonelik).",
         daysRemaining: safeDays,
       );
     }
@@ -2113,11 +2105,10 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
     return TenantLifecycleDescriptor(
       state: TenantLifecycleState.trialActive,
       label: "Deneme Aktif",
-      message:
-          safeDays == null
-              ? "Deneme suresi aktif."
-              : "Deneme suresi aktif (${safeDays == 0 ? "Bugun son gun" : "$safeDays gun kaldi"}).",
-      nextAction: "Bitmeden once uygun plani secin.",
+      message: safeDays == null
+          ? "Deneme aktif. Yazma akisleri acik; deneme sonunda yukseltilmezse sistem salt-okunur olur."
+          : "Deneme aktif (${safeDays == 0 ? "Bugun son gun" : "$safeDays gun kaldi"}). Deneme sonunda yukseltilmezse sistem salt-okunur olur.",
+      nextAction: "Web portal > Abonelik adimindan plani simdiden secin.",
       daysRemaining: safeDays,
     );
   }
@@ -2127,7 +2118,8 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       state: TenantLifecycleState.suspendedBlocked,
       label: "Operasyon Bloklu",
       message: "Lisans aktif olmadigi icin operasyon yazma akislari kapali.",
-      nextAction: "Lisansi yenileyin veya destekle iletisime gecin.",
+      nextAction:
+          "Web portal > Abonelik/Lisans durumunu kontrol edin veya destekle iletisime gecin.",
     );
   }
 
