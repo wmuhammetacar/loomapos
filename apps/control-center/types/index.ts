@@ -82,6 +82,157 @@ export interface DeviceRow {
   isStale: boolean;
 }
 
+export type WarehouseType = "main" | "branch" | "virtual" | string;
+
+export interface WarehouseSummaryRow {
+  warehouseId: string;
+  tenantId: string;
+  tenantName: string;
+  name: string;
+  type: WarehouseType;
+  isActive: boolean;
+  createdAt: string;
+  productCount: number;
+  totalStockQuantity: number;
+}
+
+export interface WarehouseStockRow {
+  productId: string;
+  productName: string;
+  sku: string | null;
+  barcode: string | null;
+  quantity: number;
+  updatedAt: string;
+}
+
+export interface WarehouseDetailRow {
+  warehouseId: string;
+  tenantId: string;
+  tenantName: string;
+  name: string;
+  type: WarehouseType;
+  isActive: boolean;
+  createdAt: string;
+  productCount: number;
+  totalStockQuantity: number;
+  stockRows: WarehouseStockRow[];
+}
+
+export type WarehouseTransferStatus = "draft" | "in_transit" | "completed" | "canceled";
+
+export interface WarehouseTransferSummaryRow {
+  transferId: string;
+  tenantId: string;
+  tenantName: string;
+  fromWarehouseId: string;
+  fromWarehouseName: string;
+  toWarehouseId: string;
+  toWarehouseName: string;
+  status: WarehouseTransferStatus;
+  createdAt: string;
+  completedAt: string | null;
+  lineCount: number;
+}
+
+export interface WarehouseTransferLineRow {
+  lineId: string;
+  productId: string;
+  productName: string;
+  sku: string | null;
+  barcode: string | null;
+  quantity: number;
+}
+
+export interface WarehouseTransferDetailRow extends WarehouseTransferSummaryRow {
+  lines: WarehouseTransferLineRow[];
+}
+
+export interface SupplierRow {
+  supplierId: string;
+  tenantId: string;
+  tenantName: string;
+  name: string;
+  taxNumber: string | null;
+  phone: string | null;
+  email: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface SupplierRelatedPurchaseOrderRow {
+  purchaseOrderId: string;
+  warehouseId: string;
+  warehouseName: string;
+  status: string;
+  createdAt: string;
+  receivedAt: string | null;
+  lineCount: number;
+}
+
+export interface SupplierDetailRow extends SupplierRow {
+  relatedPurchaseOrders: SupplierRelatedPurchaseOrderRow[];
+}
+
+export type PurchaseOrderStatus = "draft" | "ordered" | "received" | "canceled";
+
+export interface PurchaseOrderRow {
+  purchaseOrderId: string;
+  tenantId: string;
+  tenantName: string;
+  supplierId: string;
+  supplierName: string;
+  warehouseId: string;
+  warehouseName: string;
+  status: PurchaseOrderStatus;
+  createdAt: string;
+  receivedAt: string | null;
+  lineCount: number;
+}
+
+export interface PurchaseOrderLineRow {
+  lineId: string;
+  productId: string;
+  productName: string;
+  sku: string | null;
+  barcode: string | null;
+  quantity: number;
+  unitCost: number;
+}
+
+export interface PurchaseOrderDetailRow extends PurchaseOrderRow {
+  lines: PurchaseOrderLineRow[];
+}
+
+export type CustomerAccountBalanceState = "positive" | "zero" | "credit";
+
+export interface CustomerAccountRow {
+  contactId: string;
+  tenantId: string;
+  tenantName: string;
+  customerName: string;
+  email: string | null;
+  phone: string | null;
+  balance: number;
+  currency: string;
+  updatedAt: string;
+  balanceState: CustomerAccountBalanceState;
+}
+
+export interface CustomerAccountEntryRow {
+  entryId: string;
+  type: "sale_charge" | "collection" | "adjustment" | "refund_credit" | string;
+  amount: number;
+  refType: string;
+  refId: string;
+  createdAt: string;
+  note: string | null;
+}
+
+export interface CustomerAccountDetailRow extends CustomerAccountRow {
+  accountId: string;
+  entries: CustomerAccountEntryRow[];
+}
+
 export interface SubscriptionRow {
   id: string;
   tenantId: string;

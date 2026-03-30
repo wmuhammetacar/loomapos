@@ -1,9 +1,17 @@
 using System.Text.Json;
 using LoomaPos.Domain.Auditing;
+using LoomaPos.Domain.Common;
+using LoomaPos.Domain.Commerce;
+using LoomaPos.Domain.Customers;
+using LoomaPos.Domain.Inventory;
 using LoomaPos.Domain.Internal;
+using LoomaPos.Domain.Purchasing;
 using LoomaPos.Api.Commerce;
 using LoomaPos.Api.Security;
+using LoomaPos.Infrastructure.Customers;
+using LoomaPos.Infrastructure.Inventory;
 using LoomaPos.Infrastructure.Persistence;
+using LoomaPos.Infrastructure.Purchasing;
 using Microsoft.EntityFrameworkCore;
 
 namespace LoomaPos.Api.Endpoints;
@@ -19,6 +27,36 @@ public static class InternalAdminEndpoints
         group.MapGet("/tenants/{tenantId:guid}", GetTenantDetailAsync);
         group.MapGet("/devices", GetDevicesAsync);
         group.MapGet("/sync-issues", GetSyncIssuesAsync);
+        group.MapGet("/erp/warehouses", GetErpWarehousesAsync);
+        group.MapGet("/erp/warehouses/{warehouseId:guid}", GetErpWarehouseDetailAsync);
+        group.MapGet("/erp/transfers", GetErpWarehouseTransfersAsync);
+        group.MapGet("/erp/transfers/{transferId:guid}", GetErpWarehouseTransferDetailAsync);
+        group.MapPost("/erp/transfers", CreateErpWarehouseTransferAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/erp/transfers/{transferId:guid}/lines", AddErpWarehouseTransferLineAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/erp/transfers/{transferId:guid}/complete", CompleteErpWarehouseTransferAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapGet("/erp/suppliers", GetErpSuppliersAsync);
+        group.MapGet("/erp/suppliers/{supplierId:guid}", GetErpSupplierDetailAsync);
+        group.MapPost("/erp/suppliers", CreateErpSupplierAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapGet("/erp/purchase-orders", GetErpPurchaseOrdersAsync);
+        group.MapGet("/erp/purchase-orders/{purchaseOrderId:guid}", GetErpPurchaseOrderDetailAsync);
+        group.MapPost("/erp/purchase-orders", CreateErpPurchaseOrderAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/erp/purchase-orders/{purchaseOrderId:guid}/lines", AddErpPurchaseOrderLineAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/erp/purchase-orders/{purchaseOrderId:guid}/receive", ReceiveErpPurchaseOrderAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapGet("/erp/customer-accounts", GetErpCustomerAccountsAsync);
+        group.MapGet("/erp/customer-accounts/{contactId:guid}", GetErpCustomerAccountDetailAsync);
+        group.MapPost("/erp/customer-accounts/{contactId:guid}/collections", RecordErpCustomerCollectionAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/erp/customer-accounts/{contactId:guid}/adjustments", RecordErpCustomerAdjustmentAsync)
+            .RequireRateLimiting("internal-mutation");
+        group.MapPost("/erp/customer-accounts/{contactId:guid}/refund-credits", RecordErpCustomerRefundCreditAsync)
+            .RequireRateLimiting("internal-mutation");
         group.MapPost("/tenants/{tenantId:guid}/suspend", SuspendTenantAsync)
             .RequireRateLimiting("internal-mutation");
         group.MapPost("/tenants/{tenantId:guid}/unsuspend", UnsuspendTenantAsync)
@@ -65,32 +103,60 @@ public static class InternalAdminEndpoints
             return Results.Unauthorized();
         }
 
-        var activeTenants = await dbContext.Tenants.AsNoTracking().CountAsync(x => x.Status == "active", cancellationToken);
-        var trialTenants = await dbContext.Subscriptions.AsNoTracking().CountAsync(x => x.TrialEndsAt != null && x.TrialEndsAt > DateTimeOffset.UtcNow, cancellationToken);
-        var pastDue = await dbContext.Subscriptions.AsNoTracking().CountAsync(x => x.Status == "past_due", cancellationToken);
-        var failedRenewals = await dbContext.PaymentTransactions.AsNoTracking().CountAsync(x => x.Status == "failed", cancellationToken);
-        var activeDevices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.RevokedAt == null, cancellationToken);
-        var deadLetters = 9;
-        var supportCases = await dbContext.SupportCases.AsNoTracking().CountAsync(x => x.Status != "resolved" && x.Status != "closed", cancellationToken);
-        var resellerConversions = await dbContext.ResellerCustomerLinks.AsNoTracking().CountAsync(x => x.LinkedAt >= DateTimeOffset.UtcNow.AddDays(-30), cancellationToken);
-        var latestRelease = await dbContext.AppReleases.AsNoTracking().OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(cancellationToken);
-
-        return Results.Ok(new
+        try
         {
-            activeTenants,
-            trialTenants,
-            pastDueSubscriptions = pastDue,
-            failedRenewals,
-            activeDevices,
-            deviceLimitViolations = 3,
-            syncFailureRate = "1.8%",
-            deadLetterCount = deadLetters,
-            openSupportCases = supportCases,
-            unresolvedBillingIssues = pastDue + failedRenewals,
-            resellerMonthlyConversions = resellerConversions,
-            latestReleaseAdoption = latestRelease is null ? "n/a" : $"{latestRelease.Platform} {latestRelease.Version}",
-            integrationIncidents = 2
-        });
+            var activeTenants = await dbContext.Tenants.AsNoTracking().CountAsync(x => x.Status == "active", cancellationToken);
+            var trialTenants = await dbContext.Tenants.AsNoTracking().CountAsync(x => x.Status == "trial", cancellationToken);
+            var pastDue = await dbContext.Subscriptions.AsNoTracking()
+                .Where(x => EF.Property<string?>(x, "Status") == "past_due")
+                .Select(x => x.Id)
+                .CountAsync(cancellationToken);
+            var failedRenewals = await dbContext.PaymentTransactions.AsNoTracking().CountAsync(x => x.Status == "failed", cancellationToken);
+            var activeDevices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.RevokedAt == null, cancellationToken);
+            var deadLetters = 9;
+            var supportCases = await dbContext.SupportCases.AsNoTracking().CountAsync(x => x.Status != "resolved" && x.Status != "closed", cancellationToken);
+            var resellerConversions = await dbContext.ResellerCustomerLinks.AsNoTracking().CountAsync(x => x.LinkedAt >= DateTimeOffset.UtcNow.AddDays(-30), cancellationToken);
+            var latestRelease = await dbContext.AppReleases.AsNoTracking().OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(cancellationToken);
+
+            return Results.Ok(new
+            {
+                activeTenants,
+                trialTenants,
+                pastDueSubscriptions = pastDue,
+                failedRenewals,
+                activeDevices,
+                deviceLimitViolations = 3,
+                syncFailureRate = "1.8%",
+                deadLetterCount = deadLetters,
+                openSupportCases = supportCases,
+                unresolvedBillingIssues = pastDue + failedRenewals,
+                resellerMonthlyConversions = resellerConversions,
+                latestReleaseAdoption = latestRelease is null ? "n/a" :  $"{latestRelease.Platform} {latestRelease.Version}",
+                integrationIncidents = 2
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.Overview");
+            logger.LogWarning(ex, "internal_admin_overview_fallback_applied");
+
+            return Results.Ok(new
+            {
+                activeTenants = 0,
+                trialTenants = 0,
+                pastDueSubscriptions = 0,
+                failedRenewals = 0,
+                activeDevices = 0,
+                deviceLimitViolations = 0,
+                syncFailureRate = "n/a",
+                deadLetterCount = 0,
+                openSupportCases = 0,
+                unresolvedBillingIssues = 0,
+                resellerMonthlyConversions = 0,
+                latestReleaseAdoption = "n/a",
+                integrationIncidents = 0
+            });
+        }
     }
 
     private static async Task<IResult> GetTenantsAsync(HttpContext httpContext, IInternalAdminAuthService authService, AppDbContext dbContext, CancellationToken cancellationToken)
@@ -100,54 +166,107 @@ public static class InternalAdminEndpoints
             return Results.Unauthorized();
         }
 
-        var tenants = await dbContext.Tenants.AsNoTracking().OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(cancellationToken);
-        var rows = new List<object>();
-        foreach (var tenant in tenants)
+        try
         {
-            var subscription = await dbContext.Subscriptions.AsNoTracking().Where(x => x.TenantId == tenant.Id).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(cancellationToken);
-            var license = await dbContext.IssuedLicenses.AsNoTracking().Where(x => x.TenantId == tenant.Id).OrderByDescending(x => x.IssuedAt).FirstOrDefaultAsync(cancellationToken);
-            var ownerEmail = await (from user in dbContext.TenantUsers.AsNoTracking()
-                                    join account in dbContext.CustomerAccounts.AsNoTracking() on user.CustomerAccountId equals account.Id
-                                    where user.TenantId == tenant.Id
-                                    orderby user.IsOwner descending, user.CreatedAt descending
-                                    select account.Email).FirstOrDefaultAsync(cancellationToken) ?? tenant.BillingEmail;
-            var phone = await (from billing in dbContext.BillingProfiles.AsNoTracking()
-                               where billing.TenantId == tenant.Id
-                               orderby billing.UpdatedAt descending
-                               select billing.Phone).FirstOrDefaultAsync(cancellationToken) ?? "-";
-            var devices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.TenantId == tenant.Id && x.RevokedAt == null, cancellationToken);
-            var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
-            var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
-
-            rows.Add(new
+            var tenants = await dbContext.Tenants.AsNoTracking().OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(cancellationToken);
+            var rows = new List<object>();
+            foreach (var tenant in tenants)
             {
-                id = tenant.Id,
-                tenantCode = tenant.TenantCode,
-                companyName = tenant.Name,
-                ownerEmail,
-                phone,
-                status = tenant.Status,
-                planCode = subscription?.PlanCode ?? "starter",
-                billingCycle = subscription?.BillingCycle ?? "monthly",
-                subscriptionStatus = subscription?.Status ?? "inactive",
-                licenseStatus = license?.Status ?? "inactive",
-                lifecycleState,
-                lifecycleLabel = lifecycle.Label,
-                lifecycleMessage = lifecycle.Message,
-                canCheckout = lifecycle.CanCheckout,
-                canWrite = lifecycle.CanWrite,
-                canSync = lifecycle.CanSync,
-                canView = lifecycle.CanView,
-                requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
-                requiresBlock = lifecycle.RequiresBlock,
-                deviceCount = devices,
-                deviceLimit = license?.DeviceLimit ?? 0,
-                resellerCode = subscription?.ResellerCode,
-                lastSyncAt = DateTimeOffset.UtcNow.AddMinutes(-8)
-            });
-        }
+                var subscription = await dbContext.Subscriptions.AsNoTracking()
+                    .Where(x => EF.Property<Guid?>(x, "TenantId") == tenant.Id)
+                    .Select(x => new
+                    {
+                        PlanCode = EF.Property<string?>(x, "PlanCode"),
+                        BillingCycle = EF.Property<string?>(x, "BillingCycle"),
+                        Status = EF.Property<string?>(x, "Status"),
+                        ResellerCode = EF.Property<string?>(x, "ResellerCode"),
+                        TrialEndsAt = EF.Property<DateTimeOffset?>(x, "TrialEndsAt"),
+                        CancelAtPeriodEnd = EF.Property<bool?>(x, "CancelAtPeriodEnd"),
+                        CreatedAt = EF.Property<DateTimeOffset?>(x, "CreatedAt")
+                    })
+                    .OrderByDescending(x => x.CreatedAt ?? DateTimeOffset.MinValue)
+                    .FirstOrDefaultAsync(cancellationToken);
 
-        return Results.Ok(rows);
+                var license = await dbContext.IssuedLicenses.AsNoTracking()
+                    .Where(x => EF.Property<Guid?>(x, "TenantId") == tenant.Id)
+                    .Select(x => new
+                    {
+                        Status = EF.Property<string?>(x, "Status"),
+                        ExpiresAt = EF.Property<DateTimeOffset?>(x, "ExpiresAt"),
+                        DeviceLimit = EF.Property<int?>(x, "DeviceLimit"),
+                        FeaturesJson = EF.Property<string?>(x, "FeaturesJson"),
+                        IssuedAt = EF.Property<DateTimeOffset?>(x, "IssuedAt"),
+                        CreatedAt = EF.Property<DateTimeOffset?>(x, "CreatedAt")
+                    })
+                    .OrderByDescending(x => x.IssuedAt ?? DateTimeOffset.MinValue)
+                    .ThenByDescending(x => x.CreatedAt ?? DateTimeOffset.MinValue)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var lifecycleSubscription = subscription is null
+                    ? null
+                    : new Subscription
+                    {
+                        Status = subscription.Status ?? "inactive",
+                        TrialEndsAt = subscription.TrialEndsAt,
+                        CancelAtPeriodEnd = subscription.CancelAtPeriodEnd ?? false
+                    };
+
+                var lifecycleLicense = license is null
+                    ? null
+                    : new IssuedLicense
+                    {
+                        Status = license.Status ?? "inactive",
+                        ExpiresAt = license.ExpiresAt ?? DateTimeOffset.UtcNow
+                    };
+                var ownerEmail = await (from user in dbContext.TenantUsers.AsNoTracking()
+                                        join account in dbContext.CustomerAccounts.AsNoTracking() on user.CustomerAccountId equals account.Id
+                                        where user.TenantId == tenant.Id
+                                        orderby user.IsOwner descending, user.CreatedAt descending
+                                        select account.Email).FirstOrDefaultAsync(cancellationToken) ?? tenant.BillingEmail;
+                var phone = await (from billing in dbContext.BillingProfiles.AsNoTracking()
+                                   where billing.TenantId == tenant.Id
+                                   orderby billing.UpdatedAt descending
+                                   select billing.Phone).FirstOrDefaultAsync(cancellationToken) ?? "-";
+                var devices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.TenantId == tenant.Id && x.RevokedAt == null, cancellationToken);
+                var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, lifecycleSubscription, lifecycleLicense, DateTimeOffset.UtcNow);
+                var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
+
+                rows.Add(new
+                {
+                    id = tenant.Id,
+                    tenantCode = tenant.TenantCode,
+                    companyName = tenant.Name,
+                    ownerEmail,
+                    phone,
+                    status = tenant.Status,
+                    planCode = subscription?.PlanCode ?? "starter",
+                    billingCycle = subscription?.BillingCycle ?? "monthly",
+                    subscriptionStatus = subscription?.Status ?? "inactive",
+                    licenseStatus = license?.Status ?? "inactive",
+                    lifecycleState,
+                    lifecycleLabel = lifecycle.Label,
+                    lifecycleMessage = lifecycle.Message,
+                    canCheckout = lifecycle.CanCheckout,
+                    canWrite = lifecycle.CanWrite,
+                    canSync = lifecycle.CanSync,
+                    canView = lifecycle.CanView,
+                    requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+                    requiresBlock = lifecycle.RequiresBlock,
+                    deviceCount = devices,
+                    deviceLimit = license?.DeviceLimit ?? 0,
+                    resellerCode = subscription?.ResellerCode,
+                    lastSyncAt = DateTimeOffset.UtcNow.AddMinutes(-8)
+                });
+            }
+
+            return Results.Ok(rows);
+        }
+        catch (InvalidOperationException ex)
+        {
+            var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.Tenants");
+            logger.LogWarning(ex, "internal_admin_tenants_fallback_applied");
+            return Results.Ok(Array.Empty<object>());
+        }
     }
 
     private static async Task<IResult> GetTenantDetailAsync(Guid tenantId, HttpContext httpContext, IInternalAdminAuthService authService, AppDbContext dbContext, CancellationToken cancellationToken)
@@ -163,10 +282,56 @@ public static class InternalAdminEndpoints
             return Results.NotFound();
         }
 
-        var subscription = await dbContext.Subscriptions.AsNoTracking().Where(x => x.TenantId == tenant.Id).OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(cancellationToken);
-        var license = await dbContext.IssuedLicenses.AsNoTracking().Where(x => x.TenantId == tenant.Id).OrderByDescending(x => x.IssuedAt).FirstOrDefaultAsync(cancellationToken);
+        var subscription = await dbContext.Subscriptions.AsNoTracking()
+            .Where(x => EF.Property<Guid?>(x, "TenantId") == tenant.Id)
+            .Select(x => new
+            {
+                PlanCode = EF.Property<string?>(x, "PlanCode"),
+                BillingCycle = EF.Property<string?>(x, "BillingCycle"),
+                Status = EF.Property<string?>(x, "Status"),
+                ResellerCode = EF.Property<string?>(x, "ResellerCode"),
+                TrialEndsAt = EF.Property<DateTimeOffset?>(x, "TrialEndsAt"),
+                CancelAtPeriodEnd = EF.Property<bool?>(x, "CancelAtPeriodEnd"),
+                CreatedAt = EF.Property<DateTimeOffset?>(x, "CreatedAt")
+            })
+            .OrderByDescending(x => x.CreatedAt ?? DateTimeOffset.MinValue)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var license = await dbContext.IssuedLicenses.AsNoTracking()
+            .Where(x => EF.Property<Guid?>(x, "TenantId") == tenant.Id)
+            .Select(x => new
+            {
+                Status = EF.Property<string?>(x, "Status"),
+                ExpiresAt = EF.Property<DateTimeOffset?>(x, "ExpiresAt"),
+                DeviceLimit = EF.Property<int?>(x, "DeviceLimit"),
+                FeaturesJson = EF.Property<string?>(x, "FeaturesJson"),
+                IssuedAt = EF.Property<DateTimeOffset?>(x, "IssuedAt"),
+                CreatedAt = EF.Property<DateTimeOffset?>(x, "CreatedAt")
+            })
+            .OrderByDescending(x => x.IssuedAt ?? DateTimeOffset.MinValue)
+            .ThenByDescending(x => x.CreatedAt ?? DateTimeOffset.MinValue)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var devices = await dbContext.DeviceActivations.AsNoTracking().CountAsync(x => x.TenantId == tenant.Id && x.RevokedAt == null, cancellationToken);
-        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+
+        var lifecycleSubscription = subscription is null
+            ? null
+            : new Subscription
+            {
+                Status = subscription.Status ?? "inactive",
+                TrialEndsAt = subscription.TrialEndsAt,
+                CancelAtPeriodEnd = subscription.CancelAtPeriodEnd ?? false
+            };
+
+        var lifecycleLicense = license is null
+            ? null
+            : new IssuedLicense
+            {
+                Status = license.Status ?? "inactive",
+                ExpiresAt = license.ExpiresAt ?? DateTimeOffset.UtcNow
+            };
+
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, lifecycleSubscription, lifecycleLicense, DateTimeOffset.UtcNow);
         var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
 
         return Results.Ok(new
@@ -198,7 +363,7 @@ public static class InternalAdminEndpoints
             featureFlags = ParseFlags(license?.FeaturesJson),
             recentNotices = new[] { "Billing recheck pending", "Device limit warning" },
             appVersions = new[] { "Desktop 2.4.1", "Android 1.9.3" },
-            latestInvoiceNo = await dbContext.Invoices.AsNoTracking().Where(x => x.TenantId == tenant.Id).OrderByDescending(x => x.IssuedAt).Select(x => x.InvoiceNo).FirstOrDefaultAsync(cancellationToken) ?? "-",
+            latestInvoiceNo = await dbContext.Invoices.AsNoTracking().Where(x => EF.Property<Guid?>(x, "TenantId") == tenant.Id).OrderByDescending(x => x.IssuedAt).Select(x => x.InvoiceNo).FirstOrDefaultAsync(cancellationToken) ?? "-",
             onboardingState = "9/10 complete",
             supportSummary = "Internal case summary available"
         });
@@ -226,137 +391,145 @@ public static class InternalAdminEndpoints
             return Results.BadRequest(new { message = "status must be one of: active, stale, offline, blocked." });
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var activeThreshold = now.AddMinutes(-2);
-        var staleThreshold = now.AddMinutes(-10);
-
-        var query = from device in dbContext.Devices.AsNoTracking()
-                    join tenant in dbContext.Tenants.AsNoTracking() on device.TenantId equals tenant.Id
-                    select new
-                    {
-                        DeviceId = device.Id,
-                        device.TenantId,
-                        TenantName = tenant.Name,
-                        TenantStatus = tenant.Status,
-                        device.BranchId,
-                        DeviceName = device.Name,
-                        DeviceType = device.Type,
-                        DeviceLastSeenAt = device.LastSeenAt
-                    };
-
-        if (tenantId.HasValue)
+        try
         {
-            query = query.Where(x => x.TenantId == tenantId.Value);
+            var now = DateTimeOffset.UtcNow;
+            var activeThreshold = now.AddMinutes(-2);
+            var staleThreshold = now.AddMinutes(-10);
+
+            var query = from device in dbContext.Devices.AsNoTracking()
+                        join tenant in dbContext.Tenants.AsNoTracking() on device.TenantId equals tenant.Id
+                        select new
+                        {
+                            DeviceId = device.Id,
+                            device.TenantId,
+                            TenantName = tenant.Name,
+                            TenantStatus = tenant.Status,
+                            BranchId = EF.Property<Guid?>(device, "BranchId"),
+                            DeviceName = EF.Property<string?>(device, "Name"),
+                            DeviceLastSeenAt = EF.Property<DateTimeOffset?>(device, "LastSeenAt")
+                        };
+
+            if (tenantId.HasValue)
+            {
+                query = query.Where(x => x.TenantId == tenantId.Value);
+            }
+
+            var normalizedSearch = search?.Trim();
+            if (!string.IsNullOrWhiteSpace(normalizedSearch))
+            {
+                var likePattern = $"%{normalizedSearch}%";
+                var hasDeviceIdSearch = Guid.TryParse(normalizedSearch, out var parsedDeviceId);
+                query = query.Where(x =>
+                    EF.Functions.ILike(x.TenantName, likePattern) ||
+                    EF.Functions.ILike(x.DeviceName ?? string.Empty, likePattern) ||
+                    (hasDeviceIdSearch && x.DeviceId == parsedDeviceId));
+            }
+
+            var baseRows = await query
+                .OrderByDescending(x => x.DeviceLastSeenAt)
+                .Take(5000)
+                .ToListAsync(cancellationToken);
+
+            if (baseRows.Count == 0)
+            {
+                return Results.Ok(Array.Empty<AdminDeviceResponse>());
+            }
+
+            var tenantIds = baseRows.Select(x => x.TenantId).Distinct().ToArray();
+            var deviceIds = baseRows.Select(x => x.DeviceId).Distinct().ToArray();
+
+            var activationRows = await dbContext.DeviceActivations.AsNoTracking()
+                .Where(x => tenantIds.Contains(x.TenantId) && deviceIds.Contains(x.DeviceId))
+                .OrderByDescending(x => x.LastSeenAt)
+                .ThenByDescending(x => x.UpdatedAt)
+                .Select(x => new
+                {
+                    x.TenantId,
+                    x.DeviceId,
+                    x.AppVersion,
+                    ActivationLastSeenAt = x.LastSeenAt,
+                    x.Status
+                })
+                .ToListAsync(cancellationToken);
+
+            var activationLookup = activationRows
+                .GroupBy(x => (x.TenantId, x.DeviceId))
+                .ToDictionary(x => x.Key, x => x.First());
+
+            var lastSyncRows = await dbContext.ProcessedEvents.AsNoTracking()
+                .Where(x => tenantIds.Contains(x.TenantId) && deviceIds.Contains(x.DeviceId))
+                .GroupBy(x => new { x.TenantId, x.DeviceId })
+                .Select(x => new
+                {
+                    x.Key.TenantId,
+                    x.Key.DeviceId,
+                    LastSyncAt = x.Max(y => y.ProcessedAt)
+                })
+                .ToListAsync(cancellationToken);
+
+            var lastSyncLookup = lastSyncRows.ToDictionary(x => (x.TenantId, x.DeviceId), x => (DateTimeOffset?)x.LastSyncAt);
+
+            var licenseRows = await dbContext.IssuedLicenses.AsNoTracking()
+                .Where(x => tenantIds.Contains(x.TenantId))
+                .OrderByDescending(x => x.IssuedAt)
+                .ThenByDescending(x => x.CreatedAt)
+                .Select(x => new
+                {
+                    x.TenantId,
+                    x.Status,
+                    x.ExpiresAt
+                })
+                .ToListAsync(cancellationToken);
+
+            var licenseLookup = licenseRows
+                .GroupBy(x => x.TenantId)
+                .ToDictionary(x => x.Key, x => x.First());
+
+            var response = new List<AdminDeviceResponse>(baseRows.Count);
+            foreach (var row in baseRows)
+            {
+                activationLookup.TryGetValue((row.TenantId, row.DeviceId), out var activation);
+                lastSyncLookup.TryGetValue((row.TenantId, row.DeviceId), out var lastSyncAt);
+                licenseLookup.TryGetValue(row.TenantId, out var license);
+
+                var lastSeenAt = activation?.ActivationLastSeenAt ?? row.DeviceLastSeenAt;
+                var licenseStatus = ResolveLicenseStatus(row.TenantStatus, license?.Status, license?.ExpiresAt, now);
+                var blocked = licenseStatus != "valid";
+                var derivedStatus = blocked
+                    ? "blocked"
+                    : ResolveDeviceStatus(lastSeenAt, activeThreshold, staleThreshold);
+
+                var isOnline = derivedStatus is "active" or "stale";
+                var isStale = derivedStatus == "stale";
+                var branchId = row.BranchId.HasValue && row.BranchId.Value != Guid.Empty ? row.BranchId : null;
+
+                response.Add(new AdminDeviceResponse(
+                    row.DeviceId,
+                    row.TenantId,
+                    row.TenantName,
+                    branchId,
+                    derivedStatus,
+                    lastSeenAt,
+                    lastSyncAt,
+                    activation?.AppVersion,
+                    licenseStatus,
+                    isOnline,
+                    isStale));
+            }
+
+            var filtered = normalizedStatusFilter is null
+                ? response
+                : response.Where(x => x.Status == normalizedStatusFilter).ToList();
+
+            return Results.Ok(filtered);
         }
-
-        var normalizedSearch = search?.Trim();
-        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        catch (InvalidOperationException ex)
         {
-            var likePattern = $"%{normalizedSearch}%";
-            var hasDeviceIdSearch = Guid.TryParse(normalizedSearch, out var parsedDeviceId);
-            query = query.Where(x =>
-                EF.Functions.ILike(x.TenantName, likePattern) ||
-                EF.Functions.ILike(x.DeviceName, likePattern) ||
-                (hasDeviceIdSearch && x.DeviceId == parsedDeviceId));
-        }
-
-        var baseRows = await query
-            .OrderByDescending(x => x.DeviceLastSeenAt)
-            .Take(5000)
-            .ToListAsync(cancellationToken);
-
-        if (baseRows.Count == 0)
-        {
+            var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.Devices");
+            logger.LogWarning(ex, "internal_admin_devices_fallback_applied");
             return Results.Ok(Array.Empty<AdminDeviceResponse>());
         }
-
-        var tenantIds = baseRows.Select(x => x.TenantId).Distinct().ToArray();
-        var deviceIds = baseRows.Select(x => x.DeviceId).Distinct().ToArray();
-
-        var activationRows = await dbContext.DeviceActivations.AsNoTracking()
-            .Where(x => tenantIds.Contains(x.TenantId) && deviceIds.Contains(x.DeviceId))
-            .OrderByDescending(x => x.LastSeenAt)
-            .ThenByDescending(x => x.UpdatedAt)
-            .Select(x => new
-            {
-                x.TenantId,
-                x.DeviceId,
-                x.AppVersion,
-                ActivationLastSeenAt = x.LastSeenAt,
-                x.Status
-            })
-            .ToListAsync(cancellationToken);
-
-        var activationLookup = activationRows
-            .GroupBy(x => (x.TenantId, x.DeviceId))
-            .ToDictionary(x => x.Key, x => x.First());
-
-        var lastSyncRows = await dbContext.ProcessedEvents.AsNoTracking()
-            .Where(x => tenantIds.Contains(x.TenantId) && deviceIds.Contains(x.DeviceId))
-            .GroupBy(x => new { x.TenantId, x.DeviceId })
-            .Select(x => new
-            {
-                x.Key.TenantId,
-                x.Key.DeviceId,
-                LastSyncAt = x.Max(y => y.ProcessedAt)
-            })
-            .ToListAsync(cancellationToken);
-
-        var lastSyncLookup = lastSyncRows.ToDictionary(x => (x.TenantId, x.DeviceId), x => (DateTimeOffset?)x.LastSyncAt);
-
-        var licenseRows = await dbContext.IssuedLicenses.AsNoTracking()
-            .Where(x => tenantIds.Contains(x.TenantId))
-            .OrderByDescending(x => x.IssuedAt)
-            .ThenByDescending(x => x.CreatedAt)
-            .Select(x => new
-            {
-                x.TenantId,
-                x.Status,
-                x.ExpiresAt
-            })
-            .ToListAsync(cancellationToken);
-
-        var licenseLookup = licenseRows
-            .GroupBy(x => x.TenantId)
-            .ToDictionary(x => x.Key, x => x.First());
-
-        var response = new List<AdminDeviceResponse>(baseRows.Count);
-        foreach (var row in baseRows)
-        {
-            activationLookup.TryGetValue((row.TenantId, row.DeviceId), out var activation);
-            lastSyncLookup.TryGetValue((row.TenantId, row.DeviceId), out var lastSyncAt);
-            licenseLookup.TryGetValue(row.TenantId, out var license);
-
-            var lastSeenAt = activation?.ActivationLastSeenAt ?? row.DeviceLastSeenAt;
-            var licenseStatus = ResolveLicenseStatus(row.TenantStatus, license?.Status, license?.ExpiresAt, now);
-            var blocked = licenseStatus != "valid";
-            var derivedStatus = blocked
-                ? "blocked"
-                : ResolveDeviceStatus(lastSeenAt, activeThreshold, staleThreshold);
-
-            var isOnline = derivedStatus is "active" or "stale";
-            var isStale = derivedStatus == "stale";
-            var branchId = row.BranchId == Guid.Empty ? (Guid?)null : row.BranchId;
-
-            response.Add(new AdminDeviceResponse(
-                row.DeviceId,
-                row.TenantId,
-                row.TenantName,
-                branchId,
-                derivedStatus,
-                lastSeenAt,
-                lastSyncAt,
-                activation?.AppVersion,
-                licenseStatus,
-                isOnline,
-                isStale));
-        }
-
-        var filtered = normalizedStatusFilter is null
-            ? response
-            : response.Where(x => x.Status == normalizedStatusFilter).ToList();
-
-        return Results.Ok(filtered);
     }
 
 
@@ -386,11 +559,13 @@ public static class InternalAdminEndpoints
         var normalizedEventTypeFilter = string.IsNullOrWhiteSpace(eventType) ? null : eventType.Trim();
         var normalizedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
 
-        var auditQuery = dbContext.AuditLogs.AsNoTracking()
-            .Where(x => x.Action == "SYNC_EVENT_FAILED");
+        try
+        {
+            var auditQuery = dbContext.AuditLogs.AsNoTracking()
+            .Where(x => EF.Property<string?>(x, "Action") == "SYNC_EVENT_FAILED");
         if (tenantId.HasValue)
         {
-            auditQuery = auditQuery.Where(x => x.TenantId == tenantId.Value);
+            auditQuery = auditQuery.Where(x => EF.Property<Guid?>(x, "TenantId") == tenantId.Value);
         }
 
         var auditRows = await auditQuery
@@ -399,16 +574,22 @@ public static class InternalAdminEndpoints
             .Select(x => new
             {
                 x.Id,
-                x.TenantId,
-                x.EntityId,
-                x.PayloadJson,
-                x.CreatedAt
+                TenantId = EF.Property<Guid?>(x, "TenantId"),
+                EntityId = EF.Property<string?>(x, "EntityId"),
+                PayloadJson = EF.Property<string?>(x, "PayloadJson"),
+                CreatedAt = EF.Property<DateTimeOffset?>(x, "CreatedAt")
             })
             .ToListAsync(cancellationToken);
 
         var auditParsedRows = new List<AdminSyncIssueIntermediateRow>(auditRows.Count);
         foreach (var log in auditRows)
         {
+            if (!log.TenantId.HasValue)
+            {
+                continue;
+            }
+
+            var createdAt = log.CreatedAt ?? DateTimeOffset.UtcNow;
             var parsedEventId = string.IsNullOrWhiteSpace(log.EntityId) ? $"audit-{log.Id}" : log.EntityId;
             string eventTypeValue = "sync.unknown";
             string rawStatus = "failed";
@@ -445,7 +626,7 @@ public static class InternalAdminEndpoints
 
             auditParsedRows.Add(new AdminSyncIssueIntermediateRow(
                 IssueId: $"sync-audit-{log.Id}",
-                TenantId: log.TenantId,
+                TenantId: log.TenantId.Value,
                 TenantName: string.Empty,
                 DeviceId: deviceIdValue,
                 EventId: parsedEventId,
@@ -454,11 +635,11 @@ public static class InternalAdminEndpoints
                 RetryCount: 0,
                 Reason: reason,
                 ErrorCode: errorCode,
-                CreatedAt: log.CreatedAt,
-                LastAttemptAt: payloadAttemptAt ?? log.CreatedAt,
+                CreatedAt: createdAt,
+                LastAttemptAt: payloadAttemptAt ?? createdAt,
                 IsPermanentFailure: false,
                 IsRetryable: false,
-                SortAt: payloadAttemptAt ?? log.CreatedAt));
+                SortAt: payloadAttemptAt ?? createdAt));
         }
 
         var groupedAuditIssues = auditParsedRows
@@ -599,12 +780,1059 @@ public static class InternalAdminEndpoints
                 x.IsRetryable))
             .ToList();
 
-        return Results.Ok(response);
+            return Results.Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdmin.SyncIssues");
+            logger.LogWarning(ex, "internal_admin_sync_issues_fallback_applied");
+            return Results.Ok(Array.Empty<AdminSyncIssueResponse>());
+        }
     }
 
     private static async Task<IResult> SuspendTenantAsync(Guid tenantId, AdminReasonRequest request, HttpContext httpContext, IInternalAdminAuthService authService, IAdminApprovalService approvalService, AppDbContext dbContext, CancellationToken cancellationToken)
     {
         return await ApplyTenantActionAsync(tenantId, request, httpContext, authService, approvalService, dbContext, cancellationToken, "suspended", "internal.tenant.suspended", new[] { "super_admin", "ops_admin" });
+    }
+
+    private static async Task<IResult> GetErpWarehousesAsync(
+        Guid? tenantId,
+        string? type,
+        string? search,
+        bool? isActive,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var query = from warehouse in dbContext.Warehouses.AsNoTracking()
+                    join tenant in dbContext.Tenants.AsNoTracking() on warehouse.TenantId equals tenant.Id
+                    select new
+                    {
+                        warehouse.Id,
+                        warehouse.TenantId,
+                        TenantName = tenant.Name,
+                        warehouse.Name,
+                        warehouse.Type,
+                        warehouse.IsActive,
+                        warehouse.CreatedAt
+                    };
+
+        if (tenantId.HasValue)
+        {
+            query = query.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            var normalizedType = type.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Type == normalizedType);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(x => x.IsActive == isActive.Value);
+        }
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            var like = $"%{normalizedSearch}%";
+            var hasWarehouseIdSearch = Guid.TryParse(normalizedSearch, out var parsedWarehouseId);
+            query = query.Where(x =>
+                EF.Functions.ILike(x.Name, like) ||
+                EF.Functions.ILike(x.TenantName, like) ||
+                (hasWarehouseIdSearch && x.Id == parsedWarehouseId));
+        }
+
+        var rows = await query
+            .OrderBy(x => x.TenantName)
+            .ThenBy(x => x.Name)
+            .Take(2000)
+            .ToListAsync(cancellationToken);
+
+        if (rows.Count == 0)
+        {
+            return Results.Ok(Array.Empty<AdminErpWarehouseListResponse>());
+        }
+
+        var warehouseIds = rows.Select(x => x.Id).ToArray();
+        var stockAggregates = await dbContext.StockByWarehouses.AsNoTracking()
+            .Where(x => warehouseIds.Contains(x.WarehouseId))
+            .GroupBy(x => x.WarehouseId)
+            .Select(x => new
+            {
+                WarehouseId = x.Key,
+                ProductCount = x.Count(),
+                TotalStockQuantity = x.Sum(y => y.Quantity)
+            })
+            .ToListAsync(cancellationToken);
+
+        var aggregateLookup = stockAggregates.ToDictionary(x => x.WarehouseId, x => x);
+        var response = rows.Select(row =>
+        {
+            aggregateLookup.TryGetValue(row.Id, out var aggregate);
+            return new AdminErpWarehouseListResponse(
+                row.Id,
+                row.TenantId,
+                row.TenantName,
+                row.Name,
+                row.Type,
+                row.IsActive,
+                row.CreatedAt,
+                aggregate?.ProductCount ?? 0,
+                aggregate?.TotalStockQuantity ?? 0m);
+        }).ToList();
+
+        return Results.Ok(response);
+    }
+
+    private static async Task<IResult> GetErpWarehouseDetailAsync(
+        Guid warehouseId,
+        string? search,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var warehouse = await (from row in dbContext.Warehouses.AsNoTracking()
+                               join tenant in dbContext.Tenants.AsNoTracking() on row.TenantId equals tenant.Id
+                               where row.Id == warehouseId
+                               select new
+                               {
+                                   row.Id,
+                                   row.TenantId,
+                                   TenantName = tenant.Name,
+                                   row.Name,
+                                   row.Type,
+                                   row.IsActive,
+                                   row.CreatedAt
+                               }).FirstOrDefaultAsync(cancellationToken);
+
+        if (warehouse is null)
+        {
+            return Results.NotFound();
+        }
+
+        var stockQuery = from stock in dbContext.StockByWarehouses.AsNoTracking()
+                         join product in dbContext.Products.AsNoTracking()
+                             on new { stock.ProductId, stock.TenantId } equals new { ProductId = product.Id, product.TenantId }
+                         where stock.WarehouseId == warehouse.Id && stock.TenantId == warehouse.TenantId
+                         select new
+                         {
+                             stock.ProductId,
+                             ProductName = product.Name,
+                             product.Sku,
+                             product.Barcode,
+                             stock.Quantity,
+                             stock.UpdatedAt
+                         };
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            var like = $"%{normalizedSearch}%";
+            stockQuery = stockQuery.Where(x =>
+                EF.Functions.ILike(x.ProductName, like) ||
+                EF.Functions.ILike(x.Sku ?? string.Empty, like) ||
+                EF.Functions.ILike(x.Barcode ?? string.Empty, like));
+        }
+
+        var stockRows = await stockQuery
+            .OrderBy(x => x.ProductName)
+            .Take(2000)
+            .ToListAsync(cancellationToken);
+
+        var response = new AdminErpWarehouseDetailResponse(
+            warehouse.Id,
+            warehouse.TenantId,
+            warehouse.TenantName,
+            warehouse.Name,
+            warehouse.Type,
+            warehouse.IsActive,
+            warehouse.CreatedAt,
+            stockRows.Count,
+            stockRows.Sum(x => x.Quantity),
+            stockRows.Select(x => new AdminErpWarehouseStockRowResponse(
+                x.ProductId,
+                x.ProductName,
+                x.Sku,
+                x.Barcode,
+                x.Quantity,
+                x.UpdatedAt)).ToList());
+
+        return Results.Ok(response);
+    }
+
+    private static async Task<IResult> GetErpWarehouseTransfersAsync(
+        Guid? tenantId,
+        string? status,
+        string? search,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var normalizedStatus = NormalizeWarehouseTransferStatusFilter(status);
+        if (!string.IsNullOrWhiteSpace(status) && normalizedStatus is null)
+        {
+            return Results.BadRequest(new { message = "status must be one of: draft, in_transit, completed, canceled." });
+        }
+
+        var query = dbContext.WarehouseTransfers.AsNoTracking();
+        if (tenantId.HasValue)
+        {
+            query = query.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            query = query.Where(x => x.Status == normalizedStatus);
+        }
+
+        var transfers = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(2000)
+            .Select(x => new
+            {
+                x.Id,
+                x.TenantId,
+                x.FromWarehouseId,
+                x.ToWarehouseId,
+                x.Status,
+                x.CreatedAt,
+                x.CompletedAt,
+                LineCount = x.Lines.Count
+            })
+            .ToListAsync(cancellationToken);
+
+        if (transfers.Count == 0)
+        {
+            return Results.Ok(Array.Empty<AdminErpTransferSummaryResponse>());
+        }
+
+        var tenantIds = transfers.Select(x => x.TenantId).Distinct().ToArray();
+        var warehouseIds = transfers
+            .SelectMany(x => new[] { x.FromWarehouseId, x.ToWarehouseId })
+            .Distinct()
+            .ToArray();
+
+        var tenantLookup = await dbContext.Tenants.AsNoTracking()
+            .Where(x => tenantIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+        var warehouseLookup = await dbContext.Warehouses.AsNoTracking()
+            .Where(x => warehouseIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+
+        var mapped = transfers.Select(transfer => new AdminErpTransferSummaryResponse(
+            transfer.Id,
+            transfer.TenantId,
+            tenantLookup.GetValueOrDefault(transfer.TenantId) ?? "Unknown tenant",
+            transfer.FromWarehouseId,
+            warehouseLookup.GetValueOrDefault(transfer.FromWarehouseId) ?? transfer.FromWarehouseId.ToString(),
+            transfer.ToWarehouseId,
+            warehouseLookup.GetValueOrDefault(transfer.ToWarehouseId) ?? transfer.ToWarehouseId.ToString(),
+            transfer.Status,
+            transfer.CreatedAt,
+            transfer.CompletedAt,
+            transfer.LineCount)).ToList();
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            mapped = mapped.Where(x =>
+                    x.TransferId.ToString().Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    x.TenantName.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    x.FromWarehouseName.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                    x.ToWarehouseName.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        return Results.Ok(mapped);
+    }
+
+    private static async Task<IResult> GetErpWarehouseTransferDetailAsync(
+        Guid transferId,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var detail = await BuildErpWarehouseTransferDetailAsync(dbContext, transferId, cancellationToken);
+        return detail is null ? Results.NotFound() : Results.Ok(detail);
+    }
+
+    private static async Task<IResult> CreateErpWarehouseTransferAsync(
+        CreateErpWarehouseTransferRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        IWarehouseTransferService warehouseTransferService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        if (request.FromWarehouseId == request.ToWarehouseId)
+        {
+            return Results.BadRequest(new { message = "fromWarehouseId and toWarehouseId must be different." });
+        }
+
+        var tenantId = request.TenantId ?? await ResolveWarehouseTenantIdAsync(dbContext, request.FromWarehouseId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.BadRequest(new { message = "Unable to resolve tenant for source warehouse." });
+        }
+
+        var toWarehouse = await dbContext.Warehouses.AsNoTracking()
+            .Where(x => x.Id == request.ToWarehouseId)
+            .Select(x => new { x.TenantId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (toWarehouse is null || toWarehouse.TenantId != tenantId.Value)
+        {
+            return Results.BadRequest(new { message = "Both warehouses must belong to the same tenant." });
+        }
+
+        try
+        {
+            var transfer = await warehouseTransferService.CreateDraftAsync(
+                tenantId.Value,
+                request.FromWarehouseId,
+                request.ToWarehouseId,
+                cancellationToken);
+
+            var detail = await BuildErpWarehouseTransferDetailAsync(dbContext, transfer.Id, cancellationToken);
+            return Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> AddErpWarehouseTransferLineAsync(
+        Guid transferId,
+        AddErpWarehouseTransferLineRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        IWarehouseTransferService warehouseTransferService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        var tenantId = request.TenantId ?? await ResolveTransferTenantIdAsync(dbContext, transferId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.NotFound();
+        }
+
+        try
+        {
+            await warehouseTransferService.AddLineAsync(
+                tenantId.Value,
+                transferId,
+                request.ProductId,
+                request.Quantity,
+                cancellationToken);
+
+            var detail = await BuildErpWarehouseTransferDetailAsync(dbContext, transferId, cancellationToken);
+            return Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> CompleteErpWarehouseTransferAsync(
+        Guid transferId,
+        CompleteErpWarehouseTransferRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        IWarehouseTransferService warehouseTransferService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        var tenantId = request.TenantId ?? await ResolveTransferTenantIdAsync(dbContext, transferId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.NotFound();
+        }
+
+        try
+        {
+            await warehouseTransferService.CompleteAsync(
+                tenantId.Value,
+                transferId,
+                request.BranchId,
+                cancellationToken);
+
+            var detail = await BuildErpWarehouseTransferDetailAsync(dbContext, transferId, cancellationToken);
+            return Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> GetErpSuppliersAsync(
+        Guid? tenantId,
+        string? search,
+        bool? isActive,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var query = from supplier in dbContext.Suppliers.AsNoTracking()
+                    join tenant in dbContext.Tenants.AsNoTracking() on supplier.TenantId equals tenant.Id
+                    select new
+                    {
+                        supplier.Id,
+                        supplier.TenantId,
+                        TenantName = tenant.Name,
+                        supplier.Name,
+                        supplier.TaxNumber,
+                        supplier.Phone,
+                        supplier.Email,
+                        supplier.IsActive,
+                        supplier.CreatedAt
+                    };
+
+        if (tenantId.HasValue)
+        {
+            query = query.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(x => x.IsActive == isActive.Value);
+        }
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            var like = $"%{normalizedSearch}%";
+            query = query.Where(x =>
+                EF.Functions.ILike(x.Name, like) ||
+                EF.Functions.ILike(x.TaxNumber ?? string.Empty, like) ||
+                EF.Functions.ILike(x.Phone ?? string.Empty, like) ||
+                EF.Functions.ILike(x.Email ?? string.Empty, like) ||
+                EF.Functions.ILike(x.TenantName, like));
+        }
+
+        var rows = await query
+            .OrderBy(x => x.TenantName)
+            .ThenBy(x => x.Name)
+            .Take(2000)
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(rows.Select(row => new AdminErpSupplierSummaryResponse(
+            row.Id,
+            row.TenantId,
+            row.TenantName,
+            row.Name,
+            row.TaxNumber,
+            row.Phone,
+            row.Email,
+            row.IsActive,
+            row.CreatedAt)));
+    }
+
+    private static async Task<IResult> GetErpSupplierDetailAsync(
+        Guid supplierId,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var detail = await BuildErpSupplierDetailAsync(dbContext, supplierId, cancellationToken);
+        return detail is null ? Results.NotFound() : Results.Ok(detail);
+    }
+
+    private static async Task<IResult> CreateErpSupplierAsync(
+        CreateErpSupplierRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        IPurchasingService purchasingService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        if (request.TenantId == Guid.Empty)
+        {
+            return Results.BadRequest(new { message = "tenantId is required." });
+        }
+
+        try
+        {
+            var supplier = await purchasingService.CreateSupplierAsync(
+                request.TenantId,
+                request.Name,
+                request.TaxNumber,
+                request.Phone,
+                request.Email,
+                cancellationToken);
+
+            var detail = await BuildErpSupplierDetailAsync(dbContext, supplier.Id, cancellationToken);
+            return Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> GetErpPurchaseOrdersAsync(
+        Guid? tenantId,
+        string? status,
+        string? search,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var normalizedStatus = NormalizePurchaseOrderStatusFilter(status);
+        if (!string.IsNullOrWhiteSpace(status) && normalizedStatus is null)
+        {
+            return Results.BadRequest(new { message = "status must be one of: draft, ordered, received, canceled." });
+        }
+
+        var query = from purchaseOrder in dbContext.PurchaseOrders.AsNoTracking()
+                    join supplier in dbContext.Suppliers.AsNoTracking() on purchaseOrder.SupplierId equals supplier.Id
+                    join warehouse in dbContext.Warehouses.AsNoTracking() on purchaseOrder.WarehouseId equals warehouse.Id
+                    join tenant in dbContext.Tenants.AsNoTracking() on purchaseOrder.TenantId equals tenant.Id
+                    select new
+                    {
+                        purchaseOrder.Id,
+                        purchaseOrder.TenantId,
+                        TenantName = tenant.Name,
+                        purchaseOrder.SupplierId,
+                        SupplierName = supplier.Name,
+                        purchaseOrder.WarehouseId,
+                        WarehouseName = warehouse.Name,
+                        purchaseOrder.Status,
+                        purchaseOrder.CreatedAt,
+                        purchaseOrder.ReceivedAt,
+                        LineCount = purchaseOrder.Lines.Count
+                    };
+
+        if (tenantId.HasValue)
+        {
+            query = query.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedStatus))
+        {
+            query = query.Where(x => x.Status == normalizedStatus);
+        }
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            var like = $"%{normalizedSearch}%";
+            var hasOrderIdSearch = Guid.TryParse(normalizedSearch, out var parsedOrderId);
+            query = query.Where(x =>
+                (hasOrderIdSearch && x.Id == parsedOrderId) ||
+                EF.Functions.ILike(x.SupplierName, like) ||
+                EF.Functions.ILike(x.WarehouseName, like) ||
+                EF.Functions.ILike(x.TenantName, like));
+        }
+
+        var rows = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(2000)
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(rows.Select(row => new AdminErpPurchaseOrderSummaryResponse(
+            row.Id,
+            row.TenantId,
+            row.TenantName,
+            row.SupplierId,
+            row.SupplierName,
+            row.WarehouseId,
+            row.WarehouseName,
+            row.Status,
+            row.CreatedAt,
+            row.ReceivedAt,
+            row.LineCount)));
+    }
+
+    private static async Task<IResult> GetErpPurchaseOrderDetailAsync(
+        Guid purchaseOrderId,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var detail = await BuildErpPurchaseOrderDetailAsync(dbContext, purchaseOrderId, cancellationToken);
+        return detail is null ? Results.NotFound() : Results.Ok(detail);
+    }
+
+    private static async Task<IResult> CreateErpPurchaseOrderAsync(
+        CreateErpPurchaseOrderRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        IPurchasingService purchasingService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        var tenantId = request.TenantId ?? await ResolveSupplierTenantIdAsync(dbContext, request.SupplierId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.BadRequest(new { message = "Unable to resolve tenant for supplier." });
+        }
+
+        var warehouseTenantId = await ResolveWarehouseTenantIdAsync(dbContext, request.WarehouseId, cancellationToken);
+        if (!warehouseTenantId.HasValue || warehouseTenantId.Value != tenantId.Value)
+        {
+            return Results.BadRequest(new { message = "Supplier and warehouse must belong to the same tenant." });
+        }
+
+        try
+        {
+            var purchaseOrder = await purchasingService.CreatePurchaseOrderDraftAsync(
+                tenantId.Value,
+                request.SupplierId,
+                request.WarehouseId,
+                cancellationToken);
+
+            var detail = await BuildErpPurchaseOrderDetailAsync(dbContext, purchaseOrder.Id, cancellationToken);
+            return Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> AddErpPurchaseOrderLineAsync(
+        Guid purchaseOrderId,
+        AddErpPurchaseOrderLineRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        IPurchasingService purchasingService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        var tenantId = request.TenantId ?? await ResolvePurchaseOrderTenantIdAsync(dbContext, purchaseOrderId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.NotFound();
+        }
+
+        try
+        {
+            await purchasingService.AddPurchaseOrderLineAsync(
+                tenantId.Value,
+                purchaseOrderId,
+                request.ProductId,
+                request.Quantity,
+                request.UnitCost,
+                cancellationToken);
+
+            var detail = await BuildErpPurchaseOrderDetailAsync(dbContext, purchaseOrderId, cancellationToken);
+            return Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> ReceiveErpPurchaseOrderAsync(
+        Guid purchaseOrderId,
+        ReceiveErpPurchaseOrderRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        IPurchasingService purchasingService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        var tenantId = request.TenantId ?? await ResolvePurchaseOrderTenantIdAsync(dbContext, purchaseOrderId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.NotFound();
+        }
+
+        try
+        {
+            await purchasingService.ReceivePurchaseOrderAsync(
+                tenantId.Value,
+                purchaseOrderId,
+                request.BranchId,
+                cancellationToken);
+
+            var detail = await BuildErpPurchaseOrderDetailAsync(dbContext, purchaseOrderId, cancellationToken);
+            return Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> GetErpCustomerAccountsAsync(
+        Guid? tenantId,
+        string? search,
+        string? balance,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        var normalizedBalanceFilter = NormalizeCustomerAccountBalanceFilter(balance);
+        if (!string.IsNullOrWhiteSpace(balance) && normalizedBalanceFilter is null)
+        {
+            return Results.BadRequest(new { message = "balance must be one of: positive, zero, credit." });
+        }
+
+        var query = from contact in dbContext.Contacts.AsNoTracking()
+                    join tenant in dbContext.Tenants.AsNoTracking() on contact.TenantId equals tenant.Id
+                    where contact.Type == ContactType.Customer
+                    join account in dbContext.CustomerCurrentAccounts.AsNoTracking()
+                        on new { contact.TenantId, CustomerId = contact.Id } equals new { account.TenantId, account.CustomerId }
+                        into accountRows
+                    from account in accountRows.DefaultIfEmpty()
+                    select new
+                    {
+                        ContactId = contact.Id,
+                        contact.TenantId,
+                        TenantName = tenant.Name,
+                        CustomerName = contact.Name,
+                        contact.Email,
+                        contact.Phone,
+                        Balance = account != null ? account.Balance : 0m,
+                        Currency = account != null ? account.Currency : "TRY",
+                        UpdatedAt = account != null ? account.UpdatedAt : contact.CreatedAt
+                    };
+
+        if (tenantId.HasValue)
+        {
+            query = query.Where(x => x.TenantId == tenantId.Value);
+        }
+
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            var like = $"%{normalizedSearch}%";
+            var hasContactIdSearch = Guid.TryParse(normalizedSearch, out var parsedContactId);
+            query = query.Where(x =>
+                (hasContactIdSearch && x.ContactId == parsedContactId) ||
+                EF.Functions.ILike(x.CustomerName, like) ||
+                EF.Functions.ILike(x.TenantName, like) ||
+                EF.Functions.ILike(x.Email ?? string.Empty, like) ||
+                EF.Functions.ILike(x.Phone ?? string.Empty, like));
+        }
+
+        if (normalizedBalanceFilter is "positive")
+        {
+            query = query.Where(x => x.Balance > 0);
+        }
+        else if (normalizedBalanceFilter is "zero")
+        {
+            query = query.Where(x => x.Balance == 0);
+        }
+        else if (normalizedBalanceFilter is "credit")
+        {
+            query = query.Where(x => x.Balance < 0);
+        }
+
+        var rows = await query
+            .OrderByDescending(x => x.UpdatedAt)
+            .ThenBy(x => x.CustomerName)
+            .Take(3000)
+            .ToListAsync(cancellationToken);
+
+        var response = rows.Select(row => new AdminErpCustomerAccountListResponse(
+            row.ContactId,
+            row.TenantId,
+            row.TenantName,
+            row.CustomerName,
+            row.Email,
+            row.Phone,
+            row.Balance,
+            row.Currency,
+            row.UpdatedAt,
+            DeriveCustomerAccountBalanceState(row.Balance)))
+            .ToList();
+
+        return Results.Ok(response);
+    }
+
+    private static async Task<IResult> GetErpCustomerAccountDetailAsync(
+        Guid contactId,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        ICustomerCurrentAccountService customerCurrentAccountService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin", "support_agent", "security_auditor", "release_manager", "read_only_analyst" }))
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var detail = await BuildErpCustomerAccountDetailAsync(
+                dbContext,
+                customerCurrentAccountService,
+                contactId,
+                cancellationToken);
+
+            return detail is null ? Results.NotFound() : Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> RecordErpCustomerCollectionAsync(
+        Guid contactId,
+        RecordErpCustomerCollectionRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        ICustomerCurrentAccountService customerCurrentAccountService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        if (request.Amount <= 0)
+        {
+            return Results.BadRequest(new { message = "amount must be greater than zero." });
+        }
+
+        var tenantId = request.TenantId ?? await ResolveCustomerTenantIdAsync(dbContext, contactId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.NotFound();
+        }
+
+        try
+        {
+            await customerCurrentAccountService.RecordCollectionAsync(
+                tenantId.Value,
+                contactId,
+                request.Amount,
+                request.ReferenceType,
+                request.ReferenceId,
+                request.Note,
+                cancellationToken);
+
+            var detail = await BuildErpCustomerAccountDetailAsync(
+                dbContext,
+                customerCurrentAccountService,
+                contactId,
+                cancellationToken);
+
+            return detail is null ? Results.NotFound() : Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> RecordErpCustomerAdjustmentAsync(
+        Guid contactId,
+        RecordErpCustomerAdjustmentRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        ICustomerCurrentAccountService customerCurrentAccountService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        if (request.AmountDelta == 0)
+        {
+            return Results.BadRequest(new { message = "amountDelta must not be zero." });
+        }
+
+        var tenantId = request.TenantId ?? await ResolveCustomerTenantIdAsync(dbContext, contactId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.NotFound();
+        }
+
+        try
+        {
+            await customerCurrentAccountService.RecordAdjustmentAsync(
+                tenantId.Value,
+                contactId,
+                request.AmountDelta,
+                request.ReferenceType,
+                request.ReferenceId,
+                request.Note,
+                cancellationToken);
+
+            var detail = await BuildErpCustomerAccountDetailAsync(
+                dbContext,
+                customerCurrentAccountService,
+                contactId,
+                cancellationToken);
+
+            return detail is null ? Results.NotFound() : Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> RecordErpCustomerRefundCreditAsync(
+        Guid contactId,
+        RecordErpCustomerRefundCreditRequest request,
+        HttpContext httpContext,
+        IInternalAdminAuthService authService,
+        AppDbContext dbContext,
+        ICustomerCurrentAccountService customerCurrentAccountService,
+        CancellationToken cancellationToken)
+    {
+        var context = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (context is null || !HasAnyRole(context, new[] { "super_admin", "ops_admin" }))
+        {
+            return Results.Forbid();
+        }
+
+        if (request.Amount <= 0)
+        {
+            return Results.BadRequest(new { message = "amount must be greater than zero." });
+        }
+
+        var tenantId = request.TenantId ?? await ResolveCustomerTenantIdAsync(dbContext, contactId, cancellationToken);
+        if (!tenantId.HasValue)
+        {
+            return Results.NotFound();
+        }
+
+        try
+        {
+            await customerCurrentAccountService.RecordRefundCreditAsync(
+                tenantId.Value,
+                contactId,
+                request.Amount,
+                request.ReferenceType,
+                request.ReferenceId,
+                request.Note,
+                cancellationToken);
+
+            var detail = await BuildErpCustomerAccountDetailAsync(
+                dbContext,
+                customerCurrentAccountService,
+                contactId,
+                cancellationToken);
+
+            return detail is null ? Results.NotFound() : Results.Ok(detail);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { message = ex.Message });
+        }
     }
 
     private static async Task<IResult> UnsuspendTenantAsync(Guid tenantId, AdminReasonRequest request, HttpContext httpContext, IInternalAdminAuthService authService, IAdminApprovalService approvalService, AppDbContext dbContext, CancellationToken cancellationToken)
@@ -1359,6 +2587,372 @@ public static class InternalAdminEndpoints
         return Results.Ok(new { success = true, message = action });
     }
 
+    private static async Task<Guid?> ResolveWarehouseTenantIdAsync(
+        AppDbContext dbContext,
+        Guid warehouseId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Warehouses.AsNoTracking()
+            .Where(x => x.Id == warehouseId)
+            .Select(x => (Guid?)x.TenantId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static async Task<Guid?> ResolveTransferTenantIdAsync(
+        AppDbContext dbContext,
+        Guid transferId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.WarehouseTransfers.AsNoTracking()
+            .Where(x => x.Id == transferId)
+            .Select(x => (Guid?)x.TenantId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static string? NormalizeWarehouseTransferStatusFilter(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            WarehouseTransferStatuses.Draft => WarehouseTransferStatuses.Draft,
+            WarehouseTransferStatuses.InTransit => WarehouseTransferStatuses.InTransit,
+            WarehouseTransferStatuses.Completed => WarehouseTransferStatuses.Completed,
+            WarehouseTransferStatuses.Canceled => WarehouseTransferStatuses.Canceled,
+            _ => null
+        };
+    }
+
+    private static async Task<AdminErpTransferDetailResponse?> BuildErpWarehouseTransferDetailAsync(
+        AppDbContext dbContext,
+        Guid transferId,
+        CancellationToken cancellationToken)
+    {
+        var transfer = await dbContext.WarehouseTransfers.AsNoTracking()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.Id == transferId, cancellationToken);
+        if (transfer is null)
+        {
+            return null;
+        }
+
+        var tenantName = await dbContext.Tenants.AsNoTracking()
+            .Where(x => x.Id == transfer.TenantId)
+            .Select(x => x.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown tenant";
+
+        var warehouseNames = await dbContext.Warehouses.AsNoTracking()
+            .Where(x => x.Id == transfer.FromWarehouseId || x.Id == transfer.ToWarehouseId)
+            .ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+
+        var productIds = transfer.Lines.Select(x => x.ProductId).Distinct().ToArray();
+        var productLookup = productIds.Length == 0
+            ? new Dictionary<Guid, (string? Name, string? Sku, string? Barcode)>()
+            : await dbContext.Products.AsNoTracking()
+                .Where(x => x.TenantId == transfer.TenantId && productIds.Contains(x.Id))
+                .ToDictionaryAsync(
+                    x => x.Id,
+                    x => (Name: (string?)x.Name, Sku: x.Sku, Barcode: x.Barcode),
+                    cancellationToken);
+
+        var lines = transfer.Lines
+            .OrderBy(x => x.ProductId)
+            .Select(line =>
+            {
+                productLookup.TryGetValue(line.ProductId, out var product);
+                return new AdminErpTransferLineResponse(
+                    line.Id,
+                    line.ProductId,
+                    product.Name ?? line.ProductId.ToString(),
+                    product.Sku,
+                    product.Barcode,
+                    line.Quantity);
+            })
+            .ToList();
+
+        return new AdminErpTransferDetailResponse(
+            transfer.Id,
+            transfer.TenantId,
+            tenantName,
+            transfer.FromWarehouseId,
+            warehouseNames.GetValueOrDefault(transfer.FromWarehouseId) ?? transfer.FromWarehouseId.ToString(),
+            transfer.ToWarehouseId,
+            warehouseNames.GetValueOrDefault(transfer.ToWarehouseId) ?? transfer.ToWarehouseId.ToString(),
+            transfer.Status,
+            transfer.CreatedAt,
+            transfer.CompletedAt,
+            lines.Count,
+            lines);
+    }
+
+    private static async Task<Guid?> ResolveSupplierTenantIdAsync(
+        AppDbContext dbContext,
+        Guid supplierId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Suppliers.AsNoTracking()
+            .Where(x => x.Id == supplierId)
+            .Select(x => (Guid?)x.TenantId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static async Task<Guid?> ResolvePurchaseOrderTenantIdAsync(
+        AppDbContext dbContext,
+        Guid purchaseOrderId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.PurchaseOrders.AsNoTracking()
+            .Where(x => x.Id == purchaseOrderId)
+            .Select(x => (Guid?)x.TenantId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static async Task<Guid?> ResolveCustomerTenantIdAsync(
+        AppDbContext dbContext,
+        Guid contactId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Contacts.AsNoTracking()
+            .Where(x => x.Id == contactId && x.Type == ContactType.Customer)
+            .Select(x => (Guid?)x.TenantId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private static string? NormalizePurchaseOrderStatusFilter(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return null;
+        }
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            PurchaseOrderStatuses.Draft => PurchaseOrderStatuses.Draft,
+            PurchaseOrderStatuses.Ordered => PurchaseOrderStatuses.Ordered,
+            PurchaseOrderStatuses.Received => PurchaseOrderStatuses.Received,
+            PurchaseOrderStatuses.Canceled => PurchaseOrderStatuses.Canceled,
+            _ => null
+        };
+    }
+
+    private static string? NormalizeCustomerAccountBalanceFilter(string? balance)
+    {
+        if (string.IsNullOrWhiteSpace(balance))
+        {
+            return null;
+        }
+
+        return balance.Trim().ToLowerInvariant() switch
+        {
+            "positive" => "positive",
+            "zero" => "zero",
+            "credit" => "credit",
+            _ => null
+        };
+    }
+
+    private static string DeriveCustomerAccountBalanceState(decimal balance)
+    {
+        if (balance > 0)
+        {
+            return "positive";
+        }
+
+        if (balance < 0)
+        {
+            return "credit";
+        }
+
+        return "zero";
+    }
+
+    private static async Task<AdminErpSupplierDetailResponse?> BuildErpSupplierDetailAsync(
+        AppDbContext dbContext,
+        Guid supplierId,
+        CancellationToken cancellationToken)
+    {
+        var supplier = await (from row in dbContext.Suppliers.AsNoTracking()
+                              join tenant in dbContext.Tenants.AsNoTracking() on row.TenantId equals tenant.Id
+                              where row.Id == supplierId
+                              select new
+                              {
+                                  row.Id,
+                                  row.TenantId,
+                                  TenantName = tenant.Name,
+                                  row.Name,
+                                  row.TaxNumber,
+                                  row.Phone,
+                                  row.Email,
+                                  row.IsActive,
+                                  row.CreatedAt
+                              }).FirstOrDefaultAsync(cancellationToken);
+        if (supplier is null)
+        {
+            return null;
+        }
+
+        var relatedOrders = await (from purchaseOrder in dbContext.PurchaseOrders.AsNoTracking()
+                                   join warehouse in dbContext.Warehouses.AsNoTracking() on purchaseOrder.WarehouseId equals warehouse.Id
+                                   where purchaseOrder.SupplierId == supplier.Id && purchaseOrder.TenantId == supplier.TenantId
+                                   orderby purchaseOrder.CreatedAt descending
+                                   select new AdminErpSupplierPurchaseOrderSummary(
+                                       purchaseOrder.Id,
+                                       purchaseOrder.WarehouseId,
+                                       warehouse.Name,
+                                       purchaseOrder.Status,
+                                       purchaseOrder.CreatedAt,
+                                       purchaseOrder.ReceivedAt,
+                                       purchaseOrder.Lines.Count))
+            .Take(200)
+            .ToListAsync(cancellationToken);
+
+        return new AdminErpSupplierDetailResponse(
+            supplier.Id,
+            supplier.TenantId,
+            supplier.TenantName,
+            supplier.Name,
+            supplier.TaxNumber,
+            supplier.Phone,
+            supplier.Email,
+            supplier.IsActive,
+            supplier.CreatedAt,
+            relatedOrders);
+    }
+
+    private static async Task<AdminErpPurchaseOrderDetailResponse?> BuildErpPurchaseOrderDetailAsync(
+        AppDbContext dbContext,
+        Guid purchaseOrderId,
+        CancellationToken cancellationToken)
+    {
+        var purchaseOrder = await dbContext.PurchaseOrders.AsNoTracking()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.Id == purchaseOrderId, cancellationToken);
+        if (purchaseOrder is null)
+        {
+            return null;
+        }
+
+        var tenantName = await dbContext.Tenants.AsNoTracking()
+            .Where(x => x.Id == purchaseOrder.TenantId)
+            .Select(x => x.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown tenant";
+
+        var supplierName = await dbContext.Suppliers.AsNoTracking()
+            .Where(x => x.Id == purchaseOrder.SupplierId && x.TenantId == purchaseOrder.TenantId)
+            .Select(x => x.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown supplier";
+
+        var warehouseName = await dbContext.Warehouses.AsNoTracking()
+            .Where(x => x.Id == purchaseOrder.WarehouseId && x.TenantId == purchaseOrder.TenantId)
+            .Select(x => x.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "Unknown warehouse";
+
+        var productIds = purchaseOrder.Lines.Select(x => x.ProductId).Distinct().ToArray();
+        var productLookup = productIds.Length == 0
+            ? new Dictionary<Guid, (string? Name, string? Sku, string? Barcode)>()
+            : await dbContext.Products.AsNoTracking()
+                .Where(x => x.TenantId == purchaseOrder.TenantId && productIds.Contains(x.Id))
+                .ToDictionaryAsync(
+                    x => x.Id,
+                    x => (Name: (string?)x.Name, Sku: x.Sku, Barcode: x.Barcode),
+                    cancellationToken);
+
+        var lines = purchaseOrder.Lines
+            .OrderBy(x => x.ProductId)
+            .Select(line =>
+            {
+                productLookup.TryGetValue(line.ProductId, out var product);
+                return new AdminErpPurchaseOrderLineResponse(
+                    line.Id,
+                    line.ProductId,
+                    product.Name ?? line.ProductId.ToString(),
+                    product.Sku,
+                    product.Barcode,
+                    line.Quantity,
+                    line.UnitCost);
+            })
+            .ToList();
+
+        return new AdminErpPurchaseOrderDetailResponse(
+            purchaseOrder.Id,
+            purchaseOrder.TenantId,
+            tenantName,
+            purchaseOrder.SupplierId,
+            supplierName,
+            purchaseOrder.WarehouseId,
+            warehouseName,
+            purchaseOrder.Status,
+            purchaseOrder.CreatedAt,
+            purchaseOrder.ReceivedAt,
+            lines.Count,
+            lines);
+    }
+
+    private static async Task<AdminErpCustomerAccountDetailResponse?> BuildErpCustomerAccountDetailAsync(
+        AppDbContext dbContext,
+        ICustomerCurrentAccountService customerCurrentAccountService,
+        Guid contactId,
+        CancellationToken cancellationToken)
+    {
+        var contact = await (from row in dbContext.Contacts.AsNoTracking()
+                             join tenant in dbContext.Tenants.AsNoTracking() on row.TenantId equals tenant.Id
+                             where row.Id == contactId && row.Type == ContactType.Customer
+                             select new
+                             {
+                                 row.Id,
+                                 row.TenantId,
+                                 TenantName = tenant.Name,
+                                 CustomerName = row.Name,
+                                 row.Email,
+                                 row.Phone,
+                                 row.CreatedAt
+                             }).FirstOrDefaultAsync(cancellationToken);
+
+        if (contact is null)
+        {
+            return null;
+        }
+
+        var summary = await customerCurrentAccountService.GetSummaryAsync(
+            contact.TenantId,
+            contact.Id,
+            cancellationToken);
+
+        var entries = await customerCurrentAccountService.GetEntriesAsync(
+            contact.TenantId,
+            contact.Id,
+            300,
+            cancellationToken);
+
+        var mappedEntries = entries
+            .Select(entry => new AdminErpCustomerAccountEntryResponse(
+                entry.Id,
+                entry.Type,
+                entry.Amount,
+                entry.RefType,
+                entry.RefId,
+                entry.CreatedAt,
+                entry.Note))
+            .ToList();
+
+        return new AdminErpCustomerAccountDetailResponse(
+            contact.Id,
+            summary.Id,
+            contact.TenantId,
+            contact.TenantName,
+            contact.CustomerName,
+            contact.Email,
+            contact.Phone,
+            summary.Balance,
+            summary.Currency,
+            summary.UpdatedAt,
+            DeriveCustomerAccountBalanceState(summary.Balance),
+            mappedEntries);
+    }
+
     private static bool HasAnyRole(InternalAdminAccessContext context, IEnumerable<string> roles)
         => context.Roles.Any(role => roles.Contains(role, StringComparer.OrdinalIgnoreCase));
 
@@ -1621,6 +3215,185 @@ public static class InternalAdminEndpoints
     private sealed record EscalateSupportCaseRequest(string Level, string Reason);
     private sealed record StartSupportAccessSessionRequest(Guid? TenantId, string AccessMode, string Reason, int? ExpiresInMinutes);
     private sealed record EndSupportAccessSessionRequest(string Reason);
+    private sealed record CreateErpWarehouseTransferRequest(Guid? TenantId, Guid FromWarehouseId, Guid ToWarehouseId);
+    private sealed record AddErpWarehouseTransferLineRequest(Guid? TenantId, Guid ProductId, decimal Quantity);
+    private sealed record CompleteErpWarehouseTransferRequest(Guid? TenantId, Guid? BranchId);
+    private sealed record CreateErpSupplierRequest(Guid TenantId, string Name, string? TaxNumber, string? Phone, string? Email);
+    private sealed record CreateErpPurchaseOrderRequest(Guid? TenantId, Guid SupplierId, Guid WarehouseId);
+    private sealed record AddErpPurchaseOrderLineRequest(Guid? TenantId, Guid ProductId, decimal Quantity, decimal UnitCost);
+    private sealed record ReceiveErpPurchaseOrderRequest(Guid? TenantId, Guid? BranchId);
+    private sealed record RecordErpCustomerCollectionRequest(Guid? TenantId, decimal Amount, string? ReferenceType, string? ReferenceId, string? Note);
+    private sealed record RecordErpCustomerAdjustmentRequest(Guid? TenantId, decimal AmountDelta, string? ReferenceType, string? ReferenceId, string? Note);
+    private sealed record RecordErpCustomerRefundCreditRequest(Guid? TenantId, decimal Amount, string? ReferenceType, string? ReferenceId, string? Note);
+
+    private sealed record AdminErpWarehouseListResponse(
+        Guid WarehouseId,
+        Guid TenantId,
+        string TenantName,
+        string Name,
+        string Type,
+        bool IsActive,
+        DateTimeOffset CreatedAt,
+        int ProductCount,
+        decimal TotalStockQuantity);
+
+    private sealed record AdminErpWarehouseStockRowResponse(
+        Guid ProductId,
+        string ProductName,
+        string? Sku,
+        string? Barcode,
+        decimal Quantity,
+        DateTimeOffset UpdatedAt);
+
+    private sealed record AdminErpWarehouseDetailResponse(
+        Guid WarehouseId,
+        Guid TenantId,
+        string TenantName,
+        string Name,
+        string Type,
+        bool IsActive,
+        DateTimeOffset CreatedAt,
+        int ProductCount,
+        decimal TotalStockQuantity,
+        IReadOnlyList<AdminErpWarehouseStockRowResponse> StockRows);
+
+    private sealed record AdminErpTransferSummaryResponse(
+        Guid TransferId,
+        Guid TenantId,
+        string TenantName,
+        Guid FromWarehouseId,
+        string FromWarehouseName,
+        Guid ToWarehouseId,
+        string ToWarehouseName,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? CompletedAt,
+        int LineCount);
+
+    private sealed record AdminErpTransferLineResponse(
+        Guid LineId,
+        Guid ProductId,
+        string ProductName,
+        string? Sku,
+        string? Barcode,
+        decimal Quantity);
+
+    private sealed record AdminErpTransferDetailResponse(
+        Guid TransferId,
+        Guid TenantId,
+        string TenantName,
+        Guid FromWarehouseId,
+        string FromWarehouseName,
+        Guid ToWarehouseId,
+        string ToWarehouseName,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? CompletedAt,
+        int LineCount,
+        IReadOnlyList<AdminErpTransferLineResponse> Lines);
+
+    private sealed record AdminErpSupplierSummaryResponse(
+        Guid SupplierId,
+        Guid TenantId,
+        string TenantName,
+        string Name,
+        string? TaxNumber,
+        string? Phone,
+        string? Email,
+        bool IsActive,
+        DateTimeOffset CreatedAt);
+
+    private sealed record AdminErpSupplierPurchaseOrderSummary(
+        Guid PurchaseOrderId,
+        Guid WarehouseId,
+        string WarehouseName,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? ReceivedAt,
+        int LineCount);
+
+    private sealed record AdminErpSupplierDetailResponse(
+        Guid SupplierId,
+        Guid TenantId,
+        string TenantName,
+        string Name,
+        string? TaxNumber,
+        string? Phone,
+        string? Email,
+        bool IsActive,
+        DateTimeOffset CreatedAt,
+        IReadOnlyList<AdminErpSupplierPurchaseOrderSummary> RelatedPurchaseOrders);
+
+    private sealed record AdminErpPurchaseOrderSummaryResponse(
+        Guid PurchaseOrderId,
+        Guid TenantId,
+        string TenantName,
+        Guid SupplierId,
+        string SupplierName,
+        Guid WarehouseId,
+        string WarehouseName,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? ReceivedAt,
+        int LineCount);
+
+    private sealed record AdminErpPurchaseOrderLineResponse(
+        Guid LineId,
+        Guid ProductId,
+        string ProductName,
+        string? Sku,
+        string? Barcode,
+        decimal Quantity,
+        decimal UnitCost);
+
+    private sealed record AdminErpPurchaseOrderDetailResponse(
+        Guid PurchaseOrderId,
+        Guid TenantId,
+        string TenantName,
+        Guid SupplierId,
+        string SupplierName,
+        Guid WarehouseId,
+        string WarehouseName,
+        string Status,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? ReceivedAt,
+        int LineCount,
+        IReadOnlyList<AdminErpPurchaseOrderLineResponse> Lines);
+
+    private sealed record AdminErpCustomerAccountListResponse(
+        Guid ContactId,
+        Guid TenantId,
+        string TenantName,
+        string CustomerName,
+        string? Email,
+        string? Phone,
+        decimal Balance,
+        string Currency,
+        DateTimeOffset UpdatedAt,
+        string BalanceState);
+
+    private sealed record AdminErpCustomerAccountEntryResponse(
+        Guid EntryId,
+        string Type,
+        decimal Amount,
+        string RefType,
+        string RefId,
+        DateTimeOffset CreatedAt,
+        string? Note);
+
+    private sealed record AdminErpCustomerAccountDetailResponse(
+        Guid ContactId,
+        Guid AccountId,
+        Guid TenantId,
+        string TenantName,
+        string CustomerName,
+        string? Email,
+        string? Phone,
+        decimal Balance,
+        string Currency,
+        DateTimeOffset UpdatedAt,
+        string BalanceState,
+        IReadOnlyList<AdminErpCustomerAccountEntryResponse> Entries);
 
 
     private sealed record SyncIssueClassification(

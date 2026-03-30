@@ -2,11 +2,17 @@ import "server-only";
 import type {
   ActivityItem,
   AuditRecord,
+  CustomerAccountBalanceState,
+  CustomerAccountDetailRow,
+  CustomerAccountEntryRow,
+  CustomerAccountRow,
   ConnectedList,
   DashboardMetrics,
   DeviceRow,
   DeviceStatus,
   SubscriptionRow,
+  SupplierDetailRow,
+  SupplierRow,
   SupportCaseRow,
   SyncIssue,
   SyncIssueStatus,
@@ -14,7 +20,15 @@ import type {
   TenantPlan,
   TenantStatus,
   TenantLifecycleState,
-  TenantSummary
+  TenantSummary,
+  WarehouseDetailRow,
+  PurchaseOrderDetailRow,
+  PurchaseOrderRow,
+  PurchaseOrderStatus,
+  WarehouseSummaryRow,
+  WarehouseTransferDetailRow,
+  WarehouseTransferStatus,
+  WarehouseTransferSummaryRow
 } from "@/types";
 
 const API_BASE_URL =
@@ -28,7 +42,7 @@ const INTERNAL_ADMIN_EMAIL =
 const INTERNAL_ADMIN_PASSWORD =
   process.env.LOOMA_INTERNAL_ADMIN_PASSWORD ??
   process.env.INTERNAL_ADMIN_BOOTSTRAP_PASSWORD ??
-  "ChangeThisNow123!";
+  "Demo123";
 const REQUEST_TIMEOUT_MS = 15000;
 
 type InternalTokenEnvelopeDto = {
@@ -156,6 +170,149 @@ type InternalAdminSyncIssueDto = {
   isRetryable: boolean;
 };
 
+type InternalAdminWarehouseDto = {
+  warehouseId: string;
+  tenantId: string;
+  tenantName: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+  createdAt: string;
+  productCount: number;
+  totalStockQuantity: number;
+};
+
+type InternalAdminWarehouseStockDto = {
+  productId: string;
+  productName: string;
+  sku?: string | null;
+  barcode?: string | null;
+  quantity: number;
+  updatedAt: string;
+};
+
+type InternalAdminWarehouseDetailDto = {
+  warehouseId: string;
+  tenantId: string;
+  tenantName: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+  createdAt: string;
+  productCount: number;
+  totalStockQuantity: number;
+  stockRows: InternalAdminWarehouseStockDto[];
+};
+
+type InternalAdminTransferLineDto = {
+  lineId: string;
+  productId: string;
+  productName: string;
+  sku?: string | null;
+  barcode?: string | null;
+  quantity: number;
+};
+
+type InternalAdminTransferSummaryDto = {
+  transferId: string;
+  tenantId: string;
+  tenantName: string;
+  fromWarehouseId: string;
+  fromWarehouseName: string;
+  toWarehouseId: string;
+  toWarehouseName: string;
+  status: string;
+  createdAt: string;
+  completedAt?: string | null;
+  lineCount: number;
+};
+
+type InternalAdminTransferDetailDto = InternalAdminTransferSummaryDto & {
+  lines: InternalAdminTransferLineDto[];
+};
+
+type InternalAdminSupplierDto = {
+  supplierId: string;
+  tenantId: string;
+  tenantName: string;
+  name: string;
+  taxNumber?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  isActive: boolean;
+  createdAt: string;
+};
+
+type InternalAdminSupplierRelatedPurchaseOrderDto = {
+  purchaseOrderId: string;
+  warehouseId: string;
+  warehouseName: string;
+  status: string;
+  createdAt: string;
+  receivedAt?: string | null;
+  lineCount: number;
+};
+
+type InternalAdminSupplierDetailDto = InternalAdminSupplierDto & {
+  relatedPurchaseOrders: InternalAdminSupplierRelatedPurchaseOrderDto[];
+};
+
+type InternalAdminPurchaseOrderLineDto = {
+  lineId: string;
+  productId: string;
+  productName: string;
+  sku?: string | null;
+  barcode?: string | null;
+  quantity: number;
+  unitCost: number;
+};
+
+type InternalAdminPurchaseOrderSummaryDto = {
+  purchaseOrderId: string;
+  tenantId: string;
+  tenantName: string;
+  supplierId: string;
+  supplierName: string;
+  warehouseId: string;
+  warehouseName: string;
+  status: string;
+  createdAt: string;
+  receivedAt?: string | null;
+  lineCount: number;
+};
+
+type InternalAdminPurchaseOrderDetailDto = InternalAdminPurchaseOrderSummaryDto & {
+  lines: InternalAdminPurchaseOrderLineDto[];
+};
+
+type InternalAdminCustomerAccountListDto = {
+  contactId: string;
+  tenantId: string;
+  tenantName: string;
+  customerName: string;
+  email?: string | null;
+  phone?: string | null;
+  balance: number;
+  currency: string;
+  updatedAt: string;
+  balanceState?: string | null;
+};
+
+type InternalAdminCustomerAccountEntryDto = {
+  entryId: string;
+  type: string;
+  amount: number;
+  refType: string;
+  refId: string;
+  createdAt: string;
+  note?: string | null;
+};
+
+type InternalAdminCustomerAccountDetailDto = InternalAdminCustomerAccountListDto & {
+  accountId: string;
+  entries: InternalAdminCustomerAccountEntryDto[];
+};
+
 class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -253,6 +410,45 @@ function normalizeSyncIssueStatus(status: string): SyncIssueStatus {
     return "dead_letter";
   }
   return "failed";
+}
+
+function normalizeWarehouseTransferStatus(status: string): WarehouseTransferStatus {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "in_transit") {
+    return "in_transit";
+  }
+  if (normalized === "completed") {
+    return "completed";
+  }
+  if (normalized === "canceled" || normalized === "cancelled") {
+    return "canceled";
+  }
+  return "draft";
+}
+
+function normalizePurchaseOrderStatus(status: string): PurchaseOrderStatus {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "ordered") {
+    return "ordered";
+  }
+  if (normalized === "received") {
+    return "received";
+  }
+  if (normalized === "canceled" || normalized === "cancelled") {
+    return "canceled";
+  }
+  return "draft";
+}
+
+function normalizeCustomerAccountBalanceState(status: string | null | undefined): CustomerAccountBalanceState {
+  const normalized = status?.trim().toLowerCase();
+  if (normalized === "credit") {
+    return "credit";
+  }
+  if (normalized === "positive") {
+    return "positive";
+  }
+  return "zero";
 }
 
 function formatTarget(targetType: string, targetId: string): string {
@@ -360,6 +556,36 @@ async function requestAdminApi<T>(path: string, retried = false): Promise<T> {
   if (response.status === 401 && !retried) {
     accessTokenCache = null;
     return await requestAdminApi<T>(path, true);
+  }
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new ApiError(response.status, `API ${response.status}: ${message}`);
+  }
+
+  return await parseJson<T>(response);
+}
+
+async function requestAdminApiMutation<T>(
+  path: string,
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
+  body?: unknown,
+  retried = false
+): Promise<T> {
+  const token = await getAccessToken();
+
+  const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+
+  if (response.status === 401 && !retried) {
+    accessTokenCache = null;
+    return await requestAdminApiMutation<T>(path, method, body, true);
   }
 
   if (!response.ok) {
@@ -628,6 +854,635 @@ export async function getDevices(params?: {
     connection: "connected",
     items: rows.map(toDeviceFromInternal)
   };
+}
+
+function toWarehouseSummary(row: InternalAdminWarehouseDto): WarehouseSummaryRow {
+  return {
+    warehouseId: row.warehouseId,
+    tenantId: row.tenantId,
+    tenantName: trimOrDash(row.tenantName),
+    name: trimOrDash(row.name),
+    type: trimOrDash(row.type),
+    isActive: row.isActive,
+    createdAt: row.createdAt,
+    productCount: Number.isFinite(row.productCount) ? row.productCount : 0,
+    totalStockQuantity: Number.isFinite(row.totalStockQuantity) ? row.totalStockQuantity : 0
+  };
+}
+
+function toWarehouseDetail(row: InternalAdminWarehouseDetailDto): WarehouseDetailRow {
+  return {
+    warehouseId: row.warehouseId,
+    tenantId: row.tenantId,
+    tenantName: trimOrDash(row.tenantName),
+    name: trimOrDash(row.name),
+    type: trimOrDash(row.type),
+    isActive: row.isActive,
+    createdAt: row.createdAt,
+    productCount: Number.isFinite(row.productCount) ? row.productCount : 0,
+    totalStockQuantity: Number.isFinite(row.totalStockQuantity) ? row.totalStockQuantity : 0,
+    stockRows: row.stockRows.map((item) => ({
+      productId: item.productId,
+      productName: trimOrDash(item.productName),
+      sku: item.sku ?? null,
+      barcode: item.barcode ?? null,
+      quantity: Number.isFinite(item.quantity) ? item.quantity : 0,
+      updatedAt: item.updatedAt
+    }))
+  };
+}
+
+function toTransferSummary(row: InternalAdminTransferSummaryDto): WarehouseTransferSummaryRow {
+  return {
+    transferId: row.transferId,
+    tenantId: row.tenantId,
+    tenantName: trimOrDash(row.tenantName),
+    fromWarehouseId: row.fromWarehouseId,
+    fromWarehouseName: trimOrDash(row.fromWarehouseName),
+    toWarehouseId: row.toWarehouseId,
+    toWarehouseName: trimOrDash(row.toWarehouseName),
+    status: normalizeWarehouseTransferStatus(row.status),
+    createdAt: row.createdAt,
+    completedAt: row.completedAt ?? null,
+    lineCount: Number.isFinite(row.lineCount) ? row.lineCount : 0
+  };
+}
+
+function toTransferDetail(row: InternalAdminTransferDetailDto): WarehouseTransferDetailRow {
+  return {
+    ...toTransferSummary(row),
+    lines: row.lines.map((line) => ({
+      lineId: line.lineId,
+      productId: line.productId,
+      productName: trimOrDash(line.productName),
+      sku: line.sku ?? null,
+      barcode: line.barcode ?? null,
+      quantity: Number.isFinite(line.quantity) ? line.quantity : 0
+    }))
+  };
+}
+
+export async function getWarehouses(params?: {
+  query?: string;
+  type?: string | "all";
+  isActive?: "all" | "true" | "false";
+  tenantId?: string;
+}): Promise<ConnectedList<WarehouseSummaryRow>> {
+  const query = params?.query?.trim();
+  const type = params?.type ?? "all";
+  const isActive = params?.isActive ?? "all";
+  const tenantId = params?.tenantId?.trim();
+
+  const queryParams = new URLSearchParams();
+  if (query && query.length > 0) {
+    queryParams.set("search", query);
+  }
+  if (type !== "all") {
+    queryParams.set("type", type);
+  }
+  if (isActive !== "all") {
+    queryParams.set("isActive", isActive);
+  }
+  if (tenantId && tenantId.length > 0) {
+    queryParams.set("tenantId", tenantId);
+  }
+
+  const path =
+    queryParams.size > 0
+      ? `/internal/admin/erp/warehouses?${queryParams.toString()}`
+      : "/internal/admin/erp/warehouses";
+
+  const rows = await requestAdminApi<InternalAdminWarehouseDto[]>(path);
+  return {
+    connection: "connected",
+    items: rows.map(toWarehouseSummary)
+  };
+}
+
+export async function getWarehouseDetail(
+  warehouseId: string,
+  params?: { query?: string }
+): Promise<WarehouseDetailRow | null> {
+  const query = params?.query?.trim();
+  const queryParams = new URLSearchParams();
+  if (query && query.length > 0) {
+    queryParams.set("search", query);
+  }
+
+  const path =
+    queryParams.size > 0
+      ? `/internal/admin/erp/warehouses/${warehouseId}?${queryParams.toString()}`
+      : `/internal/admin/erp/warehouses/${warehouseId}`;
+
+  try {
+    const row = await requestAdminApi<InternalAdminWarehouseDetailDto>(path);
+    return toWarehouseDetail(row);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function getWarehouseTransfers(params?: {
+  query?: string;
+  status?: WarehouseTransferStatus | "all";
+  tenantId?: string;
+}): Promise<ConnectedList<WarehouseTransferSummaryRow>> {
+  const query = params?.query?.trim();
+  const status = params?.status ?? "all";
+  const tenantId = params?.tenantId?.trim();
+
+  const queryParams = new URLSearchParams();
+  if (query && query.length > 0) {
+    queryParams.set("search", query);
+  }
+  if (status !== "all") {
+    queryParams.set("status", status);
+  }
+  if (tenantId && tenantId.length > 0) {
+    queryParams.set("tenantId", tenantId);
+  }
+
+  const path =
+    queryParams.size > 0
+      ? `/internal/admin/erp/transfers?${queryParams.toString()}`
+      : "/internal/admin/erp/transfers";
+
+  const rows = await requestAdminApi<InternalAdminTransferSummaryDto[]>(path);
+  return {
+    connection: "connected",
+    items: rows.map(toTransferSummary)
+  };
+}
+
+export async function getWarehouseTransferDetail(transferId: string): Promise<WarehouseTransferDetailRow | null> {
+  try {
+    const row = await requestAdminApi<InternalAdminTransferDetailDto>(
+      `/internal/admin/erp/transfers/${transferId}`
+    );
+    return toTransferDetail(row);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function createWarehouseTransferDraft(input: {
+  tenantId?: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+}): Promise<WarehouseTransferDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    fromWarehouseId: input.fromWarehouseId,
+    toWarehouseId: input.toWarehouseId
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminTransferDetailDto>(
+    "/internal/admin/erp/transfers",
+    "POST",
+    payload
+  );
+
+  return toTransferDetail(row);
+}
+
+export async function addWarehouseTransferLine(input: {
+  transferId: string;
+  tenantId?: string;
+  productId: string;
+  quantity: number;
+}): Promise<WarehouseTransferDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    productId: input.productId,
+    quantity: input.quantity
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminTransferDetailDto>(
+    `/internal/admin/erp/transfers/${input.transferId}/lines`,
+    "POST",
+    payload
+  );
+
+  return toTransferDetail(row);
+}
+
+export async function completeWarehouseTransfer(input: {
+  transferId: string;
+  tenantId?: string;
+  branchId?: string;
+}): Promise<WarehouseTransferDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    branchId: input.branchId
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminTransferDetailDto>(
+    `/internal/admin/erp/transfers/${input.transferId}/complete`,
+    "POST",
+    payload
+  );
+
+  return toTransferDetail(row);
+}
+
+function toSupplierRow(row: InternalAdminSupplierDto): SupplierRow {
+  return {
+    supplierId: row.supplierId,
+    tenantId: row.tenantId,
+    tenantName: trimOrDash(row.tenantName),
+    name: trimOrDash(row.name),
+    taxNumber: row.taxNumber ?? null,
+    phone: row.phone ?? null,
+    email: row.email ?? null,
+    isActive: row.isActive,
+    createdAt: row.createdAt
+  };
+}
+
+function toSupplierDetail(row: InternalAdminSupplierDetailDto): SupplierDetailRow {
+  return {
+    ...toSupplierRow(row),
+    relatedPurchaseOrders: row.relatedPurchaseOrders.map((item) => ({
+      purchaseOrderId: item.purchaseOrderId,
+      warehouseId: item.warehouseId,
+      warehouseName: trimOrDash(item.warehouseName),
+      status: trimOrDash(item.status),
+      createdAt: item.createdAt,
+      receivedAt: item.receivedAt ?? null,
+      lineCount: Number.isFinite(item.lineCount) ? item.lineCount : 0
+    }))
+  };
+}
+
+function toPurchaseOrderRow(row: InternalAdminPurchaseOrderSummaryDto): PurchaseOrderRow {
+  return {
+    purchaseOrderId: row.purchaseOrderId,
+    tenantId: row.tenantId,
+    tenantName: trimOrDash(row.tenantName),
+    supplierId: row.supplierId,
+    supplierName: trimOrDash(row.supplierName),
+    warehouseId: row.warehouseId,
+    warehouseName: trimOrDash(row.warehouseName),
+    status: normalizePurchaseOrderStatus(row.status),
+    createdAt: row.createdAt,
+    receivedAt: row.receivedAt ?? null,
+    lineCount: Number.isFinite(row.lineCount) ? row.lineCount : 0
+  };
+}
+
+function toPurchaseOrderDetail(row: InternalAdminPurchaseOrderDetailDto): PurchaseOrderDetailRow {
+  return {
+    ...toPurchaseOrderRow(row),
+    lines: row.lines.map((line) => ({
+      lineId: line.lineId,
+      productId: line.productId,
+      productName: trimOrDash(line.productName),
+      sku: line.sku ?? null,
+      barcode: line.barcode ?? null,
+      quantity: Number.isFinite(line.quantity) ? line.quantity : 0,
+      unitCost: Number.isFinite(line.unitCost) ? line.unitCost : 0
+    }))
+  };
+}
+
+function toCustomerAccountRow(row: InternalAdminCustomerAccountListDto): CustomerAccountRow {
+  return {
+    contactId: row.contactId,
+    tenantId: row.tenantId,
+    tenantName: trimOrDash(row.tenantName),
+    customerName: trimOrDash(row.customerName),
+    email: row.email ?? null,
+    phone: row.phone ?? null,
+    balance: Number.isFinite(row.balance) ? row.balance : 0,
+    currency: trimOrDash(row.currency),
+    updatedAt: row.updatedAt,
+    balanceState: normalizeCustomerAccountBalanceState(row.balanceState)
+  };
+}
+
+function toCustomerAccountEntryRow(row: InternalAdminCustomerAccountEntryDto): CustomerAccountEntryRow {
+  return {
+    entryId: row.entryId,
+    type: trimOrDash(row.type),
+    amount: Number.isFinite(row.amount) ? row.amount : 0,
+    refType: trimOrDash(row.refType),
+    refId: trimOrDash(row.refId),
+    createdAt: row.createdAt,
+    note: row.note ?? null
+  };
+}
+
+function toCustomerAccountDetail(row: InternalAdminCustomerAccountDetailDto): CustomerAccountDetailRow {
+  return {
+    ...toCustomerAccountRow(row),
+    accountId: row.accountId,
+    entries: row.entries.map(toCustomerAccountEntryRow)
+  };
+}
+
+export async function getSuppliers(params?: {
+  query?: string;
+  isActive?: "all" | "true" | "false";
+  tenantId?: string;
+}): Promise<ConnectedList<SupplierRow>> {
+  const query = params?.query?.trim();
+  const isActive = params?.isActive ?? "all";
+  const tenantId = params?.tenantId?.trim();
+
+  const queryParams = new URLSearchParams();
+  if (query && query.length > 0) {
+    queryParams.set("search", query);
+  }
+  if (isActive !== "all") {
+    queryParams.set("isActive", isActive);
+  }
+  if (tenantId && tenantId.length > 0) {
+    queryParams.set("tenantId", tenantId);
+  }
+
+  const path =
+    queryParams.size > 0
+      ? `/internal/admin/erp/suppliers?${queryParams.toString()}`
+      : "/internal/admin/erp/suppliers";
+
+  const rows = await requestAdminApi<InternalAdminSupplierDto[]>(path);
+  return {
+    connection: "connected",
+    items: rows.map(toSupplierRow)
+  };
+}
+
+export async function getSupplierDetail(supplierId: string): Promise<SupplierDetailRow | null> {
+  try {
+    const row = await requestAdminApi<InternalAdminSupplierDetailDto>(
+      `/internal/admin/erp/suppliers/${supplierId}`
+    );
+    return toSupplierDetail(row);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function createSupplier(input: {
+  tenantId: string;
+  name: string;
+  taxNumber?: string;
+  phone?: string;
+  email?: string;
+}): Promise<SupplierDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    name: input.name,
+    taxNumber: input.taxNumber,
+    phone: input.phone,
+    email: input.email
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminSupplierDetailDto>(
+    "/internal/admin/erp/suppliers",
+    "POST",
+    payload
+  );
+
+  return toSupplierDetail(row);
+}
+
+export async function getPurchaseOrders(params?: {
+  query?: string;
+  status?: PurchaseOrderStatus | "all";
+  tenantId?: string;
+}): Promise<ConnectedList<PurchaseOrderRow>> {
+  const query = params?.query?.trim();
+  const status = params?.status ?? "all";
+  const tenantId = params?.tenantId?.trim();
+
+  const queryParams = new URLSearchParams();
+  if (query && query.length > 0) {
+    queryParams.set("search", query);
+  }
+  if (status !== "all") {
+    queryParams.set("status", status);
+  }
+  if (tenantId && tenantId.length > 0) {
+    queryParams.set("tenantId", tenantId);
+  }
+
+  const path =
+    queryParams.size > 0
+      ? `/internal/admin/erp/purchase-orders?${queryParams.toString()}`
+      : "/internal/admin/erp/purchase-orders";
+
+  const rows = await requestAdminApi<InternalAdminPurchaseOrderSummaryDto[]>(path);
+  return {
+    connection: "connected",
+    items: rows.map(toPurchaseOrderRow)
+  };
+}
+
+export async function getPurchaseOrderDetail(purchaseOrderId: string): Promise<PurchaseOrderDetailRow | null> {
+  try {
+    const row = await requestAdminApi<InternalAdminPurchaseOrderDetailDto>(
+      `/internal/admin/erp/purchase-orders/${purchaseOrderId}`
+    );
+    return toPurchaseOrderDetail(row);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function createPurchaseOrderDraft(input: {
+  tenantId?: string;
+  supplierId: string;
+  warehouseId: string;
+}): Promise<PurchaseOrderDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    supplierId: input.supplierId,
+    warehouseId: input.warehouseId
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminPurchaseOrderDetailDto>(
+    "/internal/admin/erp/purchase-orders",
+    "POST",
+    payload
+  );
+
+  return toPurchaseOrderDetail(row);
+}
+
+export async function addPurchaseOrderLine(input: {
+  purchaseOrderId: string;
+  tenantId?: string;
+  productId: string;
+  quantity: number;
+  unitCost: number;
+}): Promise<PurchaseOrderDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    productId: input.productId,
+    quantity: input.quantity,
+    unitCost: input.unitCost
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminPurchaseOrderDetailDto>(
+    `/internal/admin/erp/purchase-orders/${input.purchaseOrderId}/lines`,
+    "POST",
+    payload
+  );
+
+  return toPurchaseOrderDetail(row);
+}
+
+export async function receivePurchaseOrder(input: {
+  purchaseOrderId: string;
+  tenantId?: string;
+  branchId?: string;
+}): Promise<PurchaseOrderDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    branchId: input.branchId
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminPurchaseOrderDetailDto>(
+    `/internal/admin/erp/purchase-orders/${input.purchaseOrderId}/receive`,
+    "POST",
+    payload
+  );
+
+  return toPurchaseOrderDetail(row);
+}
+
+export async function getCustomerAccounts(params?: {
+  query?: string;
+  balance?: CustomerAccountBalanceState | "all";
+  tenantId?: string;
+}): Promise<ConnectedList<CustomerAccountRow>> {
+  const query = params?.query?.trim();
+  const balance = params?.balance ?? "all";
+  const tenantId = params?.tenantId?.trim();
+
+  const queryParams = new URLSearchParams();
+  if (query && query.length > 0) {
+    queryParams.set("search", query);
+  }
+  if (balance !== "all") {
+    queryParams.set("balance", balance);
+  }
+  if (tenantId && tenantId.length > 0) {
+    queryParams.set("tenantId", tenantId);
+  }
+
+  const path =
+    queryParams.size > 0
+      ? `/internal/admin/erp/customer-accounts?${queryParams.toString()}`
+      : "/internal/admin/erp/customer-accounts";
+
+  const rows = await requestAdminApi<InternalAdminCustomerAccountListDto[]>(path);
+  return {
+    connection: "connected",
+    items: rows.map(toCustomerAccountRow)
+  };
+}
+
+export async function getCustomerAccountDetail(contactId: string): Promise<CustomerAccountDetailRow | null> {
+  try {
+    const row = await requestAdminApi<InternalAdminCustomerAccountDetailDto>(
+      `/internal/admin/erp/customer-accounts/${contactId}`
+    );
+    return toCustomerAccountDetail(row);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function recordCustomerAccountCollection(input: {
+  contactId: string;
+  tenantId?: string;
+  amount: number;
+  referenceType?: string;
+  referenceId?: string;
+  note?: string;
+}): Promise<CustomerAccountDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    amount: input.amount,
+    referenceType: input.referenceType,
+    referenceId: input.referenceId,
+    note: input.note
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminCustomerAccountDetailDto>(
+    `/internal/admin/erp/customer-accounts/${input.contactId}/collections`,
+    "POST",
+    payload
+  );
+
+  return toCustomerAccountDetail(row);
+}
+
+export async function recordCustomerAccountAdjustment(input: {
+  contactId: string;
+  tenantId?: string;
+  amountDelta: number;
+  referenceType?: string;
+  referenceId?: string;
+  note?: string;
+}): Promise<CustomerAccountDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    amountDelta: input.amountDelta,
+    referenceType: input.referenceType,
+    referenceId: input.referenceId,
+    note: input.note
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminCustomerAccountDetailDto>(
+    `/internal/admin/erp/customer-accounts/${input.contactId}/adjustments`,
+    "POST",
+    payload
+  );
+
+  return toCustomerAccountDetail(row);
+}
+
+export async function recordCustomerAccountRefundCredit(input: {
+  contactId: string;
+  tenantId?: string;
+  amount: number;
+  referenceType?: string;
+  referenceId?: string;
+  note?: string;
+}): Promise<CustomerAccountDetailRow> {
+  const payload = {
+    tenantId: input.tenantId,
+    amount: input.amount,
+    referenceType: input.referenceType,
+    referenceId: input.referenceId,
+    note: input.note
+  };
+
+  const row = await requestAdminApiMutation<InternalAdminCustomerAccountDetailDto>(
+    `/internal/admin/erp/customer-accounts/${input.contactId}/refund-credits`,
+    "POST",
+    payload
+  );
+
+  return toCustomerAccountDetail(row);
 }
 
 export async function getSubscriptions(): Promise<ConnectedList<SubscriptionRow>> {
