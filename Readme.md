@@ -56,3 +56,4 @@ LoomaPOS coklu yuzey mimarisi:
 - `docs/api.md`
 - `docs/licensing.md`
 - `docs/reseller.md`
+- `docs/runbooks/domain-cutover-loomapos-com.md`
