@@ -233,6 +233,25 @@ export interface CustomerAccountDetailRow extends CustomerAccountRow {
   entries: CustomerAccountEntryRow[];
 }
 
+export type AccountingExportStatus = "pending" | "exported" | "failed";
+
+export interface AccountingExportItemRow {
+  id: string;
+  tenantId: string | null;
+  sourceType: string;
+  sourceId: string;
+  eventCode: string;
+  status: AccountingExportStatus;
+  createdAt: string;
+  exportedAt: string | null;
+  failureReason: string | null;
+}
+
+export interface AccountingExportItemDetailRow extends AccountingExportItemRow {
+  payloadJson: string;
+}
+
+
 export interface SubscriptionRow {
   id: string;
   tenantId: string;

@@ -50,6 +50,12 @@ public sealed record CheckoutStatusSnapshot(
     DateTimeOffset? LicenseExpiresAt,
     IReadOnlyList<DownloadAssetSnapshot> Downloads);
 
+public sealed record CheckoutSessionLaunchSnapshot(
+    CheckoutStatusSnapshot Snapshot,
+    string ProviderStatus,
+    string? CheckoutUrl,
+    bool RequiresProviderAction);
+
 public sealed record DownloadAssetSnapshot(
     Guid AssetId,
     Guid ReleaseId,
@@ -68,6 +74,179 @@ public sealed record ReferralValidationSnapshot(
     string? Code,
     string? ResellerName,
     decimal CommissionRate);
+
+public static class CheckoutFlowStatusPolicy
+{
+    public const string Created = "created";
+    public const string PendingProvider = "pending_provider";
+    public const string Succeeded = "succeeded";
+    public const string Failed = "failed";
+    public const string Canceled = "canceled";
+    public const string Expired = "expired";
+
+    private static readonly HashSet<string> SuccessStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "paid",
+        "success",
+        "succeeded",
+        "captured",
+        "authorized",
+        "completed"
+    };
+
+    private static readonly HashSet<string> FailedStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "failed",
+        "failure",
+        "declined",
+        "error"
+    };
+
+    private static readonly HashSet<string> CanceledStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "canceled",
+        "cancelled",
+        "voided",
+        "aborted"
+    };
+
+    private static readonly HashSet<string> ExpiredStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "expired",
+        "timed_out",
+        "timeout"
+    };
+
+    private static readonly Dictionary<string, string> LegacyStatusMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["pending_payment"] = Created,
+        ["awaiting_confirmation"] = PendingProvider,
+        ["payment_confirmed"] = Succeeded,
+        ["payment_failed"] = Failed,
+        ["provisioned"] = Succeeded,
+        ["cancelled"] = Canceled,
+        ["processing"] = PendingProvider,
+        ["requires_action"] = PendingProvider
+    };
+
+    public sealed record StatusResolution(
+        string CheckoutStatus,
+        string PaymentStatus,
+        bool IsSuccessful,
+        bool IsFinal,
+        string ProviderStatus);
+
+    public static string NormalizeCheckoutStatus(string? rawStatus)
+    {
+        if (string.IsNullOrWhiteSpace(rawStatus))
+        {
+            return Created;
+        }
+
+        var normalized = rawStatus.Trim().ToLowerInvariant();
+        if (LegacyStatusMap.TryGetValue(normalized, out var mapped))
+        {
+            normalized = mapped;
+        }
+
+        return normalized switch
+        {
+            Created => Created,
+            PendingProvider => PendingProvider,
+            Succeeded => Succeeded,
+            Failed => Failed,
+            Canceled => Canceled,
+            Expired => Expired,
+            _ => PendingProvider
+        };
+    }
+
+    public static string NormalizePaymentStatus(string? providerStatus)
+    {
+        if (string.IsNullOrWhiteSpace(providerStatus))
+        {
+            return PendingProvider;
+        }
+
+        var normalized = providerStatus.Trim().ToLowerInvariant();
+        if (LegacyStatusMap.TryGetValue(normalized, out var mapped))
+        {
+            normalized = mapped;
+        }
+
+        if (SuccessStatuses.Contains(normalized))
+        {
+            return Succeeded;
+        }
+
+        if (FailedStatuses.Contains(normalized))
+        {
+            return Failed;
+        }
+
+        if (CanceledStatuses.Contains(normalized))
+        {
+            return Canceled;
+        }
+
+        if (ExpiredStatuses.Contains(normalized))
+        {
+            return Expired;
+        }
+
+        return normalized switch
+        {
+            Created => Created,
+            PendingProvider => PendingProvider,
+            Succeeded => Succeeded,
+            Failed => Failed,
+            Canceled => Canceled,
+            Expired => Expired,
+            _ => PendingProvider
+        };
+    }
+
+    public static StatusResolution ResolveProviderStart(string? providerStatus)
+    {
+        var callbackResolution = ResolveProviderCallback(providerStatus);
+
+        if (callbackResolution.IsSuccessful)
+        {
+            return new StatusResolution(
+                PendingProvider,
+                PendingProvider,
+                IsSuccessful: false,
+                IsFinal: false,
+                callbackResolution.ProviderStatus);
+        }
+
+        return callbackResolution;
+    }
+
+    public static StatusResolution ResolveProviderCallback(string? providerStatus)
+    {
+        var normalizedProvider = NormalizePaymentStatus(providerStatus);
+        return normalizedProvider switch
+        {
+            Succeeded => new StatusResolution(Succeeded, Succeeded, IsSuccessful: true, IsFinal: true, normalizedProvider),
+            Failed => new StatusResolution(Failed, Failed, IsSuccessful: false, IsFinal: true, normalizedProvider),
+            Canceled => new StatusResolution(Canceled, Canceled, IsSuccessful: false, IsFinal: true, normalizedProvider),
+            Expired => new StatusResolution(Expired, Expired, IsSuccessful: false, IsFinal: true, normalizedProvider),
+            Created => new StatusResolution(PendingProvider, Created, IsSuccessful: false, IsFinal: false, normalizedProvider),
+            _ => new StatusResolution(PendingProvider, PendingProvider, IsSuccessful: false, IsFinal: false, normalizedProvider)
+        };
+    }
+
+    public static bool ShouldProvision(string checkoutStatus)
+    {
+        return string.Equals(NormalizeCheckoutStatus(checkoutStatus), Succeeded, StringComparison.Ordinal);
+    }
+
+    public static bool IsFinal(string checkoutStatus)
+    {
+        return NormalizeCheckoutStatus(checkoutStatus) is Succeeded or Failed or Canceled or Expired;
+    }
+}
 
 public static class SubscriptionLifecyclePolicy
 {

@@ -348,12 +348,12 @@ export const getDesktopBootstrapState = async (appVersion: string): Promise<Desk
   const currentActivation = activationState.activation;
   message = activationState.message;
 
-  if (!currentActivation) {
+  if (sessionUsable === "missing") {
+    stage = "login_required";
+  } else if (!currentActivation) {
     stage = "activation_required";
   } else if (activationState.locked) {
     stage = "locked";
-  } else if (sessionUsable === "missing") {
-    stage = "login_required";
   } else {
     stage = "ready";
   }
@@ -522,13 +522,11 @@ export const getDesktopActivationContext = async (appVersion: string): Promise<D
   }
 
   const [company, license] = await Promise.all([
-    getCommerceJson<CommercePortalCompanyDto>("/commerce/portal/company", {
-      accessToken: session.accessToken,
-      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
+    getCommerceJson<CommercePortalCompanyDto>("/commerce/portal/company/me", {
+      accessToken: session.accessToken
     }),
     getCommerceJson<CommercePortalLicenseDto>("/commerce/portal/licenses/active", {
-      accessToken: session.accessToken,
-      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
+      accessToken: session.accessToken
     })
   ]);
 
@@ -566,13 +564,11 @@ export const activateDesktopDevice = async (appVersion: string, input: DesktopAc
   }
 
   const [company, license] = await Promise.all([
-    getCommerceJson<CommercePortalCompanyDto>("/commerce/portal/company", {
-      accessToken: session.accessToken,
-      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
+    getCommerceJson<CommercePortalCompanyDto>("/commerce/portal/company/me", {
+      accessToken: session.accessToken
     }),
     getCommerceJson<CommercePortalLicenseDto>("/commerce/portal/licenses/active", {
-      accessToken: session.accessToken,
-      headers: session.tenantId ? { "X-Tenant-Id": session.tenantId } : undefined
+      accessToken: session.accessToken
     })
   ]);
 
@@ -623,7 +619,7 @@ export const activateDesktopDevice = async (appVersion: string, input: DesktopAc
     graceDays: license.graceDays,
     lastValidationAt,
     offlineAllowedUntil,
-    status: "active"
+    status: resolveInitialActivationStatus(license)
   });
 
   touchLocalSessionValidation();
@@ -787,8 +783,7 @@ const refreshActivationSnapshot = async (appVersion: string, online: boolean, ac
     if (accessToken) {
       try {
         refreshedLicense = await getCommerceJson<CommercePortalLicenseDto>("/commerce/portal/licenses/active", {
-          accessToken,
-          headers: { "X-Tenant-Id": activation.tenantId }
+          accessToken
         });
         touchLocalSessionValidation();
       } catch {
@@ -1054,8 +1049,7 @@ const toActivationWriteModel = (activation: NonNullable<ReturnType<typeof getLoc
 const hydrateCatalog = async (tenantId: string, accessToken: string) => {
   try {
     const rows = await getCommerceJson<CommerceCatalogProductDto[]>("/commerce/portal/catalog/products", {
-      accessToken,
-      headers: { "X-Tenant-Id": tenantId }
+      accessToken
     });
     if (rows.length > 0) {
       replaceLocalProducts(tenantId, rows.map((row) => ({
@@ -1084,6 +1078,33 @@ const buildCashierId = (tenantId: string, email: string) => {
     .update(`${tenantId}:${email.toLowerCase()}`)
     .digest("hex")
     .slice(0, 32);
+};
+
+const resolveInitialActivationStatus = (license: CommercePortalLicenseDto): string => {
+  const normalizedPlan = (license.planCode ?? "").trim().toLowerCase();
+  const normalizedStatus = (license.status ?? "").trim().toLowerCase();
+
+  if (normalizedStatus.includes("suspend") || normalizedStatus.includes("block") || normalizedStatus.includes("revoked")) {
+    return "suspended_blocked";
+  }
+
+  if (normalizedStatus.includes("past_due") || normalizedStatus.includes("past-due")) {
+    return "subscription_past_due";
+  }
+
+  if (normalizedStatus.includes("cancel")) {
+    return "subscription_canceled";
+  }
+
+  if (normalizedStatus.includes("trial_expired") || normalizedStatus == "expired") {
+    return "trial_expired";
+  }
+
+  if (normalizedPlan.includes("trial") || normalizedStatus.includes("trial")) {
+    return "trial_active";
+  }
+
+  return "subscription_active";
 };
 
 const deriveOperationalRole = (
@@ -1116,4 +1137,9 @@ const deriveOperationalRole = (
     role: "cashier",
     permissions: ["sale.capture", "cart.edit", "refund.process", "cash.adjust"]
   };
+};
+
+export const __desktopLifecycleTestHarness = {
+  normalizeState: normalizeDesktopLifecycleState,
+  resolvePolicy: resolveDesktopLifecyclePolicy
 };

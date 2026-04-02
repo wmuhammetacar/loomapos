@@ -35,6 +35,7 @@ public static class SyncEndpoints
         HttpContext httpContext,
         IPortalAuthService authService,
         ITenantProvider tenantProvider,
+        AppDbContext dbContext,
         ISyncEventProcessor syncEventProcessor,
         CancellationToken cancellationToken)
     {
@@ -47,6 +48,12 @@ public static class SyncEndpoints
         if (validation is not null)
         {
             return validation;
+        }
+
+        var contextValidation = await ValidateSyncRequestContextAsync(request, tenantProvider, dbContext, cancellationToken);
+        if (contextValidation is not null)
+        {
+            return contextValidation;
         }
 
         var result = await syncEventProcessor.ProcessAsync(request, cancellationToken);
@@ -66,6 +73,7 @@ public static class SyncEndpoints
         HttpContext httpContext,
         IPortalAuthService authService,
         ITenantProvider tenantProvider,
+        AppDbContext dbContext,
         ISyncEventProcessor syncEventProcessor,
         CancellationToken cancellationToken)
     {
@@ -81,6 +89,18 @@ public static class SyncEndpoints
         }
         var tenantId = tenantIds[0];
 
+        var branchIds = request.Events.Select(x => x.BranchId).Distinct().ToList();
+        if (branchIds.Count != 1 || branchIds[0] == Guid.Empty)
+        {
+            return Results.BadRequest(new { error = "all sync events must belong to the same branch." });
+        }
+
+        var deviceIds = request.Events.Select(x => x.DeviceId).Distinct().ToList();
+        if (deviceIds.Count != 1 || deviceIds[0] == Guid.Empty)
+        {
+            return Results.BadRequest(new { error = "all sync events must belong to the same device." });
+        }
+
         if (!await AuthorizeTenantRequestAsync(httpContext, authService, tenantProvider, tenantId, cancellationToken))
         {
             return Results.Unauthorized();
@@ -93,6 +113,12 @@ public static class SyncEndpoints
             {
                 return validation;
             }
+        }
+
+        var contextValidation = await ValidateSyncRequestContextAsync(request.Events[0], tenantProvider, dbContext, cancellationToken);
+        if (contextValidation is not null)
+        {
+            return contextValidation;
         }
 
         var results = await syncEventProcessor.ProcessBatchAsync(request.Events, cancellationToken);
@@ -301,6 +327,44 @@ public static class SyncEndpoints
         return null;
     }
 
+    private static async Task<IResult?> ValidateSyncRequestContextAsync(
+        SyncEventRequest request,
+        ITenantProvider tenantProvider,
+        AppDbContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        if (tenantProvider.TenantId.HasValue && tenantProvider.TenantId.Value != request.TenantId)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (tenantProvider.BranchId.HasValue && tenantProvider.BranchId.Value != request.BranchId)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (tenantProvider.DeviceId.HasValue && tenantProvider.DeviceId.Value != request.DeviceId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var branchBelongsToTenant = await dbContext.Branches.AsNoTracking()
+            .AnyAsync(x => x.TenantId == request.TenantId && x.Id == request.BranchId, cancellationToken);
+        if (!branchBelongsToTenant)
+        {
+            return Results.BadRequest(new { error = "branch_id is invalid for tenant context." });
+        }
+
+        var deviceActivationExists = await dbContext.DeviceActivations.AsNoTracking()
+            .AnyAsync(x => x.TenantId == request.TenantId && x.DeviceId == request.DeviceId && x.RevokedAt == null, cancellationToken);
+        if (!deviceActivationExists)
+        {
+            return Results.Unauthorized();
+        }
+
+        return null;
+    }
+
     private static async Task<bool> AuthorizeTenantRequestAsync(
         HttpContext httpContext,
         IPortalAuthService authService,
@@ -349,15 +413,9 @@ public static class SyncEndpoints
         return null;
     }
 
-    private static Guid? ResolveBranchId(HttpContext httpContext, ITenantProvider tenantProvider)
+    private static Guid? ResolveBranchId(HttpContext _, ITenantProvider tenantProvider)
     {
-        if (tenantProvider.BranchId.HasValue)
-        {
-            return tenantProvider.BranchId.Value;
-        }
-
-        var rawBranchId = httpContext.Request.Headers["X-Branch-Id"].ToString();
-        return Guid.TryParse(rawBranchId, out var branchId) ? branchId : null;
+        return tenantProvider.BranchId;
     }
 
     private static bool AllowsAllBranches(string roleCode)

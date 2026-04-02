@@ -20,7 +20,7 @@ public static class InternalAdminEndpoints
 {
     public static IEndpointRouteBuilder MapInternalAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/internal/admin").WithTags("Internal Admin");
+        var group = app.MapGroup("/internal/admin").WithTags("Internal Admin").RequireInternalAdminAccess();
 
         group.MapGet("/overview", GetOverviewAsync);
         group.MapGet("/tenants", GetTenantsAsync);

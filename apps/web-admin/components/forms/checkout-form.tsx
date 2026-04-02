@@ -135,12 +135,12 @@ export function CheckoutForm() {
           couponCode: values.couponCode,
           resellerCode: values.resellerCode
         });
-        if (bundle.checkoutSessionId) {
-          window.location.assign(`/success?checkout=${bundle.checkoutSessionId}`);
+        if (bundle.checkoutUrl) {
+          window.location.assign(bundle.checkoutUrl);
           return;
         }
 
-        window.location.assign(`/success?receipt=${bundle.receiptId ?? ""}`);
+        window.location.assign("/success?checkout=" + bundle.checkoutSessionId);
       } catch (error) {
         setError("root", {
           message: error instanceof Error ? error.message : "Checkout tamamlanamadi."

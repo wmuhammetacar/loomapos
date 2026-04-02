@@ -25,7 +25,7 @@ public static class Phase9IntegrationEndpoints
         portal.MapPost("/api-clients", CreateApiClientAsync);
         portal.MapPost("/api-keys/{apiKeyId:guid}/revoke", RevokeApiKeyAsync);
 
-        var admin = app.MapGroup("/internal/admin/integrations").WithTags("Internal Integrations");
+        var admin = app.MapGroup("/internal/admin/integrations").WithTags("Internal Integrations").RequireInternalAdminAccess();
         admin.MapGet(string.Empty, GetAdminWorkspaceAsync);
         admin.MapPost("/jobs/{jobId:guid}/retry", RetryJobAsync);
         admin.MapPost("/dead-letter/replay", ReplayDeadLettersAsync);

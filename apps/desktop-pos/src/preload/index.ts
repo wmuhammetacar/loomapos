@@ -4,6 +4,7 @@ const api = {
   getBootstrap: () => ipcRenderer.invoke("desktop:get-bootstrap"),
   login: (args: { email: string; password: string }) => ipcRenderer.invoke("desktop:login", args),
   logout: () => ipcRenderer.invoke("desktop:logout"),
+  openRegister: () => ipcRenderer.invoke("desktop:open-register") as Promise<{ ok: true; url: string }>,
   getActivationContext: () => ipcRenderer.invoke("desktop:get-activation-context"),
   activateDesktop: (args: { branchName: string; branchCode?: string | null; deviceName: string }) =>
     ipcRenderer.invoke("desktop:activate", args),

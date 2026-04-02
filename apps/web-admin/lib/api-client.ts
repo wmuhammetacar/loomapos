@@ -155,9 +155,11 @@ export interface CommerceCheckoutStatusDto {
   downloads: CommerceDownloadAssetDto[];
 }
 
-export interface CommerceCheckoutStatusResponseDto {
+export interface CommerceCheckoutLaunchDto {
   checkout: CommerceCheckoutStatusDto;
-  portalAccess?: PortalAuthResponseDto | null;
+  providerStatus: string;
+  checkoutUrl?: string | null;
+  requiresProviderAction: boolean;
 }
 
 export interface CommercePortalOverviewDto {

@@ -28,11 +28,15 @@ internal sealed record CheckoutBillingPayload(
 
 public interface ICommerceProvisioningService
 {
-    Task<CheckoutStatusSnapshot> CreateCheckoutSessionAsync(
+    Task<CheckoutSessionLaunchSnapshot> CreateCheckoutSessionAsync(
         CreateCheckoutSessionCommand command,
         CancellationToken cancellationToken);
 
     Task<CheckoutStatusSnapshot?> GetCheckoutStatusAsync(
+        Guid checkoutSessionId,
+        CancellationToken cancellationToken);
+
+    Task<CheckoutStatusSnapshot?> ReconcileCheckoutAsync(
         Guid checkoutSessionId,
         CancellationToken cancellationToken);
 
@@ -75,7 +79,7 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
         _warehouseCompatibilityService = warehouseCompatibilityService;
     }
 
-    public async Task<CheckoutStatusSnapshot> CreateCheckoutSessionAsync(
+    public async Task<CheckoutSessionLaunchSnapshot> CreateCheckoutSessionAsync(
         CreateCheckoutSessionCommand command,
         CancellationToken cancellationToken)
     {
@@ -125,8 +129,8 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
             Amount = price.PromoAmount ?? price.Amount,
             TaxAmount = 0,
             Currency = price.Currency,
-            Status = "pending_payment",
-            PaymentStatus = "pending",
+            Status = CheckoutFlowStatusPolicy.Created,
+            PaymentStatus = CheckoutFlowStatusPolicy.Created,
             CheckoutPayloadJson = JsonSerializer.Serialize(new CheckoutIdentityPayload(
                 command.FullName.Trim(),
                 normalizedEmail,
@@ -172,6 +176,9 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
         });
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        var successCallbackUrl = AppendCheckoutSessionReference(command.SuccessUrl, checkoutSession.Id);
+        var cancelCallbackUrl = AppendCheckoutSessionReference(command.CancelUrl, checkoutSession.Id);
+
         var provider = _paymentProviderResolver.Resolve(providerCode);
         EnsureProviderAllowed(providerCode, provider);
         var checkoutResult = await provider.CreateCheckoutSessionAsync(
@@ -184,43 +191,98 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
                 $"{plan.Name} ({billingPeriod}) subscription",
                 normalizedEmail,
                 command.FullName.Trim(),
-                command.SuccessUrl,
-                command.CancelUrl,
+                successCallbackUrl,
+                cancelCallbackUrl,
                 billingPeriod,
                 plan.Code,
                 existingAccount is null ? null : provider.GetProviderCustomerReference(existingAccount.Email)),
             cancellationToken);
 
+        var startResolution = CheckoutFlowStatusPolicy.ResolveProviderStart(checkoutResult.Status);
         checkoutSession.ProviderSessionId = checkoutResult.ProviderSessionId;
         checkoutSession.ProviderPaymentReference = checkoutResult.ProviderPaymentReference;
-        checkoutSession.PaymentStatus = checkoutResult.Status;
-        checkoutSession.Status = checkoutResult.Status == "paid" ? "payment_confirmed" : "awaiting_confirmation";
+        checkoutSession.PaymentStatus = startResolution.PaymentStatus;
+        checkoutSession.Status = startResolution.CheckoutStatus;
+        checkoutSession.Error = startResolution.IsFinal && !startResolution.IsSuccessful
+            ? checkoutResult.Message ?? $"provider_start_{startResolution.ProviderStatus}"
+            : null;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        if (checkoutResult.Status == "paid")
-        {
-            await ProcessPaymentWebhookAsync(
-                providerCode,
-                $"auto-{checkoutSession.Id:N}",
-                JsonSerializer.Serialize(new
-                {
-                    checkoutSessionId = checkoutSession.Id,
-                    checkoutSession.ProviderPaymentReference,
-                    status = checkoutResult.Status
-                }),
-                checkoutSession.ProviderPaymentReference,
-                checkoutResult.Status,
-                cancellationToken);
-        }
-
-        return await BuildCheckoutStatusAsync(checkoutSession.Id, cancellationToken)
+        var snapshot = await BuildCheckoutStatusAsync(checkoutSession.Id, cancellationToken)
             ?? throw new InvalidOperationException("Checkout status could not be loaded.");
+
+        return new CheckoutSessionLaunchSnapshot(
+            snapshot,
+            startResolution.ProviderStatus,
+            checkoutResult.CheckoutUrl,
+            RequiresProviderAction: checkoutResult.CheckoutUrl is not null || snapshot.Status == CheckoutFlowStatusPolicy.PendingProvider);
     }
 
     public async Task<CheckoutStatusSnapshot?> GetCheckoutStatusAsync(
         Guid checkoutSessionId,
         CancellationToken cancellationToken)
     {
+        return await BuildCheckoutStatusAsync(checkoutSessionId, cancellationToken);
+    }
+
+
+    public async Task<CheckoutStatusSnapshot?> ReconcileCheckoutAsync(
+        Guid checkoutSessionId,
+        CancellationToken cancellationToken)
+    {
+        var checkoutSession = await _dbContext.CheckoutSessions
+            .FirstOrDefaultAsync(x => x.Id == checkoutSessionId, cancellationToken);
+        if (checkoutSession is null)
+        {
+            return null;
+        }
+
+        if (CheckoutFlowStatusPolicy.IsFinal(checkoutSession.Status))
+        {
+            return await BuildCheckoutStatusAsync(checkoutSessionId, cancellationToken);
+        }
+
+        var providerReference = NormalizeOptional(checkoutSession.ProviderPaymentReference)
+            ?? NormalizeOptional(checkoutSession.ProviderSessionId);
+        if (providerReference is null)
+        {
+            checkoutSession.Status = CheckoutFlowStatusPolicy.PendingProvider;
+            checkoutSession.PaymentStatus = CheckoutFlowStatusPolicy.PendingProvider;
+            checkoutSession.Error = "provider_reference_missing";
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return await BuildCheckoutStatusAsync(checkoutSessionId, cancellationToken);
+        }
+
+        var provider = _paymentProviderResolver.Resolve(checkoutSession.Provider);
+        PaymentStatusResult providerStatus;
+        try
+        {
+            providerStatus = await provider.FetchPaymentStatusAsync(providerReference, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            checkoutSession.Error = ex.Message;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return await BuildCheckoutStatusAsync(checkoutSessionId, cancellationToken);
+        }
+
+        var resolution = CheckoutFlowStatusPolicy.ResolveProviderCallback(providerStatus.Status);
+        checkoutSession.PaymentStatus = resolution.PaymentStatus;
+        checkoutSession.Status = resolution.CheckoutStatus;
+        checkoutSession.Error = resolution.IsSuccessful
+            ? null
+            : providerStatus.Message ?? $"provider_reconcile_{resolution.ProviderStatus}";
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (CheckoutFlowStatusPolicy.ShouldProvision(checkoutSession.Status))
+        {
+            await ProvisionCheckoutAsync(
+                checkoutSession,
+                checkoutSession.Provider,
+                checkoutSession.ProviderPaymentReference ?? providerStatus.ProviderPaymentReference,
+                cancellationToken);
+        }
+
         return await BuildCheckoutStatusAsync(checkoutSessionId, cancellationToken);
     }
 
@@ -261,29 +323,59 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
                 ReceivedAt = DateTimeOffset.UtcNow,
                 ProcessedAt = DateTimeOffset.UtcNow
             });
-            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                // Duplicate webhook event was absorbed by unique provider/event invariant.
+            }
+
             return null;
         }
 
+        var resolution = CheckoutFlowStatusPolicy.ResolveProviderCallback(paymentStatus);
         _dbContext.PaymentWebhooks.Add(new PaymentWebhook
         {
             Provider = normalizedProvider,
             EventId = normalizedEventId,
             PayloadJson = payloadJson,
-            Status = "processed",
+            Status = resolution.IsFinal ? "processed" : "accepted",
+            Error = resolution.IsSuccessful ? null : $"provider_callback_{resolution.ProviderStatus}",
             ReceivedAt = DateTimeOffset.UtcNow,
             ProcessedAt = DateTimeOffset.UtcNow
         });
 
-        checkoutSession.PaymentStatus = NormalizeCode(paymentStatus, "paid");
-        checkoutSession.Status = checkoutSession.PaymentStatus == "paid"
-            ? "payment_confirmed"
-            : "payment_failed";
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        checkoutSession.PaymentStatus = resolution.PaymentStatus;
+        checkoutSession.Status = resolution.CheckoutStatus;
+        checkoutSession.Error = resolution.IsSuccessful ? null : $"provider_callback_{resolution.ProviderStatus}";
 
-        if (checkoutSession.PaymentStatus == "paid")
+        try
         {
-            await ProvisionCheckoutAsync(checkoutSession, normalizedProvider, providerPaymentReference, cancellationToken);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            var duplicateWebhook = await _dbContext.PaymentWebhooks
+                .AsNoTracking()
+                .AnyAsync(x => x.Provider == normalizedProvider && x.EventId == normalizedEventId, cancellationToken);
+            if (!duplicateWebhook)
+            {
+                throw;
+            }
+
+            return await BuildCheckoutStatusAsync(checkoutSession.Id, cancellationToken);
+        }
+
+        if (CheckoutFlowStatusPolicy.ShouldProvision(checkoutSession.Status))
+        {
+            await ProvisionCheckoutAsync(
+                checkoutSession,
+                normalizedProvider,
+                providerPaymentReference ?? checkoutSession.ProviderPaymentReference,
+                cancellationToken);
         }
 
         return await BuildCheckoutStatusAsync(checkoutSession.Id, cancellationToken);
@@ -636,7 +728,7 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
         checkoutSession.LicenseId = license.Id;
         checkoutSession.CompletedAt = now;
         checkoutSession.ProvisionedAt = now;
-        checkoutSession.Status = "provisioned";
+        checkoutSession.Status = CheckoutFlowStatusPolicy.Succeeded;
 
         _dbContext.AuditLogs.AddRange(
             new AuditLog
@@ -737,14 +829,17 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
 
         var downloads = await BuildDownloadSnapshotsAsync(checkoutSession.TenantId, cancellationToken);
 
+        var normalizedCheckoutStatus = CheckoutFlowStatusPolicy.NormalizeCheckoutStatus(checkoutSession.Status);
+        var normalizedPaymentStatus = CheckoutFlowStatusPolicy.NormalizePaymentStatus(checkoutSession.PaymentStatus);
+
         return new CheckoutStatusSnapshot(
             checkoutSession.Id,
             checkoutSession.CheckoutReference,
             checkoutSession.CompanyName,
             checkoutSession.PlanCode,
             checkoutSession.BillingCycle,
-            checkoutSession.Status,
-            checkoutSession.PaymentStatus,
+            normalizedCheckoutStatus,
+            normalizedPaymentStatus,
             checkoutSession.Provider,
             checkoutSession.ProviderSessionId,
             checkoutSession.ProviderPaymentReference,
@@ -892,6 +987,22 @@ public sealed class CommerceProvisioningService : ICommerceProvisioningService
         }
 
         return null;
+    }
+
+    private static string AppendCheckoutSessionReference(string rawUrl, Guid checkoutSessionId)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+        {
+            return $"/success?checkout={checkoutSessionId:D}";
+        }
+
+        if (rawUrl.Contains("checkout=", StringComparison.OrdinalIgnoreCase))
+        {
+            return rawUrl;
+        }
+
+        var separator = rawUrl.Contains("?") ? "&" : "?";
+        return $"{rawUrl}{separator}checkout={Uri.EscapeDataString(checkoutSessionId.ToString("D"))}";
     }
 
     private static string NormalizeBillingPeriod(string? billingPeriod)

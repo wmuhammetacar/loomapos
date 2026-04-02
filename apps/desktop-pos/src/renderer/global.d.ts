@@ -289,6 +289,7 @@ export interface DesktopPosApi {
   getBootstrap: () => Promise<DesktopBootstrapState>;
   login: (args: { email: string; password: string }) => Promise<DesktopBootstrapState>;
   logout: () => Promise<DesktopBootstrapState>;
+  openRegister: () => Promise<{ ok: true; url: string }>;
   getActivationContext: () => Promise<DesktopActivationContext>;
   activateDesktop: (args: {
     branchName: string;

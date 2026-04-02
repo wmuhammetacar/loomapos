@@ -16,16 +16,6 @@ public sealed class StripePaymentProvider : PlaceholderPaymentProvider
     public override string ProviderCode => "stripe";
 }
 
-public sealed class IyzicoPaymentProvider : PlaceholderPaymentProvider
-{
-    public IyzicoPaymentProvider(IConfiguration configuration, ILoggerFactory loggerFactory)
-        : base(configuration, loggerFactory.CreateLogger<IyzicoPaymentProvider>())
-    {
-    }
-
-    public override string ProviderCode => "iyzico";
-}
-
 public sealed class PayTrPaymentProvider : PlaceholderPaymentProvider
 {
     public PayTrPaymentProvider(IConfiguration configuration, ILoggerFactory loggerFactory)

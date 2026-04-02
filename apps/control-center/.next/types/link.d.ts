@@ -36,6 +36,7 @@ declare namespace __next_route_internal_types__ {
     | `/audit`
     | `/dashboard`
     | `/devices`
+    | `/erp/accounting-exports`
     | `/erp/customer-accounts`
     | `/erp/purchase-orders`
     | `/erp/purchase-orders/new`
@@ -43,11 +44,15 @@ declare namespace __next_route_internal_types__ {
     | `/erp/transfers`
     | `/erp/transfers/new`
     | `/erp/warehouses`
+    | `/login`
+    | `/login/submit`
+    | `/logout`
     | `/subscriptions`
     | `/support`
     | `/sync`
     | `/tenants`
   type DynamicRoutes<T extends string = string> = 
+    | `/erp/accounting-exports/${SafeSlug<T>}`
     | `/erp/customer-accounts/${SafeSlug<T>}`
     | `/erp/purchase-orders/${SafeSlug<T>}`
     | `/erp/suppliers/${SafeSlug<T>}`

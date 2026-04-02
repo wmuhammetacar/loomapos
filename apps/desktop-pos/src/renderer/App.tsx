@@ -9,6 +9,72 @@ const fmtDateTime = (value?: string | null) =>
 const fmtDate = (value?: string | null) =>
   value ? new Date(value).toLocaleDateString("tr-TR") : "-";
 
+const mapShellError = (error: unknown, fallback: string) => {
+  const raw = error instanceof Error ? error.message.trim() : "";
+  const normalized = raw.toLowerCase();
+
+  if (!raw) {
+    return fallback;
+  }
+
+  if (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("networkerror") ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("api 502") ||
+    normalized.includes("api 503") ||
+    normalized.includes("api 504")
+  ) {
+    return "Sunucuya baglanilamadi. Ag baglantisini ve API servisinin ayakta oldugunu kontrol edin.";
+  }
+
+  if (normalized.includes("api 500")) {
+    return "Sunucu tarafinda beklenmeyen bir hata olustu. Biraz sonra tekrar deneyin.";
+  }
+
+  if (normalized.includes("api 401")) {
+    return "E-posta veya sifre hatali. Bilgileri kontrol edip tekrar deneyin.";
+  }
+
+  if (normalized.includes("already activated") || normalized.includes("already registered")) {
+    return "Bu cihaz daha once aktive edilmis. Devam etmek icin mevcut aktivasyon bilgilerini kullanin.";
+  }
+
+  if (normalized.includes("api 409")) {
+    return "Aktivasyon istegi cakisiyor. Cihaz zaten aktif olabilir veya ayni islem daha once tamamlanmis olabilir.";
+  }
+
+  if (normalized.includes("device limit reached")) {
+    return "Bu lisans icin cihaz limiti dolu. Yeni aktivasyon icin lisans limitini guncelleyin.";
+  }
+
+  if (
+    normalized.includes("license is not active") ||
+    normalized.includes("license invalid") ||
+    normalized.includes("invalid license")
+  ) {
+    return "Lisans aktif veya gecerli olmadigi icin aktivasyon tamamlanamadi.";
+  }
+
+  if (
+    normalized.includes("device activation blocked by subscription lifecycle") ||
+    (normalized.includes("api 403") && normalized.includes("lifecycle"))
+  ) {
+    return "Abonelik durumu nedeniyle cihaz aktivasyonu su anda engelleniyor. Web portal /portal/subscription adimindan plan/lisans durumunu kontrol edin.";
+  }
+
+  if (normalized.includes("giris yapin") || normalized.includes("oturum")) {
+    return "Oturum suresi doldu veya gecersiz. Lutfen tekrar giris yapin.";
+  }
+
+  if (normalized.startsWith("api")) {
+    return `${fallback} (${raw})`;
+  }
+
+  return raw;
+};
+
 export function App() {
   const {
     bootstrap,
@@ -74,7 +140,7 @@ export function App() {
         setOnboardingStep(1);
       }
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Desktop durumu yuklenemedi.");
+      setShellError(mapShellError(error, "Desktop durumu yuklenemedi."));
     } finally {
       setIsBootstrapping(false);
     }
@@ -100,7 +166,7 @@ export function App() {
         setOnboardingStep((current) => (current < 3 ? 3 : current));
       }
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Onboarding durumu yuklenemedi.");
+      setShellError(mapShellError(error, "Onboarding durumu yuklenemedi."));
     }
   }
 
@@ -115,7 +181,7 @@ export function App() {
       const context = await window.posApi.getActivationContext();
       seedActivationForm(context);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Aktivasyon bilgisi yuklenemedi.";
+      const message = mapShellError(error, "Aktivasyon bilgisi yuklenemedi.");
       if (message.toLowerCase().includes("giris yapin")) {
         setActivationContext(null);
         await refreshBootstrap();
@@ -145,7 +211,7 @@ export function App() {
         await loadOnboardingState();
       }
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Giris basarisiz.");
+      setShellError(mapShellError(error, "Giris basarisiz."));
     } finally {
       setIsSubmittingAuth(false);
     }
@@ -167,7 +233,7 @@ export function App() {
         await loadOnboardingState();
       }
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Aktivasyon basarisiz.");
+      setShellError(mapShellError(error, "Aktivasyon basarisiz."));
     } finally {
       setIsActivating(false);
     }
@@ -179,6 +245,15 @@ export function App() {
     hydrateFromBootstrap(next);
     setActivationContext(null);
     setAuthPassword("");
+  }
+
+  async function handleOpenRegister() {
+    setShellError(null);
+    try {
+      await window.posApi.openRegister();
+    } catch (error) {
+      setShellError(mapShellError(error, "Kayit sayfasi acilamadi."));
+    }
   }
 
   async function openSettings() {
@@ -202,7 +277,7 @@ export function App() {
       setIsSettingsOpen(false);
       await refreshBootstrap();
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Ayarlar kaydedilemedi.");
+      setShellError(mapShellError(error, "Ayarlar kaydedilemedi."));
     } finally {
       setIsSavingSettings(false);
     }
@@ -236,7 +311,7 @@ export function App() {
       setOnboarding(next);
       setOnboardingStep(3);
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Demo veri yuklenemedi.");
+      setShellError(mapShellError(error, "Demo veri yuklenemedi."));
     } finally {
       setIsSeedingDemo(false);
     }
@@ -262,7 +337,7 @@ export function App() {
       setOnboarding(next);
       await refreshBootstrap();
     } catch (error) {
-      setShellError(error instanceof Error ? error.message : "Onboarding tamamlanamadi.");
+      setShellError(mapShellError(error, "Onboarding tamamlanamadi."));
     } finally {
       setIsCompletingOnboarding(false);
     }
@@ -509,6 +584,12 @@ export function App() {
                 <button className="btn-primary" type="submit" disabled={isSubmittingAuth}>
                   {isSubmittingAuth ? "Giris yapiliyor..." : "Giris Yap"}
                 </button>
+                <div className="shell-note-list mt-4">
+                  <p>Hesabiniz yoksa kayit islemini portal uzerinden tamamlayabilirsiniz.</p>
+                  <button className="btn-secondary" type="button" onClick={() => void handleOpenRegister()}>
+                    Kayit ol
+                  </button>
+                </div>
               </form>
             ) : null}
 

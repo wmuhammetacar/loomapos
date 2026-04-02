@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
 import {
   activateDesktopDevice,
   clearDesktopActivation,
@@ -13,6 +13,17 @@ import {
   completeDesktopOnboarding
 } from "../desktop/desktop-shell-service.js";
 
+
+const resolveRegisterUrl = () => {
+  const explicit = process.env.LOOMAPOS_PORTAL_REGISTER_URL?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const webBase = process.env.LOOMAPOS_WEB_BASE?.trim() || "http://127.0.0.1:3100";
+  return `${webBase.replace(/\/+$/, "")}/register`;
+};
+
 export const registerDesktopShellIpc = (appVersion: string) => {
   ipcMain.handle("desktop:get-bootstrap", () => getDesktopBootstrapState(appVersion));
 
@@ -26,6 +37,12 @@ export const registerDesktopShellIpc = (appVersion: string) => {
   );
 
   ipcMain.handle("desktop:logout", () => logoutDesktopUser(appVersion));
+
+  ipcMain.handle("desktop:open-register", async () => {
+    const url = resolveRegisterUrl();
+    await shell.openExternal(url);
+    return { ok: true, url };
+  });
 
   ipcMain.handle("desktop:get-activation-context", () => getDesktopActivationContext(appVersion));
 

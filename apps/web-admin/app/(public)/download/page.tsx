@@ -40,7 +40,7 @@ export default function DownloadPage() {
           Web uzerinden kasa satis/odeme islemi yapilmaz. Satis ve odeme Desktop POS tarafinda, Mobile ise saha operasyonu ve izleme icin kullanilir.
         </p>
         <p className="rounded-2xl border border-warning/35 bg-warning/10 px-4 py-3 text-sm font-semibold text-warning">
-          Deneme aktifken kurulum yapabilirsiniz. Deneme biterse sistem salt-okunur moda gecer; goruntuleme acik kalir, operasyon yazma akislarini yeniden acmak icin plan yukseltmesi gerekir.
+          Deneme aktifken kurulum yapabilirsiniz. Deneme biterse sistem salt-okunur moda gecer; goruntuleme acik kalir, operasyon yazma akislarini yeniden acmak icin /portal/subscription adimindan yenileme/yukseltme yapin.
         </p>
         <DownloadIntentForm />
         <div className="grid gap-4">

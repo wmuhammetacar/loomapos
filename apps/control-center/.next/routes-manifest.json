@@ -20,6 +20,14 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/erp/accounting-exports/[id]",
+      "regex": "^/erp/accounting\\-exports/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/erp/accounting\\-exports/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/erp/customer-accounts/[id]",
       "regex": "^/erp/customer\\-accounts/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -100,6 +108,12 @@
       "namedRegex": "^/devices(?:/)?$"
     },
     {
+      "page": "/erp/accounting-exports",
+      "regex": "^/erp/accounting\\-exports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/erp/accounting\\-exports(?:/)?$"
+    },
+    {
       "page": "/erp/customer-accounts",
       "regex": "^/erp/customer\\-accounts(?:/)?$",
       "routeKeys": {},
@@ -140,6 +154,24 @@
       "regex": "^/erp/warehouses(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/erp/warehouses(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/login/submit",
+      "regex": "^/login/submit(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login/submit(?:/)?$"
+    },
+    {
+      "page": "/logout",
+      "regex": "^/logout(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/logout(?:/)?$"
     },
     {
       "page": "/subscriptions",

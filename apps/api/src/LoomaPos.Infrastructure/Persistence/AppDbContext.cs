@@ -381,7 +381,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.Error).HasColumnName("error");
             entity.Property(x => x.ReceivedAt).HasColumnName("received_at");
             entity.Property(x => x.ProcessedAt).HasColumnName("processed_at");
-            entity.HasIndex(x => new { x.Provider, x.EventId });
+            entity.HasIndex(x => new { x.Provider, x.EventId }).IsUnique();
         });
 
         modelBuilder.Entity<IssuedLicense>(entity =>

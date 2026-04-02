@@ -2027,7 +2027,8 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       label: "Askida / Bloklu",
       message:
           "Hesap askida veya bloklu oldugu icin operasyon yazma akislari kapali.",
-      nextAction: "Web portal > Abonelik/Lisans durumunu kontrol edin.",
+      nextAction:
+          "Web portal > $kPortalSubscriptionRoute adimindan abonelik/lisans durumunu kontrol edin.",
     );
   }
 
@@ -2041,7 +2042,8 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       label: "Odeme Gecikmis",
       message:
           "Abonelik odemesi gecikmis. Operasyon kisitlanmadan once odeme guncellenmelidir.",
-      nextAction: "Web portal > Faturalama adimindan odemeyi tamamlayin.",
+      nextAction:
+          "Web portal > $kPortalSubscriptionRoute adimindan odeme/yenileme adimini tamamlayin.",
     );
   }
 
@@ -2055,7 +2057,8 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       label: "Abonelik Iptal",
       message:
           "Abonelik iptal durumunda. Donem sonunda operasyon yazma akisleri kapanabilir.",
-      nextAction: "Web portal > Abonelik adimindan yenilemeyi tekrar acin.",
+      nextAction:
+          "Web portal > $kPortalSubscriptionRoute adimindan yenilemeyi tekrar acin.",
     );
   }
 
@@ -2084,7 +2087,7 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       message:
           "Deneme suresi sona erdi. Goruntuleme acik, operasyon yazma akisleri kapali.",
       nextAction:
-          "Yukseltin ve operasyon yazmayi tekrar acin (Web portal > Abonelik).",
+          "Yukseltin ve operasyon yazmayi tekrar acin (Web portal > $kPortalSubscriptionRoute).",
     );
   }
 
@@ -2097,7 +2100,7 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
         message:
             "Deneme bitmek uzere (${safeDays == 0 ? "Bugun son gun" : "$safeDays gun kaldi"}). Sure dolunca sistem salt-okunur moda gecer.",
         nextAction:
-            "Kesinti olmamasi icin simdi yukseltin (Web portal > Abonelik).",
+            "Kesinti olmamasi icin simdi yukseltin (Web portal > $kPortalSubscriptionRoute).",
         daysRemaining: safeDays,
       );
     }
@@ -2108,7 +2111,8 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       message: safeDays == null
           ? "Deneme aktif. Yazma akisleri acik; deneme sonunda yukseltilmezse sistem salt-okunur olur."
           : "Deneme aktif (${safeDays == 0 ? "Bugun son gun" : "$safeDays gun kaldi"}). Deneme sonunda yukseltilmezse sistem salt-okunur olur.",
-      nextAction: "Web portal > Abonelik adimindan plani simdiden secin.",
+      nextAction:
+          "Web portal > $kPortalSubscriptionRoute adimindan plani simdiden secin.",
       daysRemaining: safeDays,
     );
   }
@@ -2119,7 +2123,7 @@ TenantLifecycleDescriptor resolveTenantLifecycle(
       label: "Operasyon Bloklu",
       message: "Lisans aktif olmadigi icin operasyon yazma akislari kapali.",
       nextAction:
-          "Web portal > Abonelik/Lisans durumunu kontrol edin veya destekle iletisime gecin.",
+          "Web portal > $kPortalSubscriptionRoute adimindan abonelik/lisans durumunu kontrol edin.",
     );
   }
 

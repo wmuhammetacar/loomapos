@@ -5,6 +5,8 @@ using LoomaPos.Infrastructure.Integration;
 using LoomaPos.Domain.Commerce;
 using LoomaPos.Domain.Catalog;
 using LoomaPos.Domain.Identity;
+using LoomaPos.Infrastructure.Accounting;
+using LoomaPos.Domain.Accounting;
 using LoomaPos.Infrastructure.MultiTenancy;
 using LoomaPos.Infrastructure.Persistence;
 using LoomaPos.Infrastructure.Inventory;
@@ -196,6 +198,233 @@ public sealed class SyncEventProcessorIdempotencyTests : IAsyncLifetime
         Assert.Equal(warehouse.Id, stockMove!.WarehouseId);
     }
 
+    [Fact]
+    public async Task ProcessAsync_DuplicateFloodConcurrent_ShouldRemainSingleApplyAndNoDoubleSideEffects()
+    {
+        if (!_containerReady)
+        {
+            return;
+        }
+
+        var tenantId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var saleId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+
+        await using (var seedContext = CreateContext(tenantId, branchId, deviceId, Guid.NewGuid()))
+        {
+            await SeedOperationalStateAsync(seedContext, tenantId);
+            seedContext.Products.Add(new Product
+            {
+                Id = productId,
+                TenantId = tenantId,
+                Name = "Flood Product",
+                Unit = "adet",
+                SalePrice = 50m,
+                PurchasePrice = 25m,
+                TaxRate = 0m,
+                StockTrackingEnabled = true,
+                MinStock = 0,
+                IsActive = true
+            });
+            await seedContext.SaveChangesAsync();
+        }
+
+        var request = BuildSaleCreatedRequestWithLine(eventId, tenantId, branchId, deviceId, saleId, productId, 3m);
+
+        var processingTasks = Enumerable.Range(0, 24)
+            .Select(async _ =>
+            {
+                await using var context = CreateContext(tenantId, branchId, deviceId, Guid.NewGuid());
+                var processor = CreateProcessor(context);
+                var result = await processor.ProcessAsync(request, CancellationToken.None);
+                return result.Status;
+            })
+            .ToArray();
+
+        var statuses = await Task.WhenAll(processingTasks);
+
+        Assert.Equal(1, statuses.Count(x => x == "accepted"));
+        Assert.Equal(statuses.Length - 1, statuses.Count(x => x == "duplicate"));
+
+        await using var verify = CreateContext(tenantId, branchId, deviceId, Guid.NewGuid());
+        var processedCount = await verify.ProcessedEvents.CountAsync(x => x.EventId == eventId);
+        var saleCount = await verify.Sales.CountAsync(x => x.Id == saleId);
+        var exportCount = await verify.AccountingExportItems.CountAsync(
+            x => x.TenantId == tenantId && x.SourceType == AccountingBridgeSourceTypes.Sale && x.SourceId == saleId.ToString());
+        var customerAccountEntries = await verify.CustomerCurrentAccountEntries.CountAsync(x => x.TenantId == tenantId);
+
+        var warehouse = await verify.Warehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Name == "DEFAULT");
+        Assert.NotNull(warehouse);
+
+        var stockByWarehouse = await verify.StockByWarehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.ProductId == productId && x.WarehouseId == warehouse!.Id);
+        var branchStockBalance = await verify.StockBalances
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.BranchId == branchId && x.ProductId == productId);
+
+        Assert.Equal(1, processedCount);
+        Assert.Equal(1, saleCount);
+        Assert.Equal(1, exportCount);
+        Assert.Equal(0, customerAccountEntries);
+        Assert.NotNull(stockByWarehouse);
+        Assert.Equal(-3m, stockByWarehouse!.Quantity);
+        Assert.NotNull(branchStockBalance);
+        Assert.Equal(-3m, branchStockBalance!.Qty);
+    }
+
+    [Fact]
+    public async Task ProcessBatch_MixedDuplicateEvents_ShouldApplyDistinctEventsOnce()
+    {
+        if (!_containerReady)
+        {
+            return;
+        }
+
+        var tenantId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        var eventA = Guid.NewGuid();
+        var saleA = Guid.NewGuid();
+        var requestA = BuildSaleCreatedRequest(eventA, tenantId, branchId, deviceId, saleA);
+
+        var eventB = Guid.NewGuid();
+        var saleB = Guid.NewGuid();
+        var requestB = BuildSaleCreatedRequest(eventB, tenantId, branchId, deviceId, saleB);
+
+        await using var context = CreateContext(tenantId, branchId, deviceId, Guid.NewGuid());
+        await SeedOperationalStateAsync(context, tenantId);
+
+        var processor = CreateProcessor(context);
+        var results = await processor.ProcessBatchAsync([
+            requestA,
+            requestA,
+            requestB,
+            requestA,
+            requestB
+        ], CancellationToken.None);
+
+        Assert.Equal(5, results.Count);
+        Assert.Equal(2, results.Count(x => x.Status == "accepted"));
+        Assert.Equal(3, results.Count(x => x.Status == "duplicate"));
+
+        var processedCount = await context.ProcessedEvents.CountAsync(
+            x => x.EventId == eventA || x.EventId == eventB);
+        var saleCount = await context.Sales.CountAsync(
+            x => x.Id == saleA || x.Id == saleB);
+        var exportCount = await context.AccountingExportItems.CountAsync(
+            x => x.TenantId == tenantId
+                 && x.SourceType == AccountingBridgeSourceTypes.Sale
+                 && (x.SourceId == saleA.ToString() || x.SourceId == saleB.ToString()));
+
+        Assert.Equal(2, processedCount);
+        Assert.Equal(2, saleCount);
+        Assert.Equal(2, exportCount);
+    }
+
+    [Fact]
+    public async Task ProcessBatch_TransientFailuresThenRetry_ShouldEventuallyApplyWithoutDoubleApply()
+    {
+        if (!_containerReady)
+        {
+            return;
+        }
+
+        var tenantId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+        var eventId = Guid.NewGuid();
+        var saleId = Guid.NewGuid();
+
+        var request = BuildSaleCreatedRequest(eventId, tenantId, branchId, deviceId, saleId);
+
+        await using var context = CreateContext(tenantId, branchId, deviceId, Guid.NewGuid());
+        await SeedOperationalStateAsync(context, tenantId);
+
+        var flakyProcessor = CreateProcessor(
+            context,
+            new FlakyAccountingBridgeService(
+                new AccountingBridgeService(context),
+                failuresBeforeSuccess: 2));
+
+        var firstAttempt = await flakyProcessor.ProcessBatchAsync([request], CancellationToken.None);
+        var secondAttempt = await flakyProcessor.ProcessBatchAsync([request], CancellationToken.None);
+
+        Assert.Single(firstAttempt);
+        Assert.Equal("retry_later", firstAttempt[0].Status);
+        Assert.Single(secondAttempt);
+        Assert.Equal("retry_later", secondAttempt[0].Status);
+
+        var stableProcessor = CreateProcessor(context);
+        var thirdAttempt = await stableProcessor.ProcessBatchAsync([request], CancellationToken.None);
+        var fourthAttempt = await stableProcessor.ProcessBatchAsync([request], CancellationToken.None);
+
+        Assert.Single(thirdAttempt);
+        Assert.Equal("accepted", thirdAttempt[0].Status);
+        Assert.Single(fourthAttempt);
+        Assert.Equal("duplicate", fourthAttempt[0].Status);
+
+        var processedCount = await context.ProcessedEvents.CountAsync(x => x.EventId == eventId);
+        var saleCount = await context.Sales.CountAsync(x => x.Id == saleId);
+        var exportCount = await context.AccountingExportItems.CountAsync(
+            x => x.TenantId == tenantId
+                 && x.SourceType == AccountingBridgeSourceTypes.Sale
+                 && x.SourceId == saleId.ToString());
+
+        Assert.Equal(1, processedCount);
+        Assert.Equal(1, saleCount);
+        Assert.Equal(1, exportCount);
+    }
+
+    [Fact]
+    public async Task ProcessBatch_MixedSuccessAndPermanentFailure_ShouldKeepSuccessfulApplyIntact()
+    {
+        if (!_containerReady)
+        {
+            return;
+        }
+
+        var tenantId = Guid.NewGuid();
+        var branchId = Guid.NewGuid();
+        var deviceId = Guid.NewGuid();
+
+        var goodEventId = Guid.NewGuid();
+        var goodSaleId = Guid.NewGuid();
+        var goodRequest = BuildSaleCreatedRequest(goodEventId, tenantId, branchId, deviceId, goodSaleId);
+
+        var badEventId = Guid.NewGuid();
+        var badRequest = BuildUnsupportedRequest(badEventId, tenantId, branchId, deviceId);
+
+        await using var context = CreateContext(tenantId, branchId, deviceId, Guid.NewGuid());
+        await SeedOperationalStateAsync(context, tenantId);
+
+        var processor = CreateProcessor(context);
+        var results = await processor.ProcessBatchAsync([goodRequest, badRequest], CancellationToken.None);
+
+        Assert.Equal(2, results.Count);
+        Assert.Equal("accepted", results[0].Status);
+        Assert.Equal("rejected", results[1].Status);
+
+        var processedGood = await context.ProcessedEvents.CountAsync(x => x.EventId == goodEventId);
+        var processedBad = await context.ProcessedEvents.CountAsync(x => x.EventId == badEventId);
+        var salesCount = await context.Sales.CountAsync(x => x.Id == goodSaleId);
+        var exportCount = await context.AccountingExportItems.CountAsync(
+            x => x.TenantId == tenantId
+                 && x.SourceType == AccountingBridgeSourceTypes.Sale
+                 && x.SourceId == goodSaleId.ToString());
+
+        Assert.Equal(1, processedGood);
+        Assert.Equal(0, processedBad);
+        Assert.Equal(1, salesCount);
+        Assert.Equal(1, exportCount);
+    }
+
     private static async Task SeedOperationalStateAsync(AppDbContext context, Guid tenantId)
     {
         var subscriptionId = Guid.NewGuid();
@@ -273,13 +502,13 @@ public sealed class SyncEventProcessorIdempotencyTests : IAsyncLifetime
         return new AppDbContext(options, tenantProvider);
     }
 
-    private static SyncEventProcessor CreateProcessor(AppDbContext context)
+    private static SyncEventProcessor CreateProcessor(AppDbContext context, IAccountingBridgeService? accountingBridgeService = null)
     {
         return new SyncEventProcessor(
             context,
             new NoopRabbitMqPublisher(),
             new WarehouseCompatibilityService(context),
-            new LoomaPos.Infrastructure.Accounting.AccountingBridgeService(context),
+            accountingBridgeService ?? new AccountingBridgeService(context),
             NullLogger<SyncEventProcessor>.Instance);
     }
 
@@ -375,11 +604,88 @@ public sealed class SyncEventProcessorIdempotencyTests : IAsyncLifetime
             1);
     }
 
+    private static SyncEventRequest BuildUnsupportedRequest(
+        Guid eventId,
+        Guid tenantId,
+        Guid branchId,
+        Guid deviceId)
+    {
+        var payload = JsonSerializer.SerializeToElement(new
+        {
+            note = "unsupported_event_for_chaos_test"
+        });
+
+        return new SyncEventRequest(
+            eventId,
+            tenantId,
+            branchId,
+            deviceId,
+            "UNSUPPORTED_EVENT",
+            payload,
+            "unsupported",
+            eventId.ToString(),
+            1);
+    }
+
     private sealed class NoopRabbitMqPublisher : IRabbitMqPublisher
     {
         public Task PublishAsync(string routingKey, object payload, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FlakyAccountingBridgeService : IAccountingBridgeService
+    {
+        private readonly IAccountingBridgeService _inner;
+        private int _failuresRemaining;
+
+        public FlakyAccountingBridgeService(IAccountingBridgeService inner, int failuresBeforeSuccess)
+        {
+            _inner = inner;
+            _failuresRemaining = failuresBeforeSuccess;
+        }
+
+        public Task EnsurePendingExportItemAsync(
+            Guid tenantId,
+            string sourceType,
+            string sourceId,
+            string eventCode,
+            string payloadJson,
+            CancellationToken cancellationToken)
+        {
+            if (_failuresRemaining > 0)
+            {
+                _failuresRemaining -= 1;
+                throw new TimeoutException("Simulated transient accounting bridge timeout.");
+            }
+
+            return _inner.EnsurePendingExportItemAsync(
+                tenantId,
+                sourceType,
+                sourceId,
+                eventCode,
+                payloadJson,
+                cancellationToken);
+        }
+
+        public Task<bool> MarkExportedAsync(
+            Guid tenantId,
+            Guid exportItemId,
+            DateTimeOffset? exportedAt,
+            CancellationToken cancellationToken)
+        {
+            return _inner.MarkExportedAsync(tenantId, exportItemId, exportedAt, cancellationToken);
+        }
+
+        public Task<bool> MarkFailedAsync(
+            Guid tenantId,
+            Guid exportItemId,
+            string failureReason,
+            bool retryReady,
+            CancellationToken cancellationToken)
+        {
+            return _inner.MarkFailedAsync(tenantId, exportItemId, failureReason, retryReady, cancellationToken);
         }
     }
 

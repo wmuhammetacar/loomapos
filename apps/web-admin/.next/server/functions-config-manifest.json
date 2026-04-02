@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/crm/dashboard": {},
+    "/api/crm/leads/[leadId]/notes": {},
+    "/api/crm/leads/[leadId]/activities": {},
+    "/api/crm/leads/[leadId]/demo": {},
+    "/api/crm/events": {},
+    "/api/marketing/content": {},
+    "/api/crm/leads/[leadId]": {},
+    "/api/marketing/events": {},
+    "/api/crm/leads": {},
+    "/api/reseller-growth/applications/[applicationId]/review": {},
+    "/api/marketing/leads": {},
+    "/api/reseller-growth/applications": {},
+    "/api/reseller-growth/commissions/[commissionId]": {},
+    "/api/reseller-growth/dashboard": {},
+    "/api/reseller-growth/commissions": {},
+    "/api/reseller-growth/leads": {},
+    "/api/onboarding/events": {},
+    "/api/reseller-growth/leads/assign": {},
+    "/api/reseller-growth/payouts/[payoutId]": {},
+    "/api/reseller-growth/payouts": {},
+    "/api/reseller-growth/portal": {},
+    "/api/reseller-growth/referrals/track": {},
+    "/api/reseller-growth/resellers": {},
+    "/api/reseller-growth/resellers/[resellerId]": {}
+  }
+}

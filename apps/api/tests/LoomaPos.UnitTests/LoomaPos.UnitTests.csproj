@@ -22,5 +22,12 @@
     <Compile Include="..\..\src\LoomaPos.Application\Ops\ProductionOpsPolicy.cs" LinkBase="Application" />
     <Compile Include="..\..\src\LoomaPos.Infrastructure\Integration\IIntegrationProviderAdapter.cs" LinkBase="Infrastructure" />
     <Compile Include="..\..\src\LoomaPos.Infrastructure\Integration\RealIntegrationProviderAdapters.cs" LinkBase="Infrastructure" />
+    <Compile Include="..\..\src\LoomaPos.Api\Commerce\CommerceProvisioningContracts.cs" LinkBase="Api" />
+    <Compile Include="..\..\src\LoomaPos.Domain\Common\ITenantEntity.cs" LinkBase="Domain" />
+    <Compile Include="..\..\src\LoomaPos.Domain\Common\ICreatedAtEntity.cs" LinkBase="Domain" />
+    <Compile Include="..\..\src\LoomaPos.Domain\Common\IUpdatedAtEntity.cs" LinkBase="Domain" />
+    <Compile Include="..\..\src\LoomaPos.Domain\Identity\Tenant.cs" LinkBase="Domain" />
+    <Compile Include="..\..\src\LoomaPos.Domain\Commerce\Subscription.cs" LinkBase="Domain" />
+    <Compile Include="..\..\src\LoomaPos.Domain\Commerce\IssuedLicense.cs" LinkBase="Domain" />
   </ItemGroup>
 </Project>

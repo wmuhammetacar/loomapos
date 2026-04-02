@@ -11,7 +11,6 @@ plugins {
 android {
     namespace = "com.loomapos.mobile"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
 
     val keystorePropertiesFile = rootProject.file("key.properties")
     val keystoreProperties = Properties()

@@ -7,6 +7,7 @@ const kApiBase = String.fromEnvironment(
 const kMobileAppVersion = "0.5.0";
 const kOfflineGraceDays = 7;
 const kSyncBatchSize = 20;
+const kPortalSubscriptionRoute = "/portal/subscription";
 
 class MobileColors {
   static const primary = Color(0xFF0F6CBD);

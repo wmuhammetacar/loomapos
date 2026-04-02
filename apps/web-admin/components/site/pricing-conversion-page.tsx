@@ -6,9 +6,94 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { getStoredSession } from "@/lib/auth";
 import { getCustomerPortalSnapshot } from "@/lib/commerce-state";
+import { loadCustomerPortalExperience, type TrialLifecycleState } from "@/lib/portal-service";
 
 type BillingCycle = "monthly" | "yearly";
 type PricingContext = "guest" | "customer" | "trial" | "reseller";
+
+const portalSubscriptionRoute = "/portal/subscription";
+
+const canonicalLifecycleStates: TrialLifecycleState[] = [
+  "trial_active",
+  "trial_expiring",
+  "trial_expired",
+  "subscription_active",
+  "subscription_past_due",
+  "subscription_canceled",
+  "suspended_blocked"
+];
+
+function normalizeLifecycleState(rawState: string | null | undefined, subscriptionStatus?: string | null): TrialLifecycleState {
+  const normalized = (rawState ?? "").trim().toLowerCase();
+  if ((canonicalLifecycleStates as string[]).includes(normalized)) {
+    return normalized as TrialLifecycleState;
+  }
+
+  if (normalized === "trial_expiring_soon") {
+    return "trial_expiring";
+  }
+
+  if (normalized === "trial_expired_read_only") {
+    return "trial_expired";
+  }
+
+  if (normalized === "past_due" || normalized === "past-due") {
+    return "subscription_past_due";
+  }
+
+  if (normalized === "canceled" || normalized === "cancelled") {
+    return "subscription_canceled";
+  }
+
+  if (normalized === "suspended" || normalized === "blocked") {
+    return "suspended_blocked";
+  }
+
+  const sub = (subscriptionStatus ?? "").toLowerCase();
+  if (sub === "trialing") {
+    return "trial_active";
+  }
+  if (sub === "past_due") {
+    return "subscription_past_due";
+  }
+  if (sub === "canceled" || sub === "cancelled") {
+    return "subscription_canceled";
+  }
+
+  return "subscription_active";
+}
+
+function buildLifecycleMessage(state: TrialLifecycleState, daysRemaining: number | null): string | null {
+  if (state === "trial_active") {
+    return daysRemaining == null
+      ? "Deneme aktif. Deneme bitmeden yukselterek kesintisiz devam edin."
+      : `Deneme aktif (${daysRemaining} gun kaldi). Deneme bitmeden yukseltin.`;
+  }
+
+  if (state === "trial_expiring") {
+    return daysRemaining == null
+      ? "Deneme bitmek uzere. Sure sonunda sistem salt-okunur moda gecer."
+      : `Deneme bitmek uzere (${daysRemaining} gun). Sure sonunda sistem salt-okunur moda gecer.`;
+  }
+
+  if (state === "trial_expired") {
+    return "Deneme suresi bitti. Sistem salt-okunur modda; goruntuleme acik, operasyon yazma akislari kapali.";
+  }
+
+  if (state === "subscription_past_due") {
+    return "Odeme gecikmis. Kesinti olmamasi icin portal abonelik adimindan odeme/yenileme durumunu guncelleyin.";
+  }
+
+  if (state === "subscription_canceled") {
+    return "Abonelik iptal durumunda. Donem sonu kesintisi olmamasi icin aboneligi yeniden etkinlestirin.";
+  }
+
+  if (state === "suspended_blocked") {
+    return "Hesap askida/bloklu. Operasyon yazma akislarini acmak icin abonelik/lisans durumunu portalden duzeltin.";
+  }
+
+  return null;
+}
 
 interface PlanViewModel {
   code: "starter" | "pro" | "enterprise";
@@ -134,20 +219,30 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function getPrimaryAction(context: PricingContext) {
-  if (context === "trial") {
-    return { label: "Denemeyi Yukselt", href: "/checkout?plan=pro&cycle=monthly" };
-  }
-
-  if (context === "customer") {
-    return { label: "Plani Yukselt", href: "/portal/subscription" };
-  }
-
+function getPrimaryAction(context: PricingContext, lifecycleState: TrialLifecycleState | null) {
   if (context === "reseller") {
     return { label: "Bayi Portalina Git", href: "/reseller/portal" };
   }
 
-  return { label: "Plani Sec", href: "#plan-kartlari" };
+  if (context === "guest") {
+    return { label: "Plani Sec", href: "#plan-kartlari" };
+  }
+
+  switch (lifecycleState) {
+    case "trial_active":
+    case "trial_expiring":
+      return { label: "Upgrade", href: portalSubscriptionRoute };
+    case "trial_expired":
+      return { label: "Renew / Upgrade", href: portalSubscriptionRoute };
+    case "subscription_past_due":
+      return { label: "Pay / Renew", href: portalSubscriptionRoute };
+    case "subscription_canceled":
+      return { label: "Reactivate / Renew", href: portalSubscriptionRoute };
+    case "suspended_blocked":
+      return { label: "Aboneligi Coz", href: portalSubscriptionRoute };
+    default:
+      return { label: "Manage Plan", href: portalSubscriptionRoute };
+  }
 }
 
 function getSecondaryAction(context: PricingContext) {
@@ -182,57 +277,115 @@ export function PricingConversionPage() {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [expandedComparison, setExpandedComparison] = useState(false);
   const [pricingContext, setPricingContext] = useState<PricingContext>("guest");
+  const [portalLifecycleState, setPortalLifecycleState] =
+    useState<TrialLifecycleState | null>(null);
   const [trialStatusMessage, setTrialStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const session = getStoredSession();
+    let cancelled = false;
 
-    if (!session) {
-      setPricingContext("guest");
-      setTrialStatusMessage(null);
-      return;
-    }
+    const hydrate = async () => {
+      const session = getStoredSession();
 
-    if (session.portalType === "reseller") {
-      setPricingContext("reseller");
-      setTrialStatusMessage(null);
-      return;
-    }
+      if (!session) {
+        if (cancelled) {
+          return;
+        }
+        setPricingContext("guest");
+        setPortalLifecycleState(null);
+        setTrialStatusMessage(null);
+        return;
+      }
 
-    if (session.portalType === "customer") {
-      const snapshot = getCustomerPortalSnapshot();
-      const trialing = snapshot?.subscription?.status === "trialing";
-      if (trialing) {
-        const trialEndRaw = snapshot?.subscription?.currentPeriodEnd;
-        const trialEnd = trialEndRaw ? new Date(trialEndRaw) : null;
-        const now = new Date();
-        const remainingDays = trialEnd
-          ? Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
-          : null;
-        const expiringSoon = remainingDays === null ? false : remainingDays <= 3;
+      if (session.portalType === "reseller") {
+        if (cancelled) {
+          return;
+        }
+        setPricingContext("reseller");
+        setPortalLifecycleState(null);
+        setTrialStatusMessage(null);
+        return;
+      }
 
-        setPricingContext("trial");
-        setTrialStatusMessage(
-          remainingDays !== null && remainingDays <= 0
-            ? "Deneme suresi bitti. Sistem salt-okunur modda; goruntuleme acik, operasyon yazma akislari kapali."
-            : expiringSoon
-              ? "Deneme bitmek uzere (" + remainingDays + " gun). Sure sonunda sistem salt-okunur moda gecer."
-              : "Deneme aktif" +
-                  (remainingDays === null ? "" : " (" + remainingDays + " gun kaldi)") +
-                  ". Deneme bitmeden yukselterek kesintisiz devam edin."
-        );
-      } else {
-        setPricingContext("customer");
+      if (session.portalType === "customer") {
+        try {
+          const experience = await loadCustomerPortalExperience();
+          if (!experience) {
+            if (cancelled) {
+              return;
+            }
+            setPortalLifecycleState("subscription_active");
+            setPricingContext("customer");
+            setTrialStatusMessage(null);
+            return;
+          }
+
+          const lifecycleState = normalizeLifecycleState(
+            experience.promo.lifecycleState,
+            experience.subscription?.status
+          );
+          const trialDays = experience.promo.trialRemainingDays ?? null;
+          if (cancelled) {
+            return;
+          }
+
+          setPortalLifecycleState(lifecycleState);
+          setPricingContext(
+            lifecycleState === "trial_active" ||
+              lifecycleState === "trial_expiring" ||
+              lifecycleState === "trial_expired"
+              ? "trial"
+              : "customer"
+          );
+          setTrialStatusMessage(buildLifecycleMessage(lifecycleState, trialDays));
+          return;
+        } catch {
+          const snapshot = getCustomerPortalSnapshot();
+          const trialing = snapshot?.subscription?.status === "trialing";
+          const trialEndRaw = snapshot?.subscription?.currentPeriodEnd;
+          const trialEnd = trialEndRaw ? new Date(trialEndRaw) : null;
+          const now = new Date();
+          const remainingDays = trialEnd
+            ? Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
+            : null;
+
+          const lifecycleState = trialing
+            ? remainingDays !== null && remainingDays <= 0
+              ? "trial_expired"
+              : remainingDays !== null && remainingDays <= 3
+              ? "trial_expiring"
+              : "trial_active"
+            : "subscription_active";
+
+          if (cancelled) {
+            return;
+          }
+
+          setPortalLifecycleState(lifecycleState);
+          setPricingContext(trialing ? "trial" : "customer");
+          setTrialStatusMessage(buildLifecycleMessage(lifecycleState, remainingDays));
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        setPricingContext("guest");
+        setPortalLifecycleState(null);
         setTrialStatusMessage(null);
       }
-      return;
-    }
+    };
 
-    setPricingContext("guest");
-    setTrialStatusMessage(null);
+    void hydrate();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const primaryAction = useMemo(() => getPrimaryAction(pricingContext), [pricingContext]);
+  const primaryAction = useMemo(
+    () => getPrimaryAction(pricingContext, portalLifecycleState),
+    [pricingContext, portalLifecycleState]
+  );
   const secondaryAction = useMemo(() => getSecondaryAction(pricingContext), [pricingContext]);
   const cardCta = useMemo(() => getCardCta(pricingContext), [pricingContext]);
 
@@ -365,7 +518,9 @@ export function PricingConversionPage() {
               ? "/contact?subject=enterprise-plan"
               : pricingContext === "reseller"
                 ? "/reseller/portal"
-                : `/checkout?plan=${plan.code}&cycle=${cycle}`;
+                : pricingContext === "customer" || pricingContext === "trial"
+                  ? portalSubscriptionRoute
+                  : `/checkout?plan=${plan.code}&cycle=${cycle}`;
 
             const cardLabel = plan.enterprise ? "Iletisime Gec" : cardCta;
 

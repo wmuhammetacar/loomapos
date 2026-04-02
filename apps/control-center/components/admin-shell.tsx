@@ -24,13 +24,22 @@ const navSections = [
       { href: "/erp/transfers", label: "Transfers" },
       { href: "/erp/suppliers", label: "Suppliers" },
       { href: "/erp/purchase-orders", label: "Purchase Orders" },
-      { href: "/erp/customer-accounts", label: "Customer Accounts" }
+      { href: "/erp/customer-accounts", label: "Customer Accounts" },
+      { href: "/erp/accounting-exports", label: "Accounting Exports" }
     ]
   }
 ] as const;
 
-export function AdminShell({ children }: { children: ReactNode }) {
+type AdminShellProps = {
+  children: ReactNode;
+  adminEmail: string;
+  adminName?: string;
+  adminRoles: string[];
+};
+
+export function AdminShell({ children, adminEmail, adminName, adminRoles }: AdminShellProps) {
   const pathname = usePathname();
+  const roleLabel = adminRoles.length > 0 ? adminRoles.join(", ") : "internal_admin";
 
   return (
     <div className="min-h-screen bg-background text-text">
@@ -73,7 +82,19 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <p className="text-xs uppercase tracking-wide text-gray-500">Internal Operations Panel</p>
               <h1 className="text-sm font-semibold">Looma SaaS Control Surface</h1>
             </div>
-            <p className="text-sm text-gray-600">Env: Internal</p>
+
+            <div className="flex items-center gap-3 text-sm">
+              <div className="text-right">
+                <p className="font-medium text-text">{adminName ?? adminEmail}</p>
+                <p className="text-xs text-gray-500">{roleLabel}</p>
+              </div>
+              <Link
+                href="/logout"
+                className="rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-muted"
+              >
+                Sign out
+              </Link>
+            </div>
           </header>
           <main className="flex-1 p-6">{children}</main>
         </div>

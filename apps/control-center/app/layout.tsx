@@ -14,15 +14,25 @@ export default async function RootLayout({
   children
 }: Readonly<{ children: ReactNode }>) {
   const requestHeaders = await headers();
-  const internalHeader = requestHeaders.get("x-internal-admin");
-  const forwardedHost = requestHeaders.get("x-forwarded-host");
-  const host = (forwardedHost ?? requestHeaders.get("host") ?? "").toLowerCase();
-  const isLocalHost = host.startsWith("127.0.0.1") || host.startsWith("localhost");
-  const allowLocalBypass =
-    isLocalHost &&
-    process.env.LOOMA_INTERNAL_ADMIN_REQUIRE_HEADER !== "true";
+  const pathname = requestHeaders.get("x-control-center-pathname") ?? "/";
+  const isLoginRoute = pathname === "/login";
 
-  if (internalHeader !== "true" && !allowLocalBypass) {
+  if (isLoginRoute) {
+    return (
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    );
+  }
+
+  const adminEmail = requestHeaders.get("x-control-center-admin-email");
+  const adminName = requestHeaders.get("x-control-center-admin-name") ?? undefined;
+  const adminRoles = (requestHeaders.get("x-control-center-admin-roles") ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+  if (!adminEmail) {
     return (
       <html lang="en">
         <body>
@@ -35,7 +45,9 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AdminShell>{children}</AdminShell>
+        <AdminShell adminEmail={adminEmail} adminName={adminName} adminRoles={adminRoles}>
+          {children}
+        </AdminShell>
       </body>
     </html>
   );

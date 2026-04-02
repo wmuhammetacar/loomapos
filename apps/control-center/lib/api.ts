@@ -1,6 +1,10 @@
 import "server-only";
+import { cookies } from "next/headers";
 import type {
   ActivityItem,
+  AccountingExportItemDetailRow,
+  AccountingExportItemRow,
+  AccountingExportStatus,
   AuditRecord,
   CustomerAccountBalanceState,
   CustomerAccountDetailRow,
@@ -30,30 +34,13 @@ import type {
   WarehouseTransferStatus,
   WarehouseTransferSummaryRow
 } from "@/types";
+import { INTERNAL_ADMIN_ACCESS_COOKIE } from "@/lib/internal-admin-auth";
 
 const API_BASE_URL =
   process.env.LOOMA_DOTNET_API_BASE_URL ??
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   "http://127.0.0.1:5000";
-const INTERNAL_ADMIN_EMAIL =
-  process.env.LOOMA_INTERNAL_ADMIN_EMAIL ??
-  process.env.INTERNAL_ADMIN_BOOTSTRAP_EMAIL ??
-  "ops@loomapos.local";
-const INTERNAL_ADMIN_PASSWORD =
-  process.env.LOOMA_INTERNAL_ADMIN_PASSWORD ??
-  process.env.INTERNAL_ADMIN_BOOTSTRAP_PASSWORD ??
-  "Demo123";
 const REQUEST_TIMEOUT_MS = 15000;
-
-type InternalTokenEnvelopeDto = {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: string;
-  refreshExpiresAt: string;
-  email: string;
-  displayName: string;
-  roles: string[];
-};
 
 type InternalAdminOverviewDto = {
   activeTenants: number;
@@ -313,6 +300,31 @@ type InternalAdminCustomerAccountDetailDto = InternalAdminCustomerAccountListDto
   entries: InternalAdminCustomerAccountEntryDto[];
 };
 
+type InternalAdminAccountingExportItemListDto = {
+  id: string;
+  tenantId?: string | null;
+  sourceType: string;
+  sourceId: string;
+  eventCode: string;
+  status: string;
+  createdAt: string;
+  exportedAt?: string | null;
+  failureReason?: string | null;
+};
+
+type InternalAdminAccountingExportItemDetailDto = {
+  id: string;
+  tenantId?: string | null;
+  sourceType: string;
+  sourceId: string;
+  eventCode: string;
+  payloadJson: string;
+  status: string;
+  createdAt: string;
+  exportedAt?: string | null;
+  failureReason?: string | null;
+};
+
 class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -322,14 +334,6 @@ class ApiError extends Error {
     this.name = "ApiError";
   }
 }
-
-type AccessTokenCache = {
-  token: string;
-  expiresAtMs: number;
-};
-
-let accessTokenCache: AccessTokenCache | null = null;
-let accessTokenPending: Promise<string> | null = null;
 
 function normalizePlan(planCode: string): TenantPlan {
   const normalized = planCode.trim().toLowerCase();
@@ -451,6 +455,17 @@ function normalizeCustomerAccountBalanceState(status: string | null | undefined)
   return "zero";
 }
 
+function normalizeAccountingExportStatus(status: string): AccountingExportStatus {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "exported") {
+    return "exported";
+  }
+  if (normalized === "failed") {
+    return "failed";
+  }
+  return "pending";
+}
+
 function formatTarget(targetType: string, targetId: string): string {
   if (targetType.trim().length === 0) {
     return targetId;
@@ -491,60 +506,18 @@ async function parseJson<T>(response: Response): Promise<T> {
   return raw as T;
 }
 
-async function loginInternalAdmin(): Promise<string> {
-  const response = await fetchWithTimeout(`${API_BASE_URL}/internal/admin/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      email: INTERNAL_ADMIN_EMAIL,
-      password: INTERNAL_ADMIN_PASSWORD
-    })
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new ApiError(
-      response.status,
-      `Internal admin login failed (${response.status}): ${message}`
-    );
-  }
-
-  const tokenEnvelope = await parseJson<InternalTokenEnvelopeDto>(response);
-  const expiresAtMs = Date.parse(tokenEnvelope.expiresAt);
-
-  if (!tokenEnvelope.accessToken || Number.isNaN(expiresAtMs)) {
-    throw new ApiError(500, "Internal admin login response is invalid.");
-  }
-
-  accessTokenCache = {
-    token: tokenEnvelope.accessToken,
-    expiresAtMs
-  };
-
-  return tokenEnvelope.accessToken;
-}
-
 async function getAccessToken(): Promise<string> {
-  if (accessTokenCache && accessTokenCache.expiresAtMs - 60000 > Date.now()) {
-    return accessTokenCache.token;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(INTERNAL_ADMIN_ACCESS_COOKIE)?.value?.trim();
+
+  if (!token) {
+    throw new ApiError(401, "Internal admin session missing. Sign in is required.");
   }
 
-  if (accessTokenPending) {
-    return await accessTokenPending;
-  }
-
-  accessTokenPending = loginInternalAdmin();
-
-  try {
-    return await accessTokenPending;
-  } finally {
-    accessTokenPending = null;
-  }
+  return token;
 }
 
-async function requestAdminApi<T>(path: string, retried = false): Promise<T> {
+async function requestAdminApi<T>(path: string): Promise<T> {
   const token = await getAccessToken();
 
   const response = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
@@ -552,11 +525,6 @@ async function requestAdminApi<T>(path: string, retried = false): Promise<T> {
       Authorization: `Bearer ${token}`
     }
   });
-
-  if (response.status === 401 && !retried) {
-    accessTokenCache = null;
-    return await requestAdminApi<T>(path, true);
-  }
 
   if (!response.ok) {
     const message = await response.text();
@@ -569,8 +537,7 @@ async function requestAdminApi<T>(path: string, retried = false): Promise<T> {
 async function requestAdminApiMutation<T>(
   path: string,
   method: "POST" | "PUT" | "PATCH" | "DELETE",
-  body?: unknown,
-  retried = false
+  body?: unknown
 ): Promise<T> {
   const token = await getAccessToken();
 
@@ -582,11 +549,6 @@ async function requestAdminApiMutation<T>(
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
-
-  if (response.status === 401 && !retried) {
-    accessTokenCache = null;
-    return await requestAdminApiMutation<T>(path, method, body, true);
-  }
 
   if (!response.ok) {
     const message = await response.text();
@@ -1483,6 +1445,124 @@ export async function recordCustomerAccountRefundCredit(input: {
   );
 
   return toCustomerAccountDetail(row);
+}
+
+function toAccountingExportItemRow(row: InternalAdminAccountingExportItemListDto): AccountingExportItemRow {
+  return {
+    id: row.id,
+    tenantId: row.tenantId ?? null,
+    sourceType: trimOrDash(row.sourceType),
+    sourceId: trimOrDash(row.sourceId),
+    eventCode: trimOrDash(row.eventCode),
+    status: normalizeAccountingExportStatus(row.status),
+    createdAt: row.createdAt,
+    exportedAt: row.exportedAt ?? null,
+    failureReason: row.failureReason ?? null
+  };
+}
+
+function toAccountingExportItemDetailRow(
+  row: InternalAdminAccountingExportItemDetailDto
+): AccountingExportItemDetailRow {
+  return {
+    ...toAccountingExportItemRow(row),
+    payloadJson: row.payloadJson
+  };
+}
+
+export async function getAccountingExportItems(params?: {
+  query?: string;
+  status?: AccountingExportStatus | "all";
+  sourceType?: string | "all";
+  take?: number;
+}): Promise<ConnectedList<AccountingExportItemRow>> {
+  const query = params?.query?.trim().toLowerCase() ?? "";
+  const status = params?.status ?? "all";
+  const sourceType = params?.sourceType?.trim() ?? "all";
+  const take = params?.take ?? 200;
+
+  const queryParams = new URLSearchParams();
+  if (status !== "all") {
+    queryParams.set("status", status);
+  }
+  if (sourceType !== "all" && sourceType.length > 0) {
+    queryParams.set("sourceType", sourceType);
+  }
+  if (Number.isFinite(take) && take > 0) {
+    queryParams.set("take", String(Math.min(take, 1000)));
+  }
+
+  const path =
+    queryParams.size > 0
+      ? "/accounting/export-items?" + queryParams.toString()
+      : "/accounting/export-items";
+
+  const rows = await requestAdminApi<InternalAdminAccountingExportItemListDto[]>(path);
+  const mapped = rows.map(toAccountingExportItemRow);
+
+  return {
+    connection: "connected",
+    items:
+      query.length === 0
+        ? mapped
+        : mapped.filter((item) =>
+            [
+              item.id,
+              item.sourceType,
+              item.sourceId,
+              item.eventCode,
+              item.status,
+              item.failureReason ?? "",
+              item.tenantId ?? ""
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(query)
+          )
+  };
+}
+
+export async function getAccountingExportItemDetail(id: string): Promise<AccountingExportItemDetailRow | null> {
+  try {
+    const row = await requestAdminApi<InternalAdminAccountingExportItemDetailDto>(
+      "/accounting/export-items/" + id
+    );
+    return toAccountingExportItemDetailRow(row);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function markAccountingExportItemAsExported(input: {
+  id: string;
+  exportedAt?: string;
+}): Promise<void> {
+  await requestAdminApiMutation<{ id: string; status: string; exportedAt?: string | null }>(
+    "/accounting/export-items/" + input.id + "/mark-exported",
+    "POST",
+    {
+      exportedAt: input.exportedAt ?? null
+    }
+  );
+}
+
+export async function markAccountingExportItemAsFailed(input: {
+  id: string;
+  failureReason?: string;
+  retryReady?: boolean;
+}): Promise<void> {
+  await requestAdminApiMutation<{ id: string; status: string; failureReason?: string | null }>(
+    "/accounting/export-items/" + input.id + "/mark-failed",
+    "POST",
+    {
+      failureReason: input.failureReason ?? null,
+      retryReady: input.retryReady ?? false
+    }
+  );
 }
 
 export async function getSubscriptions(): Promise<ConnectedList<SubscriptionRow>> {

@@ -23,7 +23,7 @@ export function SuccessPanel() {
         return;
       }
 
-      const trackingKey = `${result.companyName}:${result.checkoutSessionId ?? receiptId ?? "local"}`;
+      const trackingKey = result.companyName + ":" + (result.checkoutSessionId ? result.checkoutSessionId : "unknown") + ":" + result.status;
       if (trackedKeyRef.current === trackingKey) {
         return;
       }
@@ -34,7 +34,7 @@ export function SuccessPanel() {
         companyName: result.companyName,
         tenantId: result.tenantId ?? undefined,
         source: "checkout_start",
-        detail: `Checkout completed for ${result.planCode} (${result.billingPeriod})`,
+        detail: "Checkout state " + result.status + " for " + result.planCode + " (" + result.billingPeriod + ")",
         path: "/success"
       });
     });
@@ -51,13 +51,15 @@ export function SuccessPanel() {
     );
   }
 
+  const isSucceeded = snapshot.status === "succeeded";
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
       <Card>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand">
-          Payment success
+          {isSucceeded ? "Payment verified" : "Payment pending"}
         </p>
-        <CardTitle className="mt-2">Lisansiniz hazir</CardTitle>
+        <CardTitle className="mt-2">{isSucceeded ? "Lisansiniz hazir" : "Odeme onayi bekleniyor"}</CardTitle>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Info label="Tenant / Company" value={snapshot.companyName} />
           <Info label="Current plan" value={snapshot.planCode} />
@@ -69,38 +71,60 @@ export function SuccessPanel() {
       </Card>
 
       <Card>
-        <CardTitle>Lisans anahtari</CardTitle>
-        <p className="mt-4 rounded-[24px] border border-line bg-muted/40 px-4 py-4 font-mono text-sm text-text">
-          {snapshot.licenseKey ?? "-"}
-        </p>
-        <div className="mt-5 space-y-3 text-sm leading-6 text-text/72">
-          <p>Sonraki adimlar:</p>
-          <ol className="space-y-2">
-            <li>1. Desktop veya Mobile uygulamayi indirin.</li>
-            <li>2. Ilk acilista bu lisans anahtarini kullanin.</li>
-            <li>3. Cihaz aktivasyonu tamamlandiginda operasyona uygulama icinden gecin.</li>
-          </ol>
-        </div>
-        {snapshot.downloads.length > 0 ? (
-          <div className="mt-6 space-y-3">
-            {snapshot.downloads.slice(0, 3).map((asset) => (
-              <div key={asset.assetId} className="rounded-[24px] border border-line bg-muted/30 px-4 py-3">
-                <p className="font-semibold text-text">{asset.title}</p>
-                <p className="mt-1 text-sm text-text/68">
-                  {asset.version} · {asset.releaseDate} · {asset.platform}
-                </p>
+        {isSucceeded ? (
+          <>
+            <CardTitle>Lisans anahtari</CardTitle>
+            <p className="mt-4 rounded-[24px] border border-line bg-muted/40 px-4 py-4 font-mono text-sm text-text">
+              {snapshot.licenseKey ?? "-"}
+            </p>
+            <div className="mt-5 space-y-3 text-sm leading-6 text-text/72">
+              <p>Sonraki adimlar:</p>
+              <ol className="space-y-2">
+                <li>1. Desktop veya Mobile uygulamayi indirin.</li>
+                <li>2. Ilk acilista bu lisans anahtarini kullanin.</li>
+                <li>3. Cihaz aktivasyonu tamamlandiginda operasyona uygulama icinden gecin.</li>
+              </ol>
+            </div>
+            {snapshot.downloads.length > 0 ? (
+              <div className="mt-6 space-y-3">
+                {snapshot.downloads.slice(0, 3).map((asset) => (
+                  <div key={asset.assetId} className="rounded-[24px] border border-line bg-muted/30 px-4 py-3">
+                    <p className="font-semibold text-text">{asset.title}</p>
+                    <p className="mt-1 text-sm text-text/68">
+                      {asset.version} · {asset.releaseDate} · {asset.platform}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : null}
-        <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold">
-          <Link href="/portal/onboarding" className="text-brand">
-            Onboarding&apos;e git
-          </Link>
-          <Link href="/download" className="text-text">
-            Download center
-          </Link>
-        </div>
+            ) : null}
+            <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold">
+              <Link href="/portal/onboarding" className="text-brand">
+                Onboarding&apos;e git
+              </Link>
+              <Link href="/download" className="text-text">
+                Download center
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <CardTitle>Odeme tamamlanmadi</CardTitle>
+            <p className="mt-4 text-sm leading-6 text-text/72">
+              Abonelik/lisans aktivasyonu yalnizca dogrulanmis provider sonucu ile tamamlanir.
+            </p>
+            <p className="mt-4 rounded-[24px] border border-line bg-muted/40 px-4 py-4 text-sm text-text/72">
+              Checkout status: {snapshot.status} · Payment status: {snapshot.paymentStatus}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3 text-sm font-semibold">
+              <Link href="/checkout" className="text-brand">
+                Checkout&apos;a don
+              </Link>
+              <Link href="/portal/subscription" className="text-text">
+                Abonelik durumu
+              </Link>
+            </div>
+          </>
+        )}
       </Card>
     </div>
   );

@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using LoomaPos.Api.Common;
+using LoomaPos.Api.Commerce;
 using LoomaPos.Domain.Auditing;
 using LoomaPos.Domain.Commerce;
 using LoomaPos.Domain.Identity;
@@ -26,11 +27,11 @@ public static class CommerceEndpoints
 
         group.MapPost("/checkout", CheckoutAsync)
             .WithName("CommerceCheckout")
-            .WithSummary("Creates tenant, subscription, invoice and license after successful checkout.");
+            .WithSummary("Deprecated legacy checkout endpoint. Use /commerce/checkout/session.");
 
-        group.MapGet("/portal/{tenantId:guid}", GetPortalAsync)
+        group.MapGet("/portal/me", GetPortalMeAsync)
             .WithName("CommercePortal")
-            .WithSummary("Gets customer subscription portal data by tenant.");
+            .WithSummary("Gets customer subscription portal data for authenticated tenant.");
 
         group.MapPost("/reseller/apply", ApplyResellerAsync)
             .WithName("ApplyReseller")
@@ -74,260 +75,85 @@ public static class CommerceEndpoints
             ParseFeatures(plan.FeaturesJson))));
     }
 
-    private static async Task<IResult> CheckoutAsync(
+    private static Task<IResult> CheckoutAsync(
         CommerceCheckoutRequest request,
         AppDbContext dbContext,
         IPaymentProvider paymentProvider,
         IConfiguration configuration,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.CompanyName) || string.IsNullOrWhiteSpace(request.Email))
+        _ = request;
+        _ = dbContext;
+        _ = paymentProvider;
+        _ = configuration;
+        _ = cancellationToken;
+
+        return Task.FromResult(Results.Conflict(new
         {
-            return Results.BadRequest(new { error = "companyName and email are required." });
-        }
-
-        var billingCycle = NormalizeBillingCycle(request.BillingCycle);
-        var planCode = NormalizeCode(request.PlanCode, "starter");
-
-        var plan = await dbContext.Plans.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Code == planCode && x.IsActive, cancellationToken);
-        if (plan is null)
-        {
-            return Results.BadRequest(new { error = "invalid planCode." });
-        }
-
-        var amount = billingCycle == "yearly" ? plan.YearlyPrice : plan.MonthlyPrice;
-        var now = DateTimeOffset.UtcNow;
-        var periodEnd = billingCycle == "yearly" ? now.AddYears(1) : now.AddMonths(1);
-        var paymentCharge = await paymentProvider.CreateChargeAsync(
-            new PaymentChargeRequest(
-                Guid.Empty,
-                NormalizeCode(request.Provider, "mock"),
-                amount,
-                "TRY",
-                $"Subscription checkout for {plan.Code} ({billingCycle})"),
-            cancellationToken);
-
-        ResellerAccount? reseller = null;
-        if (!string.IsNullOrWhiteSpace(request.ResellerCode))
-        {
-            var code = NormalizeCode(request.ResellerCode, string.Empty);
-            reseller = await dbContext.ResellerAccounts
-                .FirstOrDefaultAsync(x => x.Code == code && x.Status == "approved", cancellationToken);
-        }
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        var tenant = new Tenant
-        {
-            Name = request.CompanyName.Trim()
-        };
-
-        var tenantSettings = new
-        {
-            licensePlan = plan.Code,
-            licenseNextPaymentDate = DateOnly.FromDateTime(periodEnd.UtcDateTime).ToString("yyyy-MM-dd")
-        };
-        tenant.SettingsJson = JsonSerializer.Serialize(tenantSettings);
-        dbContext.Tenants.Add(tenant);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        var branch = new Branch
-        {
-            TenantId = tenant.Id,
-            Name = "Merkez"
-        };
-        dbContext.Branches.Add(branch);
-
-        var adminUser = new AppUser
-        {
-            TenantId = tenant.Id,
-            BranchId = branch.Id,
-            Email = request.Email.Trim().ToLowerInvariant(),
-            Name = request.ContactName?.Trim() is { Length: > 0 } contact ? contact : "Firma Sahibi",
-            IsActive = true
-        };
-        dbContext.Users.Add(adminUser);
-
-        var subscription = new Subscription
-        {
-            TenantId = tenant.Id,
-            PlanCode = plan.Code,
-            BillingCycle = billingCycle,
-            Status = "active",
-            CurrentPeriodStart = now,
-            CurrentPeriodEnd = periodEnd,
-            ResellerCode = reseller?.Code
-        };
-        dbContext.Subscriptions.Add(subscription);
-
-        var session = new CheckoutSession
-        {
-            TenantId = tenant.Id,
-            CompanyName = tenant.Name,
-            Email = adminUser.Email,
-            PlanCode = plan.Code,
-            BillingCycle = billingCycle,
-            ResellerCode = reseller?.Code,
-            Amount = amount,
-            Currency = "TRY",
-            Status = "paid",
-            CompletedAt = now
-        };
-        dbContext.CheckoutSessions.Add(session);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        var invoice = new Invoice
-        {
-            TenantId = tenant.Id,
-            SubscriptionId = subscription.Id,
-            InvoiceNo = BuildInvoiceNo(now),
-            Total = amount,
-            Currency = "TRY",
-            Status = "paid",
-            IssuedAt = now,
-            PaidAt = now
-        };
-        dbContext.Invoices.Add(invoice);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        var payment = new SubscriptionPayment
-        {
-            TenantId = tenant.Id,
-            SubscriptionId = subscription.Id,
-            InvoiceId = invoice.Id,
-            Provider = paymentCharge.Provider,
-            PaymentRef = paymentCharge.PaymentRef,
-            Status = paymentCharge.Status,
-            Amount = amount,
-            Currency = "TRY",
-            PaidAt = paymentCharge.ProcessedAt
-        };
-        dbContext.SubscriptionPayments.Add(payment);
-        dbContext.PaymentWebhooks.Add(new PaymentWebhook
-        {
-            Provider = paymentCharge.Provider,
-            EventId = paymentCharge.PaymentRef,
-            PayloadJson = JsonSerializer.Serialize(new
-            {
-                type = "checkout_paid",
-                amount,
-                currency = "TRY",
-                plan = plan.Code,
-                billingCycle
-            }),
-            Status = "processed",
-            ReceivedAt = paymentCharge.ProcessedAt,
-            ProcessedAt = paymentCharge.ProcessedAt
-        });
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        var licenseToken = BuildLicenseToken(
-            configuration,
-            tenant.Id,
-            plan.Code,
-            billingCycle,
-            plan.MaxBranches,
-            plan.MaxUsers,
-            plan.MaxDevices,
-            plan.FeaturesJson,
-            periodEnd,
-            7);
-
-        var issuedLicense = new IssuedLicense
-        {
-            TenantId = tenant.Id,
-            SubscriptionId = subscription.Id,
-            PlanCode = plan.Code,
-            LicenseToken = licenseToken,
-            FeaturesJson = plan.FeaturesJson,
-            DeviceLimit = plan.MaxDevices,
-            IssuedAt = now,
-            ExpiresAt = periodEnd,
-            GraceDays = 7,
-            Status = "active"
-        };
-        dbContext.IssuedLicenses.Add(issuedLicense);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        dbContext.LicenseEvents.Add(new LicenseEvent
-        {
-            TenantId = tenant.Id,
-            LicenseId = issuedLicense.Id,
-            EventType = "LICENSE_ISSUED",
-            PayloadJson = JsonSerializer.Serialize(new
-            {
-                billingCycle,
-                amount,
-                currency = "TRY"
-            }),
-            CreatedAt = now
-        });
-
-        if (reseller is not null)
-        {
-            dbContext.ResellerCustomers.Add(new ResellerCustomer
-            {
-                TenantId = tenant.Id,
-                ResellerId = reseller.Id,
-                ReferredAt = now
-            });
-
-            var commissionAmount = Math.Round(amount * reseller.CommissionRate, 2, MidpointRounding.AwayFromZero);
-            dbContext.Commissions.Add(new Commission
-            {
-                TenantId = tenant.Id,
-                ResellerId = reseller.Id,
-                SubscriptionId = subscription.Id,
-                InvoiceId = invoice.Id,
-                Rate = reseller.CommissionRate,
-                Amount = commissionAmount,
-                Status = "accrued",
-                AccruedAt = now
-            });
-        }
-
-        dbContext.AuditLogs.Add(new AuditLog
-        {
-            TenantId = tenant.Id,
-            UserId = adminUser.Id,
-            Action = "CHECKOUT_COMPLETED",
-            Entity = "subscriptions",
-            EntityId = subscription.Id.ToString(),
-            PayloadJson = JsonSerializer.Serialize(new
-            {
-                plan = plan.Code,
-                billingCycle,
-                amount,
-                resellerCode = reseller?.Code
-            })
-        });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return Results.Ok(new CommerceCheckoutResponse(
-            tenant.Id,
-            subscription.Id,
-            plan.Code,
-            billingCycle,
-            invoice.InvoiceNo,
-            amount,
-            payment.Provider,
-            licenseToken,
-            periodEnd,
-            new DownloadLinksResponse(
-                "https://downloads.loomapos.com/desktop/windows",
-                "https://downloads.loomapos.com/mobile/android",
-                "https://downloads.loomapos.com/mobile/ios"),
-            $"/commerce/portal/{tenant.Id}"));
+            error = "legacy_checkout_endpoint_disabled",
+            message = "Use /commerce/checkout/session and provider-verified completion flow."
+        }) as IResult);
     }
 
-    private static async Task<IResult> GetPortalAsync(
-        Guid tenantId,
+    private static async Task<IResult> GetPortalMeAsync(
+        HttpContext httpContext,
+        IPortalAuthService authService,
         AppDbContext dbContext,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
+        var logger = loggerFactory.CreateLogger("CommercePortal");
+        var access = await authService.GetAccessContextAsync(httpContext, cancellationToken);
+        if (access is null)
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} requestId {RequestId} actor {Actor}",
+                "missing_or_invalid_session",
+                httpContext.Request.Path.Value ?? "/commerce/portal/me",
+                httpContext.TraceIdentifier,
+                "anonymous");
+            return Results.Unauthorized();
+        }
+
+        if (!access.TenantId.HasValue || access.TenantId.Value == Guid.Empty)
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} requestId {RequestId} actor {Actor}",
+                "tenant_context_missing",
+                httpContext.Request.Path.Value ?? "/commerce/portal/me",
+                httpContext.TraceIdentifier,
+                access.Email);
+            return Results.Unauthorized();
+        }
+
+        if (!TryResolveExplicitTenantContext(httpContext, out var explicitTenantId))
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} requestId {RequestId} actor {Actor}",
+                "invalid_explicit_tenant_context",
+                httpContext.Request.Path.Value ?? "/commerce/portal/me",
+                httpContext.TraceIdentifier,
+                access.Email);
+            return Results.Json(
+                new { error = "cross-tenant access forbidden" },
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var tenantId = access.TenantId.Value;
+        if (explicitTenantId.HasValue && explicitTenantId.Value != tenantId)
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} requestId {RequestId} actor {Actor} authenticatedTenantId {AuthenticatedTenantId} requestedTenantId {RequestedTenantId}",
+                "cross_tenant_access_attempt",
+                httpContext.Request.Path.Value ?? "/commerce/portal/me",
+                httpContext.TraceIdentifier,
+                access.Email,
+                tenantId,
+                explicitTenantId.Value);
+            return Results.Json(
+                new { error = "cross-tenant access forbidden" },
+                statusCode: StatusCodes.Status403Forbidden);
+        }
         var tenant = await dbContext.Tenants.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
         if (tenant is null)
@@ -390,6 +216,36 @@ public static class CommerceEndpoints
                     latestLicense.Status),
             invoices,
             activeDevices));
+    }
+
+    private static bool TryResolveExplicitTenantContext(HttpContext httpContext, out Guid? explicitTenantId)
+    {
+        explicitTenantId = null;
+
+        var queryTenant = httpContext.Request.Query["tenantId"].ToString();
+        if (!string.IsNullOrWhiteSpace(queryTenant))
+        {
+            if (!Guid.TryParse(queryTenant, out var parsedQueryTenant))
+            {
+                return false;
+            }
+
+            explicitTenantId = parsedQueryTenant;
+            return true;
+        }
+
+        var headerTenant = httpContext.Request.Headers["X-Tenant-Id"].ToString();
+        if (!string.IsNullOrWhiteSpace(headerTenant))
+        {
+            if (!Guid.TryParse(headerTenant, out var parsedHeaderTenant))
+            {
+                return false;
+            }
+
+            explicitTenantId = parsedHeaderTenant;
+        }
+
+        return true;
     }
 
     private static async Task<IResult> ApplyResellerAsync(

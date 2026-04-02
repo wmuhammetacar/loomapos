@@ -23,6 +23,10 @@ public static class CommerceCheckoutCoreEndpoints
             .WithName("GetCheckoutStatus")
             .WithSummary("Gets checkout, payment and provisioning status.");
 
+        group.MapPost("/checkout/reconcile/{checkoutSessionId:guid}", ReconcileCheckoutStatusAsync)
+            .WithName("ReconcileCheckoutStatus")
+            .WithSummary("Refreshes checkout state from provider status without granting success automatically.");
+
         group.MapPost("/payments/webhooks", PaymentWebhookAsync)
             .WithName("CommerceWebhook")
             .WithSummary("Verifies and processes payment provider webhooks.");
@@ -93,7 +97,7 @@ public static class CommerceCheckoutCoreEndpoints
         ICommerceProvisioningService provisioningService,
         CancellationToken cancellationToken)
     {
-        var snapshot = await provisioningService.CreateCheckoutSessionAsync(
+        var launch = await provisioningService.CreateCheckoutSessionAsync(
             new CreateCheckoutSessionCommand(
                 request.PlanCode,
                 request.BillingPeriod,
@@ -118,7 +122,11 @@ public static class CommerceCheckoutCoreEndpoints
                 request.CancelUrl),
             cancellationToken);
 
-        return Results.Ok(snapshot);
+        return Results.Ok(new CheckoutLaunchResponse(
+            MapPublicCheckoutStatus(launch.Snapshot),
+            launch.ProviderStatus,
+            launch.CheckoutUrl,
+            launch.RequiresProviderAction));
     }
 
     private static async Task<IResult> GetCheckoutStatusAsync(
@@ -127,6 +135,20 @@ public static class CommerceCheckoutCoreEndpoints
         CancellationToken cancellationToken)
     {
         var snapshot = await provisioningService.GetCheckoutStatusAsync(checkoutSessionId, cancellationToken);
+        if (snapshot is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(MapPublicCheckoutStatus(snapshot));
+    }
+
+    private static async Task<IResult> ReconcileCheckoutStatusAsync(
+        Guid checkoutSessionId,
+        ICommerceProvisioningService provisioningService,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await provisioningService.ReconcileCheckoutAsync(checkoutSessionId, cancellationToken);
         if (snapshot is null)
         {
             return Results.NotFound();
@@ -284,6 +306,12 @@ public static class CommerceCheckoutCoreEndpoints
         string? CouponCode,
         string SuccessUrl,
         string CancelUrl);
+
+    public sealed record CheckoutLaunchResponse(
+        CheckoutPublicStatusResponse checkout,
+        string providerStatus,
+        string? checkoutUrl,
+        bool requiresProviderAction);
 
     public sealed record PaymentWebhookBody(
         string Provider,

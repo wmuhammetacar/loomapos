@@ -8,7 +8,7 @@ import {
 import {
   commerceFetch,
   type CommerceCheckoutStatusDto,
-  type CommerceCheckoutStatusResponseDto,
+  type CommerceCheckoutLaunchDto,
   type CommerceDownloadAssetDto,
   type CommercePortalBillingItemDto,
   type CommercePortalCompanyDto,
@@ -23,9 +23,7 @@ import {
 } from "@/lib/api-client";
 import {
   applyResellerLead,
-  completeCheckout,
   getCustomerPortalSnapshot,
-  getReceiptBundle,
   getResellerPortalSnapshot,
   loginCustomer as loginCustomerLocally,
   loginReseller as loginResellerLocally,
@@ -43,9 +41,11 @@ const commerceFallbackEnabled =
   process.env.NEXT_PUBLIC_COMMERCE_FALLBACK_MODE === "enabled";
 
 export interface CheckoutLaunchResult {
-  checkoutSessionId?: string;
-  receiptId?: string;
+  checkoutSessionId: string;
   status: string;
+  providerStatus: string;
+  checkoutUrl?: string | null;
+  requiresProviderAction: boolean;
 }
 
 export interface CheckoutSuccessSnapshot {
@@ -381,117 +381,77 @@ export async function verifyEmail(token: string) {
 }
 
 export async function checkoutWithFallback(input: CheckoutInput): Promise<CheckoutLaunchResult> {
-  try {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const response = await commerceFetch<CommerceCheckoutStatusDto>("/commerce/checkout/session", {
-      method: "POST",
-      body: JSON.stringify({
-        planCode: input.planCode,
-        billingPeriod: input.billingCycle,
-        fullName: input.fullName,
-        companyName: input.companyName,
-        email: input.email,
-        password: input.password,
-        phone: input.phone,
-        billingTitle: input.companyName,
-        billingEmail: input.email,
-        taxOffice: input.taxOffice ?? "",
-        taxNumber: input.taxNumber ?? "",
-        addressLine: input.addressLine ?? "",
-        city: input.city ?? "",
-        country: input.country ?? "TR",
-        locale: input.locale ?? "tr-TR",
-        paymentMethod: input.paymentMethod,
-        provider: input.provider,
-        resellerCode: input.resellerCode,
-        couponCode: input.couponCode,
-        successUrl: `${origin}/success`,
-        cancelUrl: `${origin}/checkout?plan=${input.planCode}&cycle=${input.billingCycle}`
-      })
-    });
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const response = await commerceFetch<CommerceCheckoutLaunchDto>("/commerce/checkout/session", {
+    method: "POST",
+    body: JSON.stringify({
+      planCode: input.planCode,
+      billingPeriod: input.billingCycle,
+      fullName: input.fullName,
+      companyName: input.companyName,
+      email: input.email,
+      password: input.password,
+      phone: input.phone,
+      billingTitle: input.companyName,
+      billingEmail: input.email,
+      taxOffice: input.taxOffice ?? "",
+      taxNumber: input.taxNumber ?? "",
+      addressLine: input.addressLine ?? "",
+      city: input.city ?? "",
+      country: input.country ?? "TR",
+      locale: input.locale ?? "tr-TR",
+      paymentMethod: input.paymentMethod,
+      provider: input.provider,
+      resellerCode: input.resellerCode,
+      couponCode: input.couponCode,
+      successUrl: origin + "/success",
+      cancelUrl: origin + "/checkout?plan=" + input.planCode + "&cycle=" + input.billingCycle
+    })
+  });
 
-    return {
-      checkoutSessionId: response.checkoutSessionId,
-      status: response.status
-    };
-  } catch (error) {
-    if (!shouldUseCommerceFallback()) {
-      throw error;
-    }
-
-    const receipt = completeCheckout(input);
-    return {
-      receiptId: receipt.id,
-      status: "provisioned"
-    };
-  }
+  return {
+    checkoutSessionId: response.checkout.checkoutSessionId,
+    status: response.checkout.status,
+    providerStatus: response.providerStatus,
+    checkoutUrl: response.checkoutUrl ?? null,
+    requiresProviderAction: response.requiresProviderAction
+  };
 }
 
 export async function loadCheckoutSuccessWithFallback(
   checkoutSessionId?: string | null,
-  receiptId?: string | null
+  _receiptId?: string | null
 ): Promise<CheckoutSuccessSnapshot | null> {
-  if (checkoutSessionId) {
-    try {
-      const response = await commerceFetch<CommerceCheckoutStatusResponseDto>(
-        `/commerce/checkout/status/${checkoutSessionId}`
-      );
+  void _receiptId;
 
-      if (response.portalAccess) {
-        syncPortalSession(response.portalAccess);
-      }
-
-      return {
-        checkoutSessionId: response.checkout.checkoutSessionId,
-        tenantId: response.checkout.tenantId,
-        companyName:
-          response.portalAccess?.companyName ??
-          getStoredSession()?.companyName ??
-          response.checkout.companyName,
-        planCode: response.checkout.planCode,
-        billingPeriod: response.checkout.billingPeriod,
-        status: response.checkout.status,
-        paymentStatus: response.checkout.paymentStatus,
-        amount: response.checkout.amount,
-        currency: response.checkout.currency,
-        invoiceNo: response.checkout.invoiceNo,
-        licenseKey: response.checkout.licenseKey,
-        licenseStatus: response.checkout.licenseStatus,
-        licenseExpiresAt: response.checkout.licenseExpiresAt,
-        downloads: response.checkout.downloads
-      };
-    } catch (error) {
-      if (!shouldUseCommerceFallback()) {
-        throw error;
-      }
-
-      // Fall back to local success receipt below.
-    }
-  }
-
-  if (!shouldUseCommerceFallback()) {
+  if (!checkoutSessionId) {
     return null;
   }
 
-  const bundle = getReceiptBundle(receiptId);
-  if (!bundle) {
-    return null;
+  let response = await commerceFetch<CommerceCheckoutStatusDto>("/commerce/checkout/status/" + checkoutSessionId);
+  if (response.status === "created" || response.status === "pending_provider") {
+    response = await commerceFetch<CommerceCheckoutStatusDto>("/commerce/checkout/reconcile/" + checkoutSessionId, {
+      method: "POST"
+    });
   }
+
+  syncSessionCompanyName(response.companyName);
 
   return {
-    tenantId: bundle.customer?.tenantId ?? null,
-    companyName: bundle.customer?.companyName ?? bundle.receipt.companyName,
-    planCode: bundle.subscription?.planCode ?? bundle.receipt.planCode,
-    billingPeriod: bundle.subscription?.billingCycle ?? bundle.receipt.billingCycle,
-    status: "provisioned",
-    paymentStatus: "paid",
-    amount: bundle.receipt.amount,
-    currency: bundle.billing?.currency ?? "TRY",
-    invoiceNo: bundle.billing?.invoiceNo,
-    licenseKey: bundle.license?.licenseKey,
-    licenseStatus: bundle.license?.status,
-    licenseExpiresAt: bundle.license?.expiresAt,
-    downloads: mapFallbackDownloads()
+    checkoutSessionId: response.checkoutSessionId,
+    tenantId: response.tenantId,
+    companyName: response.companyName,
+    planCode: response.planCode,
+    billingPeriod: response.billingPeriod,
+    status: response.status,
+    paymentStatus: response.paymentStatus,
+    amount: response.amount,
+    currency: response.currency,
+    invoiceNo: response.invoiceNo,
+    licenseKey: response.licenseKey,
+    licenseStatus: response.licenseStatus,
+    licenseExpiresAt: response.licenseExpiresAt,
+    downloads: response.downloads
   };
 }
 
@@ -511,12 +471,12 @@ export async function loadCustomerPortalSnapshotWithFallback() {
         supportLinks
       ] = await Promise.all([
         commerceFetch<CommercePortalOverviewDto>("/commerce/portal/overview"),
-        optionalCommerceFetch<CommercePortalSubscriptionDto>("/commerce/portal/subscription"),
+        optionalCommerceFetch<CommercePortalSubscriptionDto>("/commerce/portal/subscriptions/me"),
         optionalCommerceFetch<CommercePortalLicenseDto[]>("/commerce/portal/licenses"),
         commerceFetch<CommerceDownloadAssetDto[]>("/commerce/portal/downloads"),
         commerceFetch<CommercePortalBillingItemDto[]>("/commerce/portal/billing"),
         commerceFetch<CommercePortalDeviceDto[]>("/commerce/portal/devices"),
-        optionalCommerceFetch<CommercePortalCompanyDto>("/commerce/portal/company"),
+        optionalCommerceFetch<CommercePortalCompanyDto>("/commerce/portal/company/me"),
         optionalCommerceFetch<CommerceSupportLinkDto[]>("/commerce/portal/support-links")
       ]);
 
@@ -571,7 +531,7 @@ export async function loadCustomerPortalSnapshotWithFallback() {
 }
 
 export async function updateCompanyProfileWithFallback(input: CompanyProfileInput) {
-  const response = await commerceFetch<CommercePortalCompanyDto>("/commerce/portal/company", {
+  const response = await commerceFetch<CommercePortalCompanyDto>("/commerce/portal/company/me", {
     method: "PUT",
     body: JSON.stringify({
       companyName: input.companyName,

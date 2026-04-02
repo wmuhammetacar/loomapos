@@ -10,7 +10,7 @@ public static class ProductionOpsEndpoints
 {
     public static IEndpointRouteBuilder MapProductionOpsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/internal/admin/ops").WithTags("Production Ops");
+        var group = app.MapGroup("/internal/admin/ops").WithTags("Production Ops").RequireInternalAdminAccess();
 
         group.MapGet("/workspace", async (HttpContext httpContext, IInternalAdminAuthService authService, IProductionOpsReadModelService service, CancellationToken cancellationToken) =>
         {

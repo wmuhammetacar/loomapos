@@ -11,7 +11,8 @@
     "format": "prettier --check .",
     "test:e2e": "playwright test",
     "validate:features": "node ../../scripts/ops/validate-feature-content.mjs",
-    "validate:features:test": "node ../../scripts/ops/test-feature-content-guard.mjs"
+    "validate:features:test": "node ../../scripts/ops/test-feature-content-guard.mjs",
+    "test:lifecycle-proof": "node scripts/lifecycle-proof-test.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

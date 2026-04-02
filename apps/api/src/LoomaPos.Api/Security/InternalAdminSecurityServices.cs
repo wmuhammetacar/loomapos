@@ -3,6 +3,7 @@ using LoomaPos.Api.Commerce;
 using LoomaPos.Domain.Internal;
 using LoomaPos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace LoomaPos.Api.Security;
 
@@ -47,13 +48,10 @@ public sealed class InternalAdminAuthService : IInternalAdminAuthService
 {
     private readonly AppDbContext _dbContext;
     private readonly IPortalCryptoService _cryptoService;
-    private readonly IConfiguration _configuration;
-
-    public InternalAdminAuthService(AppDbContext dbContext, IPortalCryptoService cryptoService, IConfiguration configuration)
+    public InternalAdminAuthService(AppDbContext dbContext, IPortalCryptoService cryptoService)
     {
         _dbContext = dbContext;
         _cryptoService = cryptoService;
-        _configuration = configuration;
     }
 
     public async Task<InternalAdminTokenEnvelope> LoginAsync(string email, string password, HttpContext httpContext, CancellationToken cancellationToken)
@@ -62,8 +60,7 @@ public sealed class InternalAdminAuthService : IInternalAdminAuthService
         var user = await _dbContext.InternalUsers.FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken);
         if (user is null)
         {
-            user = await TryProvisionBootstrapUserAsync(normalizedEmail, password, cancellationToken)
-                ?? throw new InvalidOperationException("Internal admin account not found or password invalid.");
+            throw new InvalidOperationException("Internal admin account not found or password invalid.");
         }
 
         if (user.Status != "active" || !_cryptoService.VerifyPassword(user.PasswordHash, password))
@@ -175,34 +172,6 @@ public sealed class InternalAdminAuthService : IInternalAdminAuthService
             .ToListAsync(cancellationToken);
     }
 
-    private async Task<InternalUser?> TryProvisionBootstrapUserAsync(string normalizedEmail, string password, CancellationToken cancellationToken)
-    {
-        var bootstrapEmail = (_configuration["InternalAdmin:BootstrapEmail"] ?? "ops@loomapos.local").Trim().ToLowerInvariant();
-        var bootstrapPassword = _configuration["InternalAdmin:BootstrapPassword"] ?? "ChangeThisNow123!";
-        var bootstrapDisplayName = _configuration["InternalAdmin:BootstrapDisplayName"] ?? "LoomaPOS Operations";
-        var bootstrapRole = _configuration["InternalAdmin:BootstrapRole"] ?? "super_admin";
-
-        if (!string.Equals(normalizedEmail, bootstrapEmail, StringComparison.OrdinalIgnoreCase) || password != bootstrapPassword)
-        {
-            return null;
-        }
-
-        var user = new InternalUser
-        {
-            Email = bootstrapEmail,
-            DisplayName = bootstrapDisplayName,
-            PasswordHash = _cryptoService.HashPassword(bootstrapPassword),
-            Status = "active"
-        };
-        _dbContext.InternalUsers.Add(user);
-        _dbContext.InternalUserRoles.Add(new InternalUserRole
-        {
-            InternalUserId = user.Id,
-            RoleCode = bootstrapRole
-        });
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return user;
-    }
 }
 
 public sealed class AdminApprovalService(AppDbContext dbContext) : IAdminApprovalService
@@ -253,5 +222,79 @@ public sealed class AdminApprovalService(AppDbContext dbContext) : IAdminApprova
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return request;
+    }
+}
+
+public static class InternalAdminEndpointSecurityExtensions
+{
+    private static readonly string[] KnownInternalAdminRoles =
+    [
+        "super_admin",
+        "ops_admin",
+        "support_agent",
+        "security_auditor",
+        "release_manager",
+        "read_only_analyst",
+        "billing_admin",
+        "reseller_manager"
+    ];
+
+    public static RouteGroupBuilder RequireInternalAdminAccess(this RouteGroupBuilder group)
+    {
+        group.AddEndpointFilter(async (context, next) =>
+        {
+            var httpContext = context.HttpContext;
+            var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("InternalAdminSecurity");
+            var authService = httpContext.RequestServices.GetRequiredService<IInternalAdminAuthService>();
+            var access = await authService.GetAccessContextAsync(httpContext, httpContext.RequestAborted);
+
+            if (access is null)
+            {
+                logger.LogWarning(
+                    "internal_admin_access_denied reason {Reason} path {Path} method {Method} actor {Actor} requestId {RequestId}",
+                    "missing_or_invalid_session",
+                    httpContext.Request.Path.Value ?? "/internal/admin",
+                    httpContext.Request.Method,
+                    "anonymous",
+                    httpContext.TraceIdentifier);
+                return Results.Unauthorized();
+            }
+
+            if (!HasAnyRole(access.Roles, KnownInternalAdminRoles))
+            {
+                logger.LogWarning(
+                    "internal_admin_access_denied reason {Reason} path {Path} method {Method} actor {Actor} requestId {RequestId} roles {Roles}",
+                    "insufficient_role",
+                    httpContext.Request.Path.Value ?? "/internal/admin",
+                    httpContext.Request.Method,
+                    access.Email,
+                    httpContext.TraceIdentifier,
+                    access.Roles.Length == 0 ? "none" : string.Join(",", access.Roles));
+                return Results.Forbid();
+            }
+
+            return await next(context);
+        });
+
+        return group;
+    }
+
+    private static bool HasAnyRole(IEnumerable<string> grantedRoles, IEnumerable<string> acceptedRoles)
+    {
+        var accepted = new HashSet<string>(acceptedRoles.Select(NormalizeRole), StringComparer.OrdinalIgnoreCase);
+        foreach (var role in grantedRoles)
+        {
+            if (accepted.Contains(NormalizeRole(role)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizeRole(string role)
+    {
+        return role.Trim().Replace("-", "_", StringComparison.Ordinal).ToLowerInvariant();
     }
 }

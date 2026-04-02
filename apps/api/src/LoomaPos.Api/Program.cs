@@ -9,10 +9,13 @@ using LoomaPos.Infrastructure;
 using LoomaPos.Infrastructure.Persistence;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
+using System.Data.Common;
+using System.Net.Sockets;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -159,7 +162,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-var disableAuth = builder.Configuration.GetValue("Auth:DisableAuth", builder.Environment.IsDevelopment());
+var disableAuth = builder.Configuration.GetValue("Auth:DisableAuth", false);
+if (disableAuth)
+{
+    throw new InvalidOperationException("Auth:DisableAuth is not allowed in zero-trust mode.");
+}
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", policy => policy.RequireAssertion(ctx =>
@@ -246,46 +253,81 @@ app.UseRateLimiter();
 app.UseMiddleware<TenantContextMiddleware>();
 app.UseMiddleware<RequestLifecycleLoggingMiddleware>();
 
+var startupDbInitMaxAttempts = Math.Max(1, app.Configuration.GetValue("Ops:StartupDbInitMaxAttempts", 8));
+var startupDbInitDelaySeconds = Math.Max(1, app.Configuration.GetValue("Ops:StartupDbInitDelaySeconds", 2));
+var startupDbInitDelay = TimeSpan.FromSeconds(startupDbInitDelaySeconds);
+
 using (var scope = app.Services.CreateScope())
 {
     var migrationLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup.Migration");
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var commerceSeedService = scope.ServiceProvider.GetRequiredService<ICommerceSeedService>();
 
-    try
+    var initialized = false;
+    for (var attempt = 1; attempt <= startupDbInitMaxAttempts; attempt++)
     {
-        migrationLogger.LogInformation(
-            "startup_database_initialization_started phase {StartupPhase} provider {DatabaseProvider}",
-            "database_migration",
-            dbContext.Database.ProviderName ?? "unknown");
-
-        var migrations = dbContext.Database.GetMigrations();
-        if (migrations.Any())
+        try
         {
-            await dbContext.Database.MigrateAsync();
+            migrationLogger.LogInformation(
+                "startup_database_initialization_started phase {StartupPhase} provider {DatabaseProvider} attempt {Attempt} maxAttempts {MaxAttempts}",
+                "database_migration",
+                dbContext.Database.ProviderName ?? "unknown",
+                attempt,
+                startupDbInitMaxAttempts);
+
+            var migrations = dbContext.Database.GetMigrations();
+            if (migrations.Any())
+            {
+                await dbContext.Database.MigrateAsync();
+            }
+            else
+            {
+                await dbContext.Database.EnsureCreatedAsync();
+            }
+
+            await commerceSeedService.EnsureSeedDataAsync(CancellationToken.None);
+
+            migrationLogger.LogInformation(
+                "startup_database_initialization_completed phase {StartupPhase} provider {DatabaseProvider} attempt {Attempt} maxAttempts {MaxAttempts}",
+                "database_migration",
+                dbContext.Database.ProviderName ?? "unknown",
+                attempt,
+                startupDbInitMaxAttempts);
+
+            initialized = true;
+            break;
         }
-        else
+        catch (Exception ex) when (IsTransientDatabaseStartupFailure(ex) && attempt < startupDbInitMaxAttempts)
         {
-            await dbContext.Database.EnsureCreatedAsync();
+            migrationLogger.LogWarning(
+                ex,
+                "startup_database_initialization_retry_scheduled phase {StartupPhase} provider {DatabaseProvider} attempt {Attempt} maxAttempts {MaxAttempts} retryDelaySeconds {RetryDelaySeconds}",
+                "database_migration",
+                dbContext.Database.ProviderName ?? "unknown",
+                attempt,
+                startupDbInitMaxAttempts,
+                startupDbInitDelaySeconds);
+
+            await Task.Delay(startupDbInitDelay);
         }
-
-        await commerceSeedService.EnsureSeedDataAsync(CancellationToken.None);
-
-        migrationLogger.LogInformation(
-            "startup_database_initialization_completed phase {StartupPhase} provider {DatabaseProvider}",
-            "database_migration",
-            dbContext.Database.ProviderName ?? "unknown");
+        catch (Exception ex)
+        {
+            migrationLogger.LogCritical(
+                ex,
+                "startup_database_initialization_failed phase {StartupPhase} provider {DatabaseProvider} attempt {Attempt} maxAttempts {MaxAttempts}",
+                "database_migration",
+                dbContext.Database.ProviderName ?? "unknown",
+                attempt,
+                startupDbInitMaxAttempts);
+            throw;
+        }
     }
-    catch (Exception ex)
+
+    if (!initialized)
     {
-        migrationLogger.LogCritical(
-            ex,
-            "startup_database_initialization_failed phase {StartupPhase} provider {DatabaseProvider}",
-            "database_migration",
-            dbContext.Database.ProviderName ?? "unknown");
-        throw;
+        throw new InvalidOperationException("Database initialization did not complete successfully.");
     }
-    }
+}
 
 app.MapHealthEndpoints();
 app.MapCommercePublicEndpoints();
@@ -297,6 +339,7 @@ app.MapCommerceLicenseCoreEndpoints();
 app.MapCommerceResellerPortalEndpoints();
 app.MapInternalAdminAuthEndpoints();
 app.MapInternalAdminEndpoints();
+app.MapInternalAdminDiagnosticsEndpoints();
 app.MapAnalyticsEndpoints();
 app.MapPhase9IntegrationEndpoints();
 app.MapProductionOpsEndpoints();
@@ -317,7 +360,6 @@ if (!disableAuth)
 }
 
 api.MapFileEndpoints();
-api.MapCommerceProtectedEndpoints();
 
 managerApi.MapInventoryEndpoints();
 managerApi.MapManufacturingPreparationEndpoints();
@@ -360,6 +402,30 @@ static string? ResolveRateLimitGuid(HttpContext context, params string[] keys)
     }
 
     return null;
+}
+
+static bool IsTransientDatabaseStartupFailure(Exception exception)
+{
+    if (exception is OperationCanceledException)
+    {
+        return false;
+    }
+
+    if (exception is NpgsqlException npgsqlException)
+    {
+        return npgsqlException.IsTransient ||
+               npgsqlException.InnerException is SocketException;
+    }
+
+    if (exception is SocketException ||
+        exception is TimeoutException ||
+        exception is DbException)
+    {
+        return true;
+    }
+
+    return exception.InnerException is not null &&
+           IsTransientDatabaseStartupFailure(exception.InnerException);
 }
 
 public partial class Program;

@@ -4,22 +4,26 @@ using LoomaPos.Domain.Auditing;
 using LoomaPos.Domain.Commerce;
 using LoomaPos.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LoomaPos.Api.Endpoints;
 
 public static class CommercePortalCoreEndpoints
 {
+    private const string PortalAccessContextItemKey = "__loomapos.portal.access";
+
     public static IEndpointRouteBuilder MapCommercePortalCoreEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/commerce/portal").WithTags("Commerce Portal");
+        group.AddEndpointFilter(AuthorizeCustomerPortalEndpointAsync);
 
         group.MapGet("/overview", GetPortalOverviewAsync)
             .WithName("GetPortalOverview")
             .WithSummary("Gets customer portal overview cards and summary.");
 
-        group.MapGet("/subscription", GetPortalSubscriptionAsync)
-            .WithName("GetPortalSubscription")
-            .WithSummary("Gets current subscription detail.");
+        group.MapGet("/subscriptions/me", GetPortalSubscriptionAsync)
+            .WithName("GetPortalSubscriptionMe")
+            .WithSummary("Gets current subscription detail for authenticated tenant.");
 
         group.MapPost("/subscription/cancel", CancelSubscriptionAsync)
             .WithName("CancelPortalSubscription")
@@ -85,13 +89,13 @@ public static class CommercePortalCoreEndpoints
             .WithName("GetPortalDevices")
             .WithSummary("Lists activated devices for current tenant.");
 
-        group.MapGet("/company", GetCompanyProfileAsync)
-            .WithName("GetCompanyProfile")
-            .WithSummary("Gets tenant and billing profile basics for the customer portal.");
+        group.MapGet("/company/me", GetCompanyProfileAsync)
+            .WithName("GetCompanyProfileMe")
+            .WithSummary("Gets tenant and billing profile basics for authenticated tenant.");
 
-        group.MapPut("/company", UpdateCompanyProfileAsync)
-            .WithName("UpdateCompanyProfile")
-            .WithSummary("Updates tenant and billing profile basics.");
+        group.MapPut("/company/me", UpdateCompanyProfileAsync)
+            .WithName("UpdateCompanyProfileMe")
+            .WithSummary("Updates tenant and billing profile basics for authenticated tenant.");
 
         group.MapGet("/support-links", GetSupportLinksAsync)
             .WithName("GetSupportLinks")
@@ -107,7 +111,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -166,7 +170,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -224,7 +228,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -295,13 +299,12 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
 
-        var tenantId = access.TenantId!.Value;
-
+        var tenantId = access.TenantId.Value;
         var subscription = await dbContext.Subscriptions
             .Where(x => x.TenantId == tenantId)
             .OrderByDescending(x => x.CreatedAt)
@@ -318,99 +321,27 @@ public static class CommercePortalCoreEndpoints
             return Results.BadRequest(new { message = "Requested plan is not active." });
         }
 
-        var featureFlags = await (
-            from planFeature in dbContext.PlanFeatureFlags.AsNoTracking()
-            join feature in dbContext.FeatureFlags.AsNoTracking() on planFeature.FeatureFlagId equals feature.Id
-            where planFeature.SubscriptionPlanId == plan.Id && planFeature.IsEnabled && feature.IsActive
-            select feature.Code)
-            .ToListAsync(cancellationToken);
-
-        var price = await dbContext.PlanPrices.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.SubscriptionPlanId == plan.Id && x.BillingPeriod == request.BillingCycle && x.IsActive, cancellationToken);
-
-        var deviceCount = await dbContext.DeviceActivations.AsNoTracking()
-            .CountAsync(x => x.TenantId == tenantId && x.RevokedAt == null, cancellationToken);
-        var userCount = await dbContext.TenantUsers.AsNoTracking()
-            .CountAsync(x => x.TenantId == tenantId && x.Status == "active", cancellationToken);
-        var branchCount = await dbContext.Branches.AsNoTracking()
-            .CountAsync(x => x.TenantId == tenantId, cancellationToken);
-
-        var warnings = new List<string>();
-        if (plan.DeviceLimit > 0 && deviceCount > plan.DeviceLimit)
-        {
-            warnings.Add("Device limit would fall below currently active devices.");
-        }
-        if (plan.UserLimit > 0 && userCount > plan.UserLimit)
-        {
-            warnings.Add("User limit would fall below currently active users.");
-        }
-        if (plan.BranchLimit > 0 && branchCount > plan.BranchLimit)
-        {
-            warnings.Add("Branch limit would fall below current branch count.");
-        }
-
         var license = await GetLatestLicenseAsync(dbContext, tenantId, cancellationToken);
         var tenant = await dbContext.Tenants.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
-        var currentLifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
-
-        var currentSnapshot = ParsePlanSnapshot(subscription.PlanSnapshotJson);
-        var currentAmount = currentSnapshot.PromoPrice ?? currentSnapshot.Price ?? 0m;
-        var targetAmount = price?.PromoAmount ?? price?.Amount ?? currentAmount;
-        var isUpgrade = targetAmount >= currentAmount;
-        var immediate = request.Immediate && isUpgrade;
-        var effectiveAt = immediate ? DateTimeOffset.UtcNow : subscription.CurrentPeriodEnd;
-
-        if (immediate)
-        {
-            var targetLifecycleState = SubscriptionLifecyclePolicy.SubscriptionActive;
-            if (!SubscriptionLifecyclePolicy.IsValidTransition(currentLifecycleState, targetLifecycleState))
-            {
-                return Results.Conflict(new
-                {
-                    error = "invalid_lifecycle_transition",
-                    fromState = currentLifecycleState,
-                    toState = targetLifecycleState
-                });
-            }
-
-            subscription.PlanCode = plan.Code;
-            subscription.BillingCycle = request.BillingCycle;
-            subscription.Status = targetLifecycleState;
-            subscription.CancelAtPeriodEnd = false;
-            subscription.CanceledAt = null;
-            subscription.PlanSnapshotJson = JsonSerializer.Serialize(new
-            {
-                plan.Code,
-                plan.Name,
-                plan.BranchLimit,
-                plan.UserLimit,
-                plan.DeviceLimit,
-                plan.SupportTier,
-                featureFlags,
-                price = price?.Amount,
-                promoPrice = price?.PromoAmount
-            });
-        }
-
-        dbContext.AuditLogs.Add(BuildAudit(access, "portal.subscription.plan_change_requested", "subscription", subscription.Id.ToString(), new
-        {
-            planCode = request.PlanCode,
-            billingCycle = request.BillingCycle,
-            mode = immediate ? "immediate" : "scheduled",
-            effectiveAt,
-            warnings
-        }));
-
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
 
         return Results.Ok(new
         {
-            implemented = true,
-            immediate,
-            scheduled = !immediate,
-            effectiveAt,
-            warnings
+            implemented = false,
+            requiresCheckout = true,
+            checkoutPath = "/checkout?plan=" + plan.Code + "&cycle=" + request.BillingCycle,
+            checkoutIntent = request.Immediate ? "upgrade" : "renew",
+            lifecycleState = lifecycle.State,
+            lifecycleLabel = lifecycle.Label,
+            lifecycleMessage = lifecycle.Message,
+            canCheckout = lifecycle.CanCheckout,
+            canWrite = lifecycle.CanWrite,
+            canSync = lifecycle.CanSync,
+            canView = lifecycle.CanView,
+            requiresUpgradeAction = lifecycle.RequiresUpgradeAction,
+            requiresBlock = lifecycle.RequiresBlock
         });
     }
 
@@ -421,13 +352,13 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
 
         var subscription = await dbContext.Subscriptions
-            .Where(x => x.TenantId == access.TenantId!.Value)
+            .Where(x => x.TenantId == access.TenantId.Value)
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
         if (subscription is null)
@@ -435,42 +366,19 @@ public static class CommercePortalCoreEndpoints
             return Results.NotFound();
         }
 
-        var tenantId = access.TenantId!.Value;
+        var tenantId = access.TenantId.Value;
         var license = await GetLatestLicenseAsync(dbContext, tenantId, cancellationToken);
         var tenant = await dbContext.Tenants.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == tenantId, cancellationToken);
-        var currentState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
-        var targetState = SubscriptionLifecyclePolicy.SubscriptionActive;
+        var lifecycleState = SubscriptionLifecyclePolicy.ResolveState(tenant, subscription, license, DateTimeOffset.UtcNow);
+        var lifecycle = SubscriptionLifecyclePolicy.Describe(lifecycleState);
 
-        if (!SubscriptionLifecyclePolicy.IsValidTransition(currentState, targetState))
-        {
-            return Results.Conflict(new
-            {
-                error = "invalid_lifecycle_transition",
-                fromState = currentState,
-                toState = targetState
-            });
-        }
-
-        subscription.CancelAtPeriodEnd = false;
-        subscription.CanceledAt = null;
-        subscription.Status = targetState;
-
-        dbContext.AuditLogs.Add(BuildAudit(access, "portal.subscription.reactivated", "subscription", subscription.Id.ToString(), new
-        {
-            subscription.PlanCode,
-            subscription.BillingCycle
-        }));
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        var lifecycle = SubscriptionLifecyclePolicy.Describe(targetState);
         return Results.Ok(new
         {
-            implemented = true,
-            reactivated = true,
-            subscription.Id,
-            subscription.CancelAtPeriodEnd,
-            subscription.Status,
+            implemented = false,
+            requiresCheckout = true,
+            checkoutPath = "/checkout?plan=" + subscription.PlanCode + "&cycle=" + subscription.BillingCycle,
+            checkoutIntent = "reactivate",
             lifecycleState = lifecycle.State,
             lifecycleLabel = lifecycle.Label,
             lifecycleMessage = lifecycle.Message,
@@ -490,7 +398,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -536,7 +444,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -555,7 +463,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -572,7 +480,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -594,7 +502,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -611,7 +519,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -659,7 +567,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -677,7 +585,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -694,7 +602,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -743,7 +651,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -784,7 +692,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -830,7 +738,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -854,7 +762,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -898,7 +806,7 @@ public static class CommercePortalCoreEndpoints
         CancellationToken cancellationToken)
     {
         var access = await RequireCustomerPortalAsync(httpContext, authService, cancellationToken);
-        if (access is null)
+        if (access?.TenantId is null)
         {
             return Results.Unauthorized();
         }
@@ -962,13 +870,117 @@ public static class CommercePortalCoreEndpoints
         });
     }
 
+    private static async ValueTask<object?> AuthorizeCustomerPortalEndpointAsync(
+        EndpointFilterInvocationContext context,
+        EndpointFilterDelegate next)
+    {
+        var httpContext = context.HttpContext;
+        var authService = httpContext.RequestServices.GetRequiredService<IPortalAuthService>();
+        var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("CommercePortalSecurity");
+        var access = await authService.GetAccessContextAsync(httpContext, httpContext.RequestAborted);
+
+        if (access is null || !string.Equals(access.PortalType, "customer", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} method {Method} requestId {RequestId} actor {Actor}",
+                access is null ? "missing_or_invalid_session" : "invalid_portal_type",
+                httpContext.Request.Path.Value ?? "/commerce/portal",
+                httpContext.Request.Method,
+                httpContext.TraceIdentifier,
+                access?.Email ?? "anonymous");
+            return Results.Unauthorized();
+        }
+
+        if (!access.TenantId.HasValue || access.TenantId.Value == Guid.Empty)
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} method {Method} requestId {RequestId} actor {Actor}",
+                "tenant_context_missing",
+                httpContext.Request.Path.Value ?? "/commerce/portal",
+                httpContext.Request.Method,
+                httpContext.TraceIdentifier,
+                access.Email);
+            return Results.Unauthorized();
+        }
+
+        if (!TryResolveExplicitTenantContext(httpContext, out var explicitTenantId))
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} method {Method} requestId {RequestId} actor {Actor}",
+                "invalid_explicit_tenant_context",
+                httpContext.Request.Path.Value ?? "/commerce/portal",
+                httpContext.Request.Method,
+                httpContext.TraceIdentifier,
+                access.Email);
+            return Results.Json(
+                new { error = "cross-tenant access forbidden" },
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var tenantId = access.TenantId.Value;
+        if (explicitTenantId.HasValue && explicitTenantId.Value != tenantId)
+        {
+            logger.LogWarning(
+                "portal_access_denied reason {Reason} path {Path} method {Method} requestId {RequestId} actor {Actor} authenticatedTenantId {AuthenticatedTenantId} requestedTenantId {RequestedTenantId}",
+                "cross_tenant_access_attempt",
+                httpContext.Request.Path.Value ?? "/commerce/portal",
+                httpContext.Request.Method,
+                httpContext.TraceIdentifier,
+                access.Email,
+                tenantId,
+                explicitTenantId.Value);
+            return Results.Json(
+                new { error = "cross-tenant access forbidden" },
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        httpContext.Items[PortalAccessContextItemKey] = access;
+        return await next(context);
+    }
+
     private static async Task<PortalAccessContext?> RequireCustomerPortalAsync(
         HttpContext httpContext,
         IPortalAuthService authService,
         CancellationToken cancellationToken)
     {
+        if (httpContext.Items.TryGetValue(PortalAccessContextItemKey, out var cachedContext) &&
+            cachedContext is PortalAccessContext cachedAccess)
+        {
+            return cachedAccess;
+        }
+
         var access = await authService.GetAccessContextAsync(httpContext, cancellationToken);
         return access is { PortalType: "customer", TenantId: not null } ? access : null;
+    }
+
+    private static bool TryResolveExplicitTenantContext(HttpContext httpContext, out Guid? explicitTenantId)
+    {
+        explicitTenantId = null;
+
+        var queryTenant = httpContext.Request.Query["tenantId"].ToString();
+        if (!string.IsNullOrWhiteSpace(queryTenant))
+        {
+            if (!Guid.TryParse(queryTenant, out var parsedQueryTenant))
+            {
+                return false;
+            }
+
+            explicitTenantId = parsedQueryTenant;
+            return true;
+        }
+
+        var headerTenant = httpContext.Request.Headers["X-Tenant-Id"].ToString();
+        if (!string.IsNullOrWhiteSpace(headerTenant))
+        {
+            if (!Guid.TryParse(headerTenant, out var parsedHeaderTenant))
+            {
+                return false;
+            }
+
+            explicitTenantId = parsedHeaderTenant;
+        }
+
+        return true;
     }
 
     private static async Task<Subscription?> GetLatestSubscriptionAsync(

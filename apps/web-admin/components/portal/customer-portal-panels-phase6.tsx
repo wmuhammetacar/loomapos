@@ -29,6 +29,9 @@ import {
 } from "@/lib/portal-service";
 import { pricingPlans, type BillingCycle, type PlanCode } from "@/lib/site-content";
 
+const portalSubscriptionRoute = "/portal/subscription";
+const portalBillingRoute = "/portal/billing";
+
 export type CustomerPortalSectionPhase6 =
   | "overview"
   | "subscription"
@@ -113,6 +116,7 @@ export function CustomerPortalPanelsPhase6({
 
   const notices = useMemo(() => buildNotices(snapshot), [snapshot]);
   const lifecycle = useMemo(() => resolvePortalTrialLifecycle(snapshot), [snapshot]);
+  const lifecycleAction = useMemo(() => resolvePortalLifecycleAction(lifecycle), [lifecycle]);
   const run = async (fn: () => Promise<unknown>, successText: string) => {
     setBusy(true);
     setError(null);
@@ -123,6 +127,23 @@ export function CustomerPortalPanelsPhase6({
       setMessage(successText);
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : "Portal action failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startSubscriptionCheckout = async (fn: () => Promise<unknown>, fallbackPath: string) => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = (await fn()) as { checkoutPath?: string } | null;
+      const nextPath = result?.checkoutPath && result.checkoutPath.length > 0
+        ? result.checkoutPath
+        : fallbackPath;
+      window.location.assign(nextPath);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Checkout action failed.");
     } finally {
       setBusy(false);
     }
@@ -176,7 +197,18 @@ export function CustomerPortalPanelsPhase6({
             </p>
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link href="/portal/subscription" className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white">Aboneligi Yonet / Yukselt</Link>
+            {lifecycleAction.kind === "reactivate" ? (
+              <Button
+                disabled={busy || !canManageBilling}
+                onClick={() => void startSubscriptionCheckout(() => reactivatePortalSubscription(), "/checkout")}
+              >
+                {lifecycleAction.label}
+              </Button>
+            ) : (
+              <Link href={lifecycleAction.href as never} className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white">
+                {lifecycleAction.label}
+              </Link>
+            )}
             <Link href="/portal/licenses" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Licenses</Link>
             <Link href="/portal/devices" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Devices</Link>
             <Link href="/portal/downloads" className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">Downloads</Link>
@@ -193,11 +225,43 @@ export function CustomerPortalPanelsPhase6({
       <div className="space-y-6">
         <Card>
           <CardTitle>Subscription lifecycle</CardTitle>
+          <div className="mt-5 rounded-[24px] border border-line bg-muted/30 px-4 py-4">
+            <p className="text-sm font-semibold text-text">{lifecycle.label}</p>
+            <p className="mt-2 text-sm leading-6 text-text/80">{lifecycle.message}</p>
+            <p className="mt-2 text-xs text-text/70">Kapali akislar: {lifecycle.blockedActions.join(" • ")}</p>
+            <p className="mt-1 text-xs text-text/70">Sonraki adim: {lifecycleAction.helper}</p>
+            {lifecycle.state === "subscription_past_due" ? (
+              <p className="mt-2 text-xs text-text/65">
+                Not: Harici odeme saglayici entegrasyonu henuz acik degil. Bu adim odeme/yenileme yonlendirmesini ve durum takibini netlestirir.
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-3">
+              {lifecycleAction.kind === "reactivate" ? (
+                <Button
+                  disabled={busy || !canManageBilling}
+                  onClick={() => void startSubscriptionCheckout(() => reactivatePortalSubscription(), "/checkout")}
+                >
+                  {lifecycleAction.label}
+                </Button>
+              ) : (
+                <Link href={lifecycleAction.href as never} className="rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white">
+                  {lifecycleAction.label}
+                </Link>
+              )}
+              <Link href={portalSubscriptionRoute} className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">
+                Abonelik ekrani
+              </Link>
+              <Link href={portalBillingRoute} className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-text/80">
+                Faturalama
+              </Link>
+            </div>
+          </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Metric label="Plan" value={snapshot.subscription?.planCode?.toUpperCase() ?? "-"} />
             <Metric label="Status" value={snapshot.subscription?.status ?? "-"} />
             <Metric label="Cycle" value={snapshot.subscription?.billingCycle ?? "-"} />
             <Metric label="Renewal" value={formatDate(snapshot.subscription?.renewalDate ?? snapshot.subscription?.currentPeriodEnd)} />
+            <Metric label="Trial remaining" value={snapshot.promo.trialRemainingDays != null ? `${snapshot.promo.trialRemainingDays} gun` : "-"} />
             <Metric label="Next billing" value={snapshot.usage.nextBillingAmount ? formatCurrency(snapshot.usage.nextBillingAmount) : "-"} />
             <Metric label="Support tier" value={snapshot.usage.supportTier ?? currentPlan?.supportLevel ?? "-"} />
             <Metric label="Pending change" value={snapshot.usage.pendingPlanChange?.targetPlanCode ?? "-"} />
@@ -213,13 +277,13 @@ export function CustomerPortalPanelsPhase6({
             </Button>
             <Button
               disabled={busy || !canManageBilling}
-              onClick={() => void run(() => reactivatePortalSubscription(), "Auto-renew enabled again.")}
+              onClick={() => void startSubscriptionCheckout(() => reactivatePortalSubscription(), "/checkout")}
             >
               Re-enable auto-renew
             </Button>
           </div>
         </Card>
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div id="plan-options" className="grid gap-4 xl:grid-cols-3">
           {pricingPlans.map((plan) => {
             const currentAmount =
               currentPlan && snapshot.subscription?.billingCycle === "yearly"
@@ -241,14 +305,14 @@ export function CustomerPortalPanelsPhase6({
                   variant={isCurrent ? "outline" : "primary"}
                   disabled={busy || !canManageBilling || isCurrent}
                   onClick={() =>
-                    void run(
+                    void startSubscriptionCheckout(
                       () =>
                         changePortalPlan({
                           planCode: plan.code as PlanCode,
                           billingCycle: (snapshot.subscription?.billingCycle as BillingCycle | undefined) ?? "monthly",
                           immediate: isUpgrade
                         }),
-                      isUpgrade ? `${plan.name} applied.` : `${plan.name} scheduled for the next cycle.`
+                      "/checkout?plan=" + plan.code + "&cycle=" + ((snapshot.subscription?.billingCycle as BillingCycle | undefined) ?? "monthly")
                     )
                   }
                 >
@@ -634,6 +698,67 @@ interface PortalLifecycleDescriptor {
   blockedActions: string[];
 }
 
+interface PortalLifecycleAction {
+  label: string;
+  helper: string;
+  href: string;
+  kind: "navigate" | "reactivate";
+}
+
+function resolvePortalLifecycleAction(lifecycle: PortalLifecycleDescriptor): PortalLifecycleAction {
+  switch (lifecycle.state) {
+    case "trial_active":
+      return {
+        label: "Upgrade",
+        helper: "Ucretli plana gecmek icin abonelikte plan secin.",
+        href: `${portalSubscriptionRoute}#plan-options`,
+        kind: "navigate"
+      };
+    case "trial_expiring":
+      return {
+        label: "Upgrade",
+        helper: "Deneme bitmeden yukselterek yazma akislarini kesintisiz koruyun.",
+        href: `${portalSubscriptionRoute}#plan-options`,
+        kind: "navigate"
+      };
+    case "trial_expired":
+      return {
+        label: "Renew / Upgrade",
+        helper: "Salt-okunur moddan cikmak icin abonelikte yenileyin veya plan yukseltin.",
+        href: `${portalSubscriptionRoute}#plan-options`,
+        kind: "navigate"
+      };
+    case "subscription_past_due":
+      return {
+        label: "Pay / Renew",
+        helper: "Abonelik ekranindan odeme/yenileme adimini acip durumu toparlayin.",
+        href: portalSubscriptionRoute,
+        kind: "navigate"
+      };
+    case "subscription_canceled":
+      return {
+        label: "Reactivate / Renew",
+        helper: "Aboneligi yeniden aktif ederek yenileme akisina geri donun.",
+        href: portalSubscriptionRoute,
+        kind: "reactivate"
+      };
+    case "suspended_blocked":
+      return {
+        label: "Manage Subscription",
+        helper: "Abonelik ve lisans blok nedenini bu ekrandan inceleyip cozumleyin.",
+        href: portalSubscriptionRoute,
+        kind: "navigate"
+      };
+    default:
+      return {
+        label: "Manage Plan",
+        helper: "Plan ve yenileme ayarlarinizi abonelik ekranindan yonetin.",
+        href: `${portalSubscriptionRoute}#plan-options`,
+        kind: "navigate"
+      };
+  }
+}
+
 function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null): PortalLifecycleDescriptor {
   if (snapshot === null) {
     return {
@@ -641,7 +766,7 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       label: "Abonelik aktif",
       message: "Abonelik durumu yukleniyor.",
       nextActionLabel: "Abonelik yonet",
-      nextActionHref: "/portal/subscription",
+      nextActionHref: portalSubscriptionRoute,
       allowedActions: ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
       blockedActions: ["-"]
     };
@@ -675,7 +800,7 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       "Deneme aktif",
       "Deneme aktif. Operasyon yazma islemleri acik. Deneme sonunda yukseltme yapilmazsa sistem salt-okunur moda gecer.",
       "Abonelik planlarini gor",
-      "/portal/subscription",
+      portalSubscriptionRoute,
       ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
       ["-"]
     );
@@ -687,7 +812,7 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       "Deneme bitmek uzere",
       "Deneme bitmek uzere. Sure dolunca sistem salt-okunur moda gecer ve yazma akisleri kapanir.",
       "Simdi yukselt",
-      "/portal/subscription",
+      portalSubscriptionRoute,
       ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
       ["-"]
     );
@@ -699,7 +824,7 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       "Deneme bitti (salt-okunur)",
       "Deneme suresi doldu. Goruntuleme acik, operasyon yazma akisleri kapali.",
       "Yukselt ve yazmayi ac",
-      "/portal/subscription",
+      portalSubscriptionRoute,
       ["Rapor ve verileri goruntuleme"],
       ["Desktop satis", "Stok mutasyonu", "Sync push", "Yeni cihaz aktivasyonu"]
     );
@@ -710,8 +835,8 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       "subscription_past_due",
       "Odeme gecikmis",
       "Abonelik odemesi gecikmis. Operasyon kisitlanmadan once odeme guncellenmelidir.",
-      "Odeme durumunu guncelle",
-      "/portal/billing",
+      "Odeme / yenileme adimini ac",
+      portalSubscriptionRoute,
       ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
       ["Yeni cihaz aktivasyonu"]
     );
@@ -723,7 +848,7 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       "Abonelik iptal",
       "Abonelik iptal durumunda. Donem sonunda operasyon yazma akisleri kapanabilir.",
       "Yenilemeyi tekrar ac",
-      "/portal/subscription",
+      portalSubscriptionRoute,
       ["Desktop satis", "Mobil operasyon", "Senkron yazma"],
       ["Yeni cihaz aktivasyonu"]
     );
@@ -735,7 +860,7 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
       "Askida / bloklu",
       "Hesap bloklu oldugu icin operasyon yazma akisleri kapali.",
       "Abonelik/Lisans durumunu kontrol et",
-      "/portal/subscription",
+      portalSubscriptionRoute,
       ["Rapor ve verileri goruntuleme"],
       ["Desktop satis", "Stok mutasyonu", "Sync push", "Cihaz aktivasyonu"]
     );
@@ -746,7 +871,7 @@ function resolvePortalTrialLifecycle(snapshot: CustomerPortalExperience | null):
     "Abonelik aktif",
     "Abonelik aktif. Tum izinli operasyon akislari acik.",
     "Abonelik yonet",
-    "/portal/subscription",
+    portalSubscriptionRoute,
     ["Desktop satis", "Mobil operasyon", "Cihaz aktivasyonu", "Senkron yazma"],
     ["-"]
   );

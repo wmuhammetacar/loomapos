@@ -10,8 +10,12 @@ public static class InternalAdminAuthEndpoints
 
         group.MapPost("/login", LoginAsync)
             .RequireRateLimiting("internal-auth");
-        group.MapGet("/me", MeAsync);
-        group.MapPost("/logout", LogoutAsync)
+
+        var authenticated = group.MapGroup(string.Empty)
+            .RequireInternalAdminAccess();
+
+        authenticated.MapGet("/me", MeAsync);
+        authenticated.MapPost("/logout", LogoutAsync)
             .RequireRateLimiting("internal-auth");
 
         return app;

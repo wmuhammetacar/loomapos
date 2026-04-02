@@ -73,7 +73,7 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationProviderRegistry, IntegrationProviderRegistry>();
         services.AddScoped<MockPaymentProvider>();
         services.AddScoped<StripePaymentProvider>();
-        services.AddScoped<IyzicoPaymentProvider>();
+        services.AddHttpClient<IyzicoPaymentProvider>();
         services.AddScoped<PayTrPaymentProvider>();
         services.AddScoped<IPaymentProvider>(sp => sp.GetRequiredService<MockPaymentProvider>());
         services.AddScoped<IEnumerable<IPaymentProvider>>(sp =>

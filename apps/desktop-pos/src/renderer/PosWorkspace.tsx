@@ -182,17 +182,17 @@ const lifecycleTextByState: Record<TrialLifecycleState, Pick<TrialLifecycleDescr
   trial_active: {
     label: "Deneme aktif",
     message: "Deneme aktif. Operasyon yazma islemleri acik. Deneme sonunda yukseltme yapilmazsa sistem salt-okunur moda gecer.",
-    nextAction: "Web portal > Abonelik adimindan plani simdiden secin"
+    nextAction: "Web portal > /portal/subscription adimindan plani simdiden secin"
   },
   trial_expiring: {
     label: "Deneme bitmek uzere",
     message: "Deneme bitmek uzere. Sure dolunca operasyon yazma kapanir ve sistem salt-okunur moda gecer.",
-    nextAction: "Kesinti olmamasi icin simdi yukseltin (Web portal > Abonelik)"
+    nextAction: "Kesinti olmamasi icin simdi yukseltin (Web portal > /portal/subscription)"
   },
   trial_expired: {
     label: "Deneme bitti / salt-okunur",
     message: "Deneme suresi doldu. Goruntuleme acik, operasyon yazma akisleri kapali.",
-    nextAction: "Yukseltin ve operasyon yazmayi tekrar acin (Web portal > Abonelik)"
+    nextAction: "Yukseltin ve operasyon yazmayi tekrar acin (Web portal > /portal/subscription)"
   },
   subscription_active: {
     label: "Abonelik aktif",
@@ -202,17 +202,17 @@ const lifecycleTextByState: Record<TrialLifecycleState, Pick<TrialLifecycleDescr
   subscription_past_due: {
     label: "Odeme gecikmis",
     message: "Abonelik odemesi gecikmis. Operasyon kisitlanmadan once odeme guncellenmelidir.",
-    nextAction: "Web portal > Faturalama adimindan odemeyi tamamlayin"
+    nextAction: "Web portal > /portal/subscription adimindan odeme/yenileme adimini tamamlayin"
   },
   subscription_canceled: {
     label: "Abonelik iptal",
     message: "Abonelik iptal durumunda. Donem sonunda operasyon yazma akisleri kapanabilir.",
-    nextAction: "Web portal > Abonelik adimindan yenilemeyi tekrar acin"
+    nextAction: "Web portal > /portal/subscription adimindan yenilemeyi tekrar acin"
   },
   suspended_blocked: {
     label: "Askida / bloklu",
     message: "Hesap bloklu oldugu icin operasyon yazma akisleri kapali.",
-    nextAction: "Web portal > Abonelik/Lisans durumunu kontrol edin veya destekle iletisime gecin"
+    nextAction: "Web portal > /portal/subscription adimindan abonelik/lisans durumunu kontrol edin"
   }
 };
 
@@ -1446,7 +1446,7 @@ export function PosWorkspace({ onOpenSettings, onLogout, onboardingHint, onSaleC
             <p className="muted-text">Kapali: {lifecycle.blockedActions.join(" • ")}</p>
             <p className="status-warn">Sonraki adim: {lifecycle.nextAction}</p>
             {lifecycle.state === "trial_expiring" || lifecycle.state === "trial_expired" || appInfo.license.requiresUpgradeAction ? (
-              <p className="status-warn">Yukseltme aksiyonu: Web portal / Abonelik. Indirme tek basina lisans acmaz.</p>
+              <p className="status-warn">Yukseltme aksiyonu: Web portal /portal/subscription. Indirme tek basina lisans acmaz.</p>
             ) : null}
           </section>
 
