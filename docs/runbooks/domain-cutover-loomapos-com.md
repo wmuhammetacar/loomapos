@@ -5,9 +5,9 @@ Bu runbook, Looma'nin tum yuzeylerini `loomapos.com` etrafinda tek bir productio
 ## 1) Canonical domain haritasi
 
 - Public web: `https://loomapos.com`
-- Customer portal / web-admin: `https://app.loomapos.com`
+- Customer portal / web-admin: `https://loomapos.com`
 - .NET API: `https://api.loomapos.com`
-- Internal control center: `https://control.loomapos.com`
+- Internal control center: `https://ops.loomapos.com`
 - Status/health UI: `https://status.loomapos.com`
 - Downloads (opsiyonel): `https://downloads.loomapos.com`
 
@@ -17,9 +17,8 @@ Ayni edge/load balancer'a cikacaksaniz CNAME/A kayitlari:
 
 - `@` -> public ingress
 - `www` -> `loomapos.com`
-- `app` -> app ingress
 - `api` -> api ingress
-- `control` -> control-center ingress
+- `ops` -> control-center ingress
 - `status` -> status ingress
 - `downloads` -> artifact/download ingress
 
@@ -29,15 +28,15 @@ Root `.env` / deployment secrets:
 
 - `LOOMAPOS_DOMAIN=loomapos.com`
 - `LOOMAPOS_PUBLIC_WEB_URL=https://loomapos.com`
-- `LOOMAPOS_WEB_ADMIN_URL=https://app.loomapos.com`
+- `LOOMAPOS_WEB_ADMIN_URL=https://loomapos.com`
 - `LOOMAPOS_API_BASE_URL=https://api.loomapos.com`
-- `LOOMAPOS_CONTROL_CENTER_URL=https://control.loomapos.com`
+- `LOOMAPOS_CONTROL_CENTER_URL=https://ops.loomapos.com`
 - `NEXT_PUBLIC_SITE_URL=https://loomapos.com`
 - `NEXT_PUBLIC_API_BASE_URL=https://api.loomapos.com`
 - `LOOMA_DOTNET_API_BASE_URL=https://api.loomapos.com`
-- `LOOMAPOS_WEB_BASE=https://app.loomapos.com`
+- `LOOMAPOS_WEB_BASE=https://loomapos.com`
 - `LOOMAPOS_API_BASE=https://api.loomapos.com`
-- `Cors__AllowedOrigins=https://loomapos.com,https://app.loomapos.com,https://control.loomapos.com,https://status.loomapos.com`
+- `Cors__AllowedOrigins=https://loomapos.com,https://ops.loomapos.com,https://status.loomapos.com`
 
 ## 4) TLS / guvenlik
 
@@ -51,8 +50,7 @@ Root `.env` / deployment secrets:
 curl -sS https://api.loomapos.com/health/live
 curl -sS https://api.loomapos.com/health/ready
 curl -I https://loomapos.com
-curl -I https://app.loomapos.com
-curl -I https://control.loomapos.com
+curl -I https://ops.loomapos.com
 ```
 
 Beklenen:

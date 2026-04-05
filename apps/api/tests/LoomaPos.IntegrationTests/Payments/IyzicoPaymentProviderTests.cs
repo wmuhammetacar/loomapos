@@ -49,8 +49,8 @@ public sealed class IyzicoPaymentProviderTests
                 "Starter Monthly",
                 "demo.owner@loomapos.local",
                 "Demo Owner",
-                "https://app.loomapos.com/success?checkout=test",
-                "https://app.loomapos.com/checkout?plan=starter&cycle=monthly&checkout=test",
+                "https://loomapos.com/success?checkout=test",
+                "https://loomapos.com/checkout?plan=starter&cycle=monthly&checkout=test",
                 "monthly",
                 "starter",
                 null),
@@ -62,7 +62,7 @@ public sealed class IyzicoPaymentProviderTests
         Assert.Equal("success", result.Status);
         Assert.Equal("https://sandbox-iyzico.example/checkout/token-42", result.CheckoutUrl);
         Assert.StartsWith("IYZWSv2 ", capturedAuthorization);
-        Assert.Contains("\"callbackUrl\":\"https://app.loomapos.com/success?checkout=test\"", capturedBody);
+        Assert.Contains("\"callbackUrl\":\"https://loomapos.com/success?checkout=test\"", capturedBody);
     }
 
     [Fact]

@@ -13,7 +13,7 @@ Bu dokuman, Looma'nin ilk pilot musterilerini kontrollu sekilde canliya almak ic
 ## 1) Launch checklist
 
 - [ ] `loomapos.com` DNS ve TLS tamamlandi.
-- [ ] `api.loomapos.com`, `app.loomapos.com`, `control.loomapos.com` resolve oluyor.
+- [ ] `api.loomapos.com`, `ops.loomapos.com`, `downloads.loomapos.com`, `status.loomapos.com` resolve oluyor.
 - [ ] Production env degiskenleri domain-cutover runbookuna gore guncellendi.
 - [ ] CORS allowlist sadece kanonik originleri iceriyor.
 - [ ] Pilot tenant listesi ve lisans durumu final onay aldi.
@@ -70,8 +70,9 @@ Ayrintili eskalasyon akisi: `docs/runbooks/pilot-support-escalation.md`
 curl -sS https://api.loomapos.com/health/live
 curl -sS https://api.loomapos.com/health/ready
 curl -I https://loomapos.com
-curl -I https://app.loomapos.com
-curl -I https://control.loomapos.com
+curl -I https://ops.loomapos.com
+curl -I https://downloads.loomapos.com
+curl -I https://status.loomapos.com
 ```
 
 ## Pilot support visibility (Control Center)

@@ -4,7 +4,7 @@ terraform {
 
 variable "domain_name" {
   type    = string
-  default = "app.loomapos.com"
+  default = "loomapos.com"
 }
 
 variable "release_channel" {
