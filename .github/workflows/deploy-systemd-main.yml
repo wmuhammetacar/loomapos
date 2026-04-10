@@ -25,5 +25,8 @@ jobs:
           script: |
             set -euo pipefail
             cd /root/loomapos
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
             chmod +x scripts/ops/deploy-systemd-selective.sh
             ./scripts/ops/deploy-systemd-selective.sh /root/loomapos main
