@@ -1,0 +1,8 @@
+node_modules
+.next
+npm-debug.log
+pnpm-debug.log
+.pnpm-store
+coverage
+playwright-report
+test-results
