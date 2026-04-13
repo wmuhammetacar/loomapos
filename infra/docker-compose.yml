@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loomapos}
       POSTGRES_DB: ${POSTGRES_DB:-loomapos}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -46,7 +46,7 @@ services:
     container_name: loomapos-redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -61,8 +61,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-loomapos}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-loomapos}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -78,8 +78,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
 
@@ -113,7 +113,7 @@ services:
       KC_METRICS_ENABLED: "true"
     command: ["start-dev", "--import-realm"]
     ports:
-      - "${KEYCLOAK_PORT:-8081}:8080"
+      - "127.0.0.1:${KEYCLOAK_PORT:-8081}:8080"
     volumes:
       - ./infra/keycloak/realm-loomapos.json:/opt/keycloak/data/import/realm-loomapos.json:ro
 
@@ -125,8 +125,8 @@ services:
       - ./infra/observability/tempo/tempo.yaml:/etc/tempo.yaml:ro
       - tempo_data:/var/tempo
     ports:
-      - "${TEMPO_PORT:-3200}:3200"
-      - "4317:4317"
+      - "127.0.0.1:${TEMPO_PORT:-3200}:3200"
+      - "127.0.0.1:4317:4317"
     restart: unless-stopped
 
   loki:
@@ -137,7 +137,7 @@ services:
       - ./infra/observability/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
     ports:
-      - "${LOKI_PORT:-3110}:3100"
+      - "127.0.0.1:${LOKI_PORT:-3110}:3100"
     restart: unless-stopped
 
   otel-collector:
@@ -147,8 +147,8 @@ services:
     volumes:
       - ./infra/observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
     ports:
-      - "${OTEL_COLLECTOR_PORT:-4318}:4318"
-      - "9464:9464"
+      - "127.0.0.1:${OTEL_COLLECTOR_PORT:-4318}:4318"
+      - "127.0.0.1:9464:9464"
     depends_on:
       - loki
       - tempo
@@ -164,7 +164,7 @@ services:
       - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       - otel-collector
     restart: unless-stopped
@@ -182,7 +182,7 @@ services:
       - ./infra/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "${GRAFANA_PORT:-3001}:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
     depends_on:
       - prometheus
       - loki

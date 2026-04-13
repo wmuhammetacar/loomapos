@@ -1,0 +1,110 @@
+name: phase4-production-cicd
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: phase4-production-cicd
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build, Test, Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        run: pnpm --filter @loomapos/web-admin build
+
+      - name: Build ops
+        run: pnpm --filter @loomapos/control-center build
+
+      - name: Build desktop
+        run: pnpm --filter @loomapos/desktop-pos build
+
+      - name: Dotnet restore + build
+        working-directory: apps/api
+        run: |
+          dotnet restore src/LoomaPos.Api/LoomaPos.Api.csproj
+          dotnet build src/LoomaPos.Api/LoomaPos.Api.csproj -c Release --no-restore
+
+      - name: Run tests
+        run: |
+          dotnet test apps/api/tests/LoomaPos.UnitTests/LoomaPos.UnitTests.csproj -c Release --no-build
+          pnpm --filter @loomapos/desktop-pos smoke
+
+      - name: Docker build api
+        run: docker build -f apps/api/src/LoomaPos.Api/Dockerfile -t loomapos-api:${{ github.sha }} apps/api
+
+      - name: Docker build web
+        run: docker build -f apps/web-admin/Dockerfile -t loomapos-web:${{ github.sha }} apps/web-admin
+
+      - name: Docker build ops
+        run: docker build -f apps/control-center/Dockerfile -t loomapos-ops:${{ github.sha }} apps/control-center
+
+  deploy:
+    name: Production Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+      - ci
+
+    steps:
+      - name: Deploy with SSH + server-side script
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 30m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            REPO_DIR="${{ secrets.REPO_DIR }}"
+
+            if [ -z "$REPO_DIR" ]; then
+              REPO_DIR="/root/loomapos"
+            fi
+
+            cd "$REPO_DIR"
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+
+            chmod +x "$REPO_DIR/deploy.sh"
+            ln -sfn "$REPO_DIR/deploy.sh" /root/deploy.sh
+
+            DEPLOY_REPO_DIR="$REPO_DIR" \
+            DEPLOY_BRANCH="main" \
+            DEPLOY_HEALTH_URL="https://api.loomapos.com/health/live" \
+            DEPLOY_MODE="rolling" \
+            /root/deploy.sh

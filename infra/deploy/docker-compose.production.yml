@@ -15,3 +15,11 @@ services:
       resources:
         limits:
           memory: 1G
+
+  control-center:
+    environment:
+      NEXT_PUBLIC_ENVIRONMENT: production
+    deploy:
+      resources:
+        limits:
+          memory: 1G
