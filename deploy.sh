@@ -54,11 +54,8 @@ stop_legacy_systemd_services() {
   fi
 
   for service in loomapos-api loomapos-web loomapos-ops; do
-    if systemctl list-unit-files --type=service --no-pager | awk "{print \$1}" | grep -Fxq "${service}.service"; then
-      if systemctl is-active --quiet "$service"; then
-        echo "Stopping legacy systemd service: $service"
-        systemctl stop "$service"
-      fi
+    if systemctl stop "$service" >/dev/null 2>&1; then
+      echo "Stopped legacy systemd service: $service"
     fi
   done
 }
