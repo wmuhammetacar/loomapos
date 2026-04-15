@@ -46,6 +46,23 @@ rolling_deploy() {
   compose up -d --build --remove-orphans
 }
 
+stop_legacy_systemd_services() {
+  local service
+
+  if ! command -v systemctl >/dev/null 2>&1; then
+    return 0
+  fi
+
+  for service in loomapos-api loomapos-web loomapos-ops; do
+    if systemctl list-unit-files --type=service --no-pager | awk "{print \$1}" | grep -Fxq "${service}.service"; then
+      if systemctl is-active --quiet "$service"; then
+        echo "Stopping legacy systemd service: $service"
+        systemctl stop "$service"
+      fi
+    fi
+  done
+}
+
 cd "$REPO_DIR"
 
 PREVIOUS_HEAD="$(git rev-parse HEAD)"
@@ -56,9 +73,10 @@ git checkout "$BRANCH"
 
 echo "Resetting local repository state before pull"
 git reset --hard HEAD
-git clean -fd
 
 git pull --ff-only origin "$BRANCH"
+
+stop_legacy_systemd_services
 
 if [[ "$DEPLOY_MODE" == "full" ]]; then
   full_recreate_deploy
