@@ -53,6 +53,11 @@ PREVIOUS_HEAD="$(git rev-parse HEAD)"
 echo "Updating repository from origin/$BRANCH"
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"
+
+echo "Resetting local repository state before pull"
+git reset --hard HEAD
+git clean -fd
+
 git pull --ff-only origin "$BRANCH"
 
 if [[ "$DEPLOY_MODE" == "full" ]]; then
